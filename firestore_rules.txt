@@ -1,0 +1,173 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function roleOf(uid) { return get(/databases/$(database)/documents/users/$(uid)).data.role; }
+    function isAdmin() { return isSignedIn() && roleOf(request.auth.uid) == 'admin'; }
+    function isStaff() { return isSignedIn() && roleOf(request.auth.uid) == 'staff'; }
+    function isCustomer() { return isSignedIn() && roleOf(request.auth.uid) == 'customer'; }
+
+    // Users collection
+    match /users/{uid} {
+      // Owner can read/create; admins/staff have full access
+      allow read: if isOwner(uid) || isAdmin() || isStaff();
+      allow create: if isOwner(uid) || isAdmin() || isStaff();
+
+      // Owner can update their own profile fields (fullName, phone, profileImageUrl, emailVerified, isVerified, verifiedAt)
+      // Admins/staff can update any user
+      // Allow verification updates during signup (user might be authenticated but rules should allow)
+      allow update: if (isOwner(uid) &&
+                        (request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['emailVerified']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['isVerified']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['fullName']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['phone']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['profileImageUrl']) ||
+                         // Allow verification fields together (for OTP verification)
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['emailVerified', 'isVerified']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['emailVerified', 'isVerified', 'verifiedAt']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['emailVerified', 'verifiedAt']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['isVerified', 'verifiedAt']) ||
+                         // Profile field combinations
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['fullName', 'phone']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['fullName', 'profileImageUrl']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['phone', 'profileImageUrl']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['fullName', 'phone', 'profileImageUrl'])))
+                    || isAdmin() || isStaff();
+      
+      // Allow set operations for verification (during signup, document might not exist)
+      allow create: if isOwner(uid) || isAdmin() || isStaff();
+
+      allow delete: if isAdmin();
+
+      // Cart subcollection - customers can manage their own cart
+      match /cart/{cartId} {
+        allow read, write: if isOwner(uid) || isAdmin() || isStaff();
+      }
+
+      // Addresses subcollection
+      match /addresses/{addrId} {
+        allow read, write: if isOwner(uid) || isAdmin() || isStaff();
+      }
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      // Customers can create orders with their own userId
+      allow create: if isSignedIn() && 
+                       request.resource.data.customerId == request.auth.uid;
+      
+      // Customers can read their own orders
+      // Staff/Admin can read all orders
+      allow read: if isAdmin() || isStaff() || 
+                     (isSignedIn() && resource.data.customerId == request.auth.uid);
+      
+      // Only staff/admin can update orders
+      allow update: if isAdmin() || isStaff();
+      
+      // Only admin can delete orders
+      allow delete: if isAdmin();
+    }
+
+    // Notifications collection
+    match /notifications/{noteId} {
+      // Anyone can create notifications (for order notifications)
+      allow create: if isSignedIn();
+      
+      // Users can read their own notifications
+      // Staff/Admin can read all notifications
+      allow read: if isAdmin() || isStaff() || 
+                     (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      // Users can update their own notifications (mark as read)
+      // Staff/Admin can update any notification
+      allow update: if isAdmin() || isStaff() || 
+                       (isSignedIn() && resource.data.userId == request.auth.uid);
+      
+      // Only admin can delete notifications
+      allow delete: if isAdmin();
+    }
+
+    // Quotations collection
+    match /quotations/{quotationId} {
+      // Customers can create quotations with their own customerId
+      allow create: if isSignedIn() && 
+                       request.resource.data.customerId == request.auth.uid;
+      
+      // Customers can read their own quotations
+      // Staff/Admin can read all quotations
+      allow read: if isAdmin() || isStaff() || 
+                     (isSignedIn() && resource.data.customerId == request.auth.uid);
+      
+      // Only staff/admin can update quotations
+      allow update: if isAdmin() || isStaff();
+      
+      // Only admin can delete quotations
+      allow delete: if isAdmin();
+    }
+
+    // Chats collection
+    match /chats/{chatId} {
+      allow read, write: if isSignedIn() &&
+        (request.auth.uid in resource.data.participants ||
+         request.auth.uid in request.resource.data.participants);
+
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn() &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      }
+    }
+
+    // OTP and Email collections (if you still use them)
+    match /otps/{email} {
+      allow create: if
+        request.resource.data.email == email &&
+        request.resource.data.code is string &&
+        request.resource.data.code.size() == 6 &&
+        request.resource.data.expiresAt is timestamp &&
+        request.resource.data.expiresAt > request.time;
+      allow delete: if request.auth != null && request.auth.token.email == email;
+      allow read, update: if false;
+    }
+
+    match /mail/{id} {
+      allow create: if
+        (
+          request.resource.data.to is string ||
+          (request.resource.data.to is list && request.resource.data.to.size() > 0)
+        ) &&
+        request.resource.data.message is map &&
+        request.resource.data.message.subject is string &&
+        request.resource.data.message.text is string &&
+        request.resource.data.message.html is string;
+      allow read, update, delete: if false;
+    }
+
+    // Products collection - anyone can read, only admin/staff can write
+    match /products/{productId} {
+      allow read: if true; // Anyone can read products
+      allow create, update, delete: if isAdmin() || isStaff();
+    }
+
+    // Default deny all other collections
+    match /{document=**} { 
+      allow read, write: if false; 
+    }
+  }
+}
+

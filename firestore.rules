@@ -1,0 +1,334 @@
+rules_version = '2';
+
+service cloud.firestore {
+
+  match /databases/{database}/documents {
+
+    // ---------- Helper predicates (use auth custom claims for roles) ----------
+    function isSignedIn() { 
+      return request.auth != null; 
+    }
+
+    function isAdmin() { 
+      return isSignedIn() && (
+        request.auth.token.role == 'admin' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }  
+
+    function isStaff() { 
+      return isSignedIn() && (
+        request.auth.token.role == 'staff' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'staff')
+      );
+    }
+
+    function isCustomer() { 
+      return isSignedIn() && (
+        request.auth.token.role == 'customer' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'customer')
+      );
+    }
+
+    function isOwner(uid) { 
+      return isSignedIn() && request.auth.uid == uid; 
+    }
+
+    // ---------- Users collection ----------
+    // Expected structure:
+    //   name, email, role: "customer" | "staff" | "admin"
+    //   phoneNumber? (optional), createdAt, avatar? (optional)
+    match /users/{uid} {
+      // Reading: owner, staff, admin
+      allow read: if isOwner(uid) || isStaff() || isAdmin();
+
+      // Create: only authenticated user can create their own profile document
+      allow create: if isSignedIn() && request.auth.uid == uid;
+
+      // Update: Owner may update their profile but NOT the 'role' field
+      // Admin may update any user document.
+      allow update: if (
+        // owner can update only allowed fields (no role escalation)
+        // Check if 'role' is in the list of fields being changed
+        (isOwner(uid) && !('role' in request.resource.data.diff(resource.data).affectedKeys()))
+        || isAdmin()
+      );
+
+      // Delete: only admin
+      allow delete: if isAdmin();
+
+      // Subcollections (addresses, settings) - owner OR staff/admin
+      match /addresses/{addrId} {
+        allow read, write: if isOwner(uid) || isStaff() || isAdmin();
+      }
+
+      match /settings/{settingId} {
+        allow read, write: if isOwner(uid) || isStaff() || isAdmin();
+      }
+    }
+
+    // ---------- Orders collection ----------
+    // Expected structure:
+    //   customerId, customerName, customerEmail
+    //   items: [{ productId, productName, productImage, quantity, length?, width?, price }]
+    //   totalPrice, status, paymentMethod, createdAt
+    //   fullName, phoneNumber, completeAddress, landmark?, mapLink?
+    //   deliveryInfo: { fullName, phone, address, landmark?, mapLink? }
+    //   quotationId? (if converted from quotation)
+    match /orders/{orderId} {
+      // Create: any signed-in user can create an order
+      // MUST ensure customerId matches authenticated user (prevents impersonation)
+      // MUST validate totalPrice is a number > 0
+      allow create: if isSignedIn() 
+                     && request.resource.data.customerId == request.auth.uid
+                     && request.resource.data.totalPrice is number
+                     && request.resource.data.totalPrice > 0;
+
+      // Read: customers can read their own orders, admin/staff can read all
+      allow read: if isSignedIn() && 
+                  (isAdmin() || isStaff() || request.auth.uid == resource.data.customerId);
+
+      // Update: customers can update their own orders, admin/staff can update all
+      // Staff/admin can update status, delivery schedule, etc.
+      allow update: if isSignedIn() &&
+                    (isAdmin() || isStaff() || request.auth.uid == resource.data.customerId);
+
+      // Delete: only admin
+      allow delete: if isAdmin();
+
+      match /rating/{ratingId} {
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid
+                      && request.resource.data.stars is int
+                      && request.resource.data.stars >= 1
+                      && request.resource.data.stars <= 5
+                      && (
+                        !('imageUrl' in request.resource.data)
+                        || request.resource.data.imageUrl is string
+                      );
+
+        allow read: if isAdmin()
+                    || isStaff()
+                    || (
+                      isSignedIn()
+                      && get(/databases/$(database)/documents/orders/$(orderId)).data.customerId == request.auth.uid
+                    );
+      }
+    }
+
+    // ---------- Notifications ----------
+    // Expected structure:
+    //   userId (recipient), title, message, type
+    //   orderId? (optional), quotationId? (optional)
+    //   read: false, createdAt
+    match /notifications/{noteId} {
+      // Create: 
+      // - Staff/admin can create any notification (for customers, staff, or other admins)
+      // - Customers can create 'new_quotation' type notifications (for quotation requests)
+      // - Customers can create order-related notifications (new_order) when placing orders
+      //   These are created by staff/admin when updating orders, or by customers when placing orders
+      allow create: if isStaff() || isAdmin() || 
+                    (
+                      isSignedIn() 
+                      && (
+                        // Quotation notifications
+                        (request.resource.data.type == 'new_quotation' && request.resource.data.quotationId is string)
+                        // Order notifications - allow if userId, title, message, and type are present
+                        // createdAt can be FieldValue.serverTimestamp() which is not a timestamp in request
+                        || (
+                          request.resource.data.type in ['new_order', 'order_paid', 'order_shipped', 'order_received', 'order_completed']
+                          && request.resource.data.userId is string
+                          && request.resource.data.title is string
+                          && request.resource.data.message is string
+                        )
+                      )
+                    );
+
+      // Read: recipients, staff, admin
+      allow read: if isAdmin() || isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      // Update: recipients can mark as read (limit to 'read' field), staff/admin can update all
+      allow update: if isAdmin() || isStaff() ||
+                    (
+                      isSignedIn()
+                      && resource.data.userId == request.auth.uid
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
+                    );
+
+      // Delete: only admin
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Quotations ----------
+    // Expected structure:
+    //   customerId, customerName, customerEmail
+    //   phoneNumber, completeAddress, landmark?, mapLink?
+    //   items: [{ productId, productName, productImage, quantity, length?, width?, price? }]
+    //   status: "pending" | "quoted" | "accepted" | "rejected"
+    //   adminTotalPrice? (set by staff/admin)
+    //   createdAt, updatedAt
+    match /quotations/{quotationId} {
+      // Customers can create quotations for themselves
+      // Support both userId and customerId for backward compatibility
+      allow create: if isSignedIn() && (
+        request.resource.data.userId == request.auth.uid ||
+        request.resource.data.customerId == request.auth.uid
+      )
+      // Ensure items is an array if provided
+      && (!('items' in request.resource.data) || request.resource.data.items is list)
+      // Initial status should be 'pending' if provided
+      && (!('status' in request.resource.data) || request.resource.data.status in ['pending', 'quoted', 'accepted', 'rejected']);
+
+      // Read: owner, staff, admin
+      // Support both userId and customerId for backward compatibility
+      allow read: if isAdmin() || isStaff() || (
+        isSignedIn() && (
+          resource.data.userId == request.auth.uid ||
+          resource.data.customerId == request.auth.uid
+        )
+      );
+
+      // Update: only staff/admin (they send / adjust quotes)
+      // Staff/admin can update: status, adminTotalPrice, items[], and all other fields
+      allow update: if isAdmin() || isStaff();
+
+      // Delete: admin only
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Chats & Messages ----------
+    // Expected structure:
+    //   /chats/{chatId}: { participants: [uid1, uid2, ...] }
+    //   /chats/{chatId}/messages/{messageId}: { message, senderId, receiverId, timestamp, read }
+    match /chats/{chatId} {
+      // Create: allow if participants is a list, includes caller, and at least 2 participants
+      allow create: if isSignedIn()
+                    && request.resource.data.participants is list
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() >= 2;
+
+      // Read: only participants, staff, admin
+      allow read: if (
+        (isSignedIn() && resource.data.participants is list && request.auth.uid in resource.data.participants)
+        || isStaff()
+        || isAdmin()
+      );
+
+      // Update: only participants (e.g., update metadata) or staff/admin
+      allow update: if (
+        (isSignedIn() && resource.data.participants is list && request.auth.uid in resource.data.participants)
+        || isStaff()
+        || isAdmin()
+      );
+
+      // Messages subcollection: check the parent chat's participants with get()
+      // Supports: message, senderId, receiverId, timestamp, read
+      match /messages/{messageId} {
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+                      // Ensure senderId matches authenticated user
+                      && request.resource.data.senderId == request.auth.uid
+                      // Allow either text or image payloads
+                      && (
+                        (request.resource.data.text is string && request.resource.data.text != null)
+                        || (request.resource.data.message is string && request.resource.data.message != null)
+                        || (request.resource.data.imageUrl is string && request.resource.data.imageUrl != null)
+                      );
+
+        allow read: if (
+          isSignedIn()
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        ) || isStaff() || isAdmin();
+
+        // Update/delete: only message author or staff/admin
+        allow update, delete: if (
+          (isSignedIn() && (resource.data.senderId == request.auth.uid || resource.data.fromUserId == request.auth.uid))
+          || isStaff()
+          || isAdmin()
+        );
+      }
+    }
+
+    // ---------- OTPs (one-time codes) ----------
+    // Store ephemeral OTPs keyed by email (or token). Create allowed under strict validation.
+    match /otps/{email} {
+      allow create: if
+        // basic structure & contents
+        request.resource.data.email == email
+        && request.resource.data.code is string
+        && request.resource.data.code.size() == 6
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time;
+      
+      // Only the authenticated owner (or admin) can delete their otp
+      allow delete: if (isSignedIn() && request.auth.token.email == email) || isAdmin();
+      allow read, update: if false;
+    }
+
+    // ---------- Mail (server-only) ----------
+    // Prevent client-side writes to mail - must be server (Admin SDK)
+    match /mail/{docId} {
+      allow create: if false;
+      allow read, update, delete: if false;
+    }
+
+    // ---------- Products ----------
+    match /products/{productId} {
+      // Publicly readable
+      allow read: if true;
+
+      // Only staff/admin can create/update/delete products
+      allow create, update, delete: if isStaff() || isAdmin();
+    }
+
+    // ---------- Business Settings ----------
+    match /business_settings/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- Ratings collection ----------
+    match /ratings/{ratingId} {
+      // Customers can create ratings for their orders
+      allow create: if isSignedIn()
+                     && request.resource.data.customerId == request.auth.uid
+                     && request.resource.data.orderId is string
+                     && request.resource.data.rating is int
+                     && request.resource.data.rating >= 1
+                     && request.resource.data.rating <= 5;
+
+      // Read: owner, staff, admin
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      // Update/Delete: only admin
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- Order status history (audit) ----------
+    match /order_status_history/{docId} {
+      // Only staff/admin should create audit entries (server or functions can also write using Admin SDK)
+      allow create: if isStaff() || isAdmin();
+
+      // Read: admin, staff, or the owner of the referenced order (owner check via orderId)
+      allow read: if (
+        isAdmin()
+        || isStaff()
+        || (isSignedIn() && resource.data.orderId is string
+            && get(/databases/$(database)/documents/orders/$(resource.data.orderId)).data.customerId == request.auth.uid)
+      );
+
+      allow update, delete: if false; // keep audit immutable
+    }
+
+    // ---------- Default: deny everything else ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,274 @@
+// ============================================
+// FIRESTORE RULES - TWO VERSIONS
+// ============================================
+//
+// VERSION A: Using Auth Custom Claims (Preferred)
+// VERSION B: Using Users Collection Role Lookup (Fallback)
+//
+// ============================================
+
+// ---------- VERSION A: Custom Claims (Preferred) ----------
+// This version uses Firebase Auth custom claims set by Cloud Functions
+// More performant as it doesn't require Firestore reads for role checks
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if user is admin (using custom claims)
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.role == 'admin';
+    }
+
+    // Helper: Check if user is staff (using custom claims)
+    function isStaff() {
+      return isSignedIn() && request.auth.token.role == 'staff';
+    }
+
+    // Helper: Check if user is customer (using custom claims)
+    function isCustomer() {
+      return isSignedIn() && request.auth.token.role == 'customer';
+    }
+
+    // Orders collection
+    match /orders/{orderId} {
+      // Create: customer must create their own order
+      allow create: if isSignedIn()
+                     && request.resource.data.customerId == request.auth.uid
+                     && ( !('status' in request.resource.data) || 
+                          request.resource.data.status in ['to_pay', 'pending_payment'] )
+                     && request.resource.data.totalAmount is number;
+
+      // Read: owner, staff, admin
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      // Update:
+      // - Staff/Admin can update anything
+      // - Customer can update status for: paid, awaiting_installation, installed, completed
+      //   and can add rating/review
+      allow update: if isAdmin() || isStaff() ||
+                    (
+                      isSignedIn()
+                      && resource.data.customerId == request.auth.uid
+                      && (
+                        // Status updates
+                        (request.resource.data.status in ['paid', 'awaiting_installation', 'installed', 'completed']
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidAt', 'deliveredAt', 'installedAt', 'updatedAt']))
+                        // Rating/review updates
+                        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'review', 'customerHasRated', 'ratedAt', 'updatedAt'])
+                            && (!('rating' in request.resource.data) || request.resource.data.rating is int)
+                            && (!('review' in request.resource.data) || request.resource.data.review is string))
+                      )
+                    );
+
+      // Delete: only admin
+      allow delete: if isAdmin();
+    }
+
+    // Ratings collection
+    match /ratings/{ratingId} {
+      allow create: if isSignedIn()
+                     && request.resource.data.customerId == request.auth.uid
+                     && request.resource.data.orderId is string
+                     && request.resource.data.rating is int
+                     && request.resource.data.rating >= 1
+                     && request.resource.data.rating <= 5;
+
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      allow update, delete: if isAdmin();
+    }
+
+    // Notifications collection
+    match /notifications/{noteId} {
+      // Customers can create order-related notifications
+      allow create: if isStaff() || isAdmin() || 
+                    (
+                      isSignedIn() 
+                      && (
+                        (request.resource.data.type == 'new_quotation' && request.resource.data.quotationId is string)
+                        || (request.resource.data.type in ['order_paid', 'order_received', 'order_rated', 'reschedule_request', 'installed']
+                            && request.resource.data.orderId is string
+                            && request.resource.data.toRole in ['staff', 'admin'])
+                      )
+                    );
+
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow update: if isAdmin() || isStaff() ||
+                    (
+                      isSignedIn()
+                      && resource.data.userId == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['read'])
+                    );
+
+      allow delete: if isAdmin();
+    }
+
+    // Chats collection
+    match /chats/{chatId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.participants is list
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() >= 2;
+
+      allow read: if (
+        (isSignedIn() && resource.data.participants is list && request.auth.uid in resource.data.participants)
+        || isStaff()
+        || isAdmin()
+      );
+
+      match /messages/{messageId} {
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+
+        allow read: if (
+          isSignedIn()
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        ) || isStaff() || isAdmin();
+      }
+    }
+  }
+}
+
+// ---------- VERSION B: Users Collection Lookup (Fallback) ----------
+// This version checks roles from Firestore users collection
+// Use this if custom claims are not available
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper: Get user role from Firestore
+    function getUserRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    // Helper: Check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: Check if user is admin (using Firestore lookup)
+    function isAdmin() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'admin';
+    }
+
+    // Helper: Check if user is staff (using Firestore lookup)
+    function isStaff() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'staff';
+    }
+
+    // Helper: Check if user is customer (using Firestore lookup)
+    function isCustomer() {
+      return isSignedIn() && getUserRole(request.auth.uid) == 'customer';
+    }
+
+    // Orders collection (same as Version A)
+    match /orders/{orderId} {
+      allow create: if isSignedIn()
+                     && request.resource.data.customerId == request.auth.uid
+                     && ( !('status' in request.resource.data) || 
+                          request.resource.data.status in ['to_pay', 'pending_payment'] )
+                     && request.resource.data.totalAmount is number;
+
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      allow update: if isAdmin() || isStaff() ||
+                    (
+                      isSignedIn()
+                      && resource.data.customerId == request.auth.uid
+                      && (
+                        (request.resource.data.status in ['paid', 'awaiting_installation', 'installed', 'completed']
+                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'paidAt', 'deliveredAt', 'installedAt', 'updatedAt']))
+                        || (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['rating', 'review', 'customerHasRated', 'ratedAt', 'updatedAt'])
+                            && (!('rating' in request.resource.data) || request.resource.data.rating is int)
+                            && (!('review' in request.resource.data) || request.resource.data.review is string))
+                      )
+                    );
+
+      allow delete: if isAdmin();
+    }
+
+    // Ratings collection (same as Version A)
+    match /ratings/{ratingId} {
+      allow create: if isSignedIn()
+                     && request.resource.data.customerId == request.auth.uid
+                     && request.resource.data.orderId is string
+                     && request.resource.data.rating is int
+                     && request.resource.data.rating >= 1
+                     && request.resource.data.rating <= 5;
+
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.customerId == request.auth.uid);
+
+      allow update, delete: if isAdmin();
+    }
+
+    // Notifications collection (same as Version A)
+    match /notifications/{noteId} {
+      allow create: if isStaff() || isAdmin() || 
+                    (
+                      isSignedIn() 
+                      && (
+                        (request.resource.data.type == 'new_quotation' && request.resource.data.quotationId is string)
+                        || (request.resource.data.type in ['order_paid', 'order_received', 'order_rated', 'reschedule_request', 'installed']
+                            && request.resource.data.orderId is string
+                            && request.resource.data.toRole in ['staff', 'admin'])
+                      )
+                    );
+
+      allow read: if isAdmin() || isStaff() || 
+                    (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow update: if isAdmin() || isStaff() ||
+                    (
+                      isSignedIn()
+                      && resource.data.userId == request.auth.uid
+                      && request.resource.data.keys().hasOnly(['read'])
+                    );
+
+      allow delete: if isAdmin();
+    }
+
+    // Chats collection (same as Version A)
+    match /chats/{chatId} {
+      allow create: if isSignedIn()
+                    && request.resource.data.participants is list
+                    && request.auth.uid in request.resource.data.participants
+                    && request.resource.data.participants.size() >= 2;
+
+      allow read: if (
+        (isSignedIn() && resource.data.participants is list && request.auth.uid in resource.data.participants)
+        || isStaff()
+        || isAdmin()
+      );
+
+      match /messages/{messageId} {
+        allow create: if isSignedIn()
+                      && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+                      && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+
+        allow read: if (
+          isSignedIn()
+          && get(/databases/$(database)/documents/chats/$(chatId)).data.participants is list
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+        ) || isStaff() || isAdmin();
+      }
+    }
+  }
+}
+

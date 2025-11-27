@@ -1,0 +1,35 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs18"
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "fleximart-system",
+          "appId": "1:201166763483:android:d98914bf1dd8eadf41e3fe",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "fleximart-system",
+          "configurations": {
+            "android": "1:201166763483:android:d98914bf1dd8eadf41e3fe",
+            "ios": "1:201166763483:ios:a62d5cd34ec6cdec41e3fe",
+            "macos": "1:201166763483:ios:a62d5cd34ec6cdec41e3fe",
+            "web": "1:201166763483:web:73e93f3e12bbc99341e3fe",
+            "windows": "1:201166763483:web:4da3b9a8968ea95a41e3fe"
+          }
+        }
+      }
+    }
+  }
+}

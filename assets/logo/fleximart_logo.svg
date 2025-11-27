@@ -1,0 +1,174 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Gradient for F letter: Deep Blue to Bright Green -->
+    <linearGradient id="fGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#1e3a8a;stop-opacity:1" />
+      <stop offset="30%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#22c55e;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Gradient for M letter: Yellow through Orange to Red -->
+    <linearGradient id="mGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#fbbf24;stop-opacity:1" />
+      <stop offset="40%" style="stop-color:#f97316;stop-opacity:1" />
+      <stop offset="70%" style="stop-color:#ef4444;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#dc2626;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Glossy highlight effect for depth -->
+    <linearGradient id="gloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:0.5" />
+      <stop offset="30%" style="stop-color:#ffffff;stop-opacity:0.2" />
+      <stop offset="70%" style="stop-color:#ffffff;stop-opacity:0.05" />
+      <stop offset="100%" style="stop-color:#ffffff;stop-opacity:0" />
+    </linearGradient>
+    
+    <!-- Shadow filter for 3D depth -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.5"/>
+      <feOffset dx="1.5" dy="2.5" result="offsetblur"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="0.35"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- White circle background -->
+  <circle cx="60" cy="60" r="58" fill="#ffffff" stroke="none"/>
+  
+  <!-- F Letter - Ribbon style with smooth curves, left side -->
+  <path d="M 25 20 
+           C 20 15, 18 25, 20 30
+           L 20 35
+           C 20 40, 25 42, 30 40
+           L 35 40
+           L 35 30
+           C 35 25, 40 23, 45 25
+           L 50 25
+           C 55 25, 58 20, 55 15
+           L 50 10
+           C 45 8, 40 10, 38 15
+           L 35 15
+           C 30 15, 25 18, 25 20
+           Z
+           M 20 45
+           C 18 50, 20 55, 25 55
+           L 40 55
+           C 45 55, 48 50, 45 45
+           L 40 45
+           C 35 45, 30 45, 25 45
+           Z" 
+        fill="url(#fGradient)" 
+        filter="url(#shadow)"
+        stroke="none"/>
+  
+  <!-- F Letter Glossy Highlight -->
+  <path d="M 25 20 
+           C 20 15, 18 25, 20 30
+           L 20 35
+           C 20 40, 25 42, 30 40
+           L 35 40
+           L 35 30
+           C 35 25, 40 23, 45 25
+           L 50 25
+           C 55 25, 58 20, 55 15
+           L 50 10
+           C 45 8, 40 10, 38 15
+           L 35 15
+           C 30 15, 25 18, 25 20
+           Z
+           M 20 45
+           C 18 50, 20 55, 25 55
+           L 40 55
+           C 45 55, 48 50, 45 45
+           L 40 45
+           C 35 45, 30 45, 25 45
+           Z" 
+        fill="url(#gloss)" 
+        stroke="none"/>
+  
+  <!-- M Letter - Ribbon style, right side, intertwined with F -->
+  <path d="M 70 15
+           C 75 10, 80 12, 82 18
+           L 82 25
+           C 82 30, 78 32, 75 30
+           L 72 30
+           L 72 45
+           C 72 50, 75 52, 78 50
+           L 85 50
+           C 90 50, 93 45, 90 40
+           L 88 35
+           C 88 30, 92 28, 95 30
+           L 100 30
+           C 105 30, 108 25, 105 20
+           L 100 15
+           C 95 13, 90 15, 88 20
+           L 85 20
+           C 80 20, 75 18, 70 15
+           Z
+           M 72 55
+           C 70 60, 72 65, 77 65
+           L 92 65
+           C 97 65, 100 60, 97 55
+           L 92 55
+           C 87 55, 82 55, 77 55
+           Z" 
+        fill="url(#mGradient)" 
+        filter="url(#shadow)"
+        stroke="none"/>
+  
+  <!-- M Letter Glossy Highlight -->
+  <path d="M 70 15
+           C 75 10, 80 12, 82 18
+           L 82 25
+           C 82 30, 78 32, 75 30
+           L 72 30
+           L 72 45
+           C 72 50, 75 52, 78 50
+           L 85 50
+           C 90 50, 93 45, 90 40
+           L 88 35
+           C 88 30, 92 28, 95 30
+           L 100 30
+           C 105 30, 108 25, 105 20
+           L 100 15
+           C 95 13, 90 15, 88 20
+           L 85 20
+           C 80 20, 75 18, 70 15
+           Z
+           M 72 55
+           C 70 60, 72 65, 77 65
+           L 92 65
+           C 97 65, 100 60, 97 55
+           L 92 55
+           C 87 55, 82 55, 77 55
+           Z" 
+        fill="url(#gloss)" 
+        stroke="none"/>
+  
+  <!-- Intertwining connection detail in center -->
+  <path d="M 50 40
+           C 55 38, 60 40, 65 38
+           C 70 40, 72 42, 70 45
+           C 65 47, 60 45, 55 47
+           C 50 45, 48 42, 50 40
+           Z" 
+        fill="url(#fGradient)" 
+        opacity="0.7"
+        stroke="none"/>
+  
+  <path d="M 50 40
+           C 55 38, 60 40, 65 38
+           C 70 40, 72 42, 70 45
+           C 65 47, 60 45, 55 47
+           C 50 45, 48 42, 50 40
+           Z" 
+        fill="url(#mGradient)" 
+        opacity="0.5"
+        stroke="none"/>
+</svg>

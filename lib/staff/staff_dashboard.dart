@@ -14,22 +14,19 @@ import '../utils/price_formatter.dart';
 import '../services/notification_service.dart';
 import '../utils/role_helper.dart';
 
-// Official theme colors matching Sign In/Sign Up screens
-// Staff uses slightly different but harmonious shades
+// Official theme colors - New Theme
+// Staff uses same palette as admin
 class StaffThemeColors {
   StaffThemeColors._();
-  // Staff uses slightly lighter/more vibrant red tones
-  static const Color crimsonRed = Color(
-    0xFFE01A52,
-  ); // Slightly brighter than admin
-  static const Color deepBerryRed = Color(0xFF9A0038); // Slightly lighter berry
-  static const Color darkWinePurple = Color(
-    0xFF5A0028,
-  ); // Slightly lighter wine
+  static const Color crimsonRed = Color(0xFFCD5656);
+  static const Color deepBerryRed = Color(0xFFAF3E3E);
+  static const Color darkWinePurple = Color(0xFF8B2E2E);
 
   // Navigation colors
-  static const Color navActive = Color(0xFFE01A52);
-  static const Color navActiveBg = Color(0x429A0038); // #9A003842
+  static const Color navActive = Color(0xFFCD5656);
+  static const Color navActiveBg = Color(
+    0x42AF3E3E,
+  ); // Secondary red with opacity
 }
 
 class StaffDashboard extends StatefulWidget {
@@ -112,7 +109,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
     const _StaffPosPage(),
     const _OrdersViewPage(),
     const StaffQuotationListPage(),
-    const ChatListPage(),
+    const ChatListPage(showBackButton: false),
     const _CustomersViewPage(),
     const _FeedbackSupportPage(),
     const _StaffProfilePage(),
@@ -176,7 +173,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
               ),
             )
           : SafeArea(bottom: true, child: _pages[_selectedIndex]),
-      bottomNavigationBar: isMobile ? _buildBottomNavBar() : null,
     );
   }
 
@@ -205,7 +201,10 @@ class _StaffDashboardState extends State<StaffDashboard> {
         ),
       ),
       elevation: 0,
-      title: const Text('FlexiMart', style: DashboardTheme.titleTextStyle),
+      title: const Text(
+        'Staff Dashboard',
+        style: DashboardTheme.titleTextStyle,
+      ),
       actions: [
         if (user != null)
           PopupMenuButton<String>(
@@ -242,56 +241,81 @@ class _StaffDashboardState extends State<StaffDashboard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            StaffThemeColors.crimsonRed,
-            StaffThemeColors.deepBerryRed,
-            StaffThemeColors.darkWinePurple,
+            Color(0xFFCD5656), // Primary color start
+            AppColors.secondary, // Secondary color end
           ],
-          stops: [0.0, 0.5, 1.0],
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(4, 0),
+            spreadRadius: 2,
+          ),
         ],
       ),
       child: SafeArea(
         child: Column(
           children: [
-            // Header with Logo and Collapse Button
+            // Enhanced Header with Logo and Collapse Button
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   if (!_sidebarCollapsed)
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'FlexiMart Staff',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.white.withOpacity(
+                            0.95,
+                          ), // Lighter red/pink text
+                          letterSpacing: 0.5,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  IconButton(
-                    icon: Icon(
-                      _sidebarCollapsed ? Icons.menu : Icons.menu_open,
-                      color: Colors.white,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _sidebarCollapsed = !_sidebarCollapsed;
-                      });
-                    },
-                    tooltip: _sidebarCollapsed ? 'Expand' : 'Collapse',
+                    child: IconButton(
+                      icon: Icon(
+                        _sidebarCollapsed ? Icons.menu : Icons.menu_open,
+                        color: Colors.white.withOpacity(
+                          0.9,
+                        ), // Lighter red/pink icon
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _sidebarCollapsed = !_sidebarCollapsed;
+                        });
+                      },
+                      tooltip: _sidebarCollapsed ? 'Expand' : 'Collapse',
+                    ),
                   ),
                 ],
               ),
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
             // Navigation Items
             Expanded(
               child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 12,
+                ),
                 itemCount: _navItems.length,
                 itemBuilder: (context, index) {
                   final item = _navItems[index];
@@ -312,7 +336,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 },
               ),
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
             // Profile Section
             _buildProfileSection(context),
           ],
@@ -342,16 +365,38 @@ class _StaffDashboardState extends State<StaffDashboard> {
 
         return Container(
           padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
+            ),
+          ),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: _sidebarCollapsed ? 16 : 20,
-                backgroundColor: StaffThemeColors.crimsonRed,
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: CircleAvatar(
+                  radius: _sidebarCollapsed ? 18 : 24,
+                  backgroundColor: Colors.white,
+                  child: CircleAvatar(
+                    radius: _sidebarCollapsed ? 16 : 22,
+                    backgroundColor: StaffThemeColors.crimsonRed,
+                    child: Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: _sidebarCollapsed ? 16 : 20,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -360,23 +405,33 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         userName,
-                        style: const TextStyle(
-                          fontSize: 14,
+                        style: TextStyle(
+                          fontSize: 15,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.white.withOpacity(
+                            0.95,
+                          ), // Lighter red/pink text
+                          letterSpacing: 0.2,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
+                      const SizedBox(height: 2),
                       Text(
                         userEmail,
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withOpacity(
+                            0.8,
+                          ), // Lighter red/pink text
+                          letterSpacing: 0.1,
                         ),
                         overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ],
                   ),
@@ -397,23 +452,20 @@ class _StaffDashboardState extends State<StaffDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              StaffThemeColors.crimsonRed,
-              StaffThemeColors.deepBerryRed,
-              StaffThemeColors.darkWinePurple,
+              Color(0xFFCD5656), // Primary color start
+              AppColors.secondary, // Secondary color end
             ],
-            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: Column(
           children: [
-            // Top Header with Close Button
+            // Top Header with FlexiMart Title and Close Button
             Container(
               padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.2),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -422,8 +474,17 @@ class _StaffDashboardState extends State<StaffDashboard> {
               child: SafeArea(
                 bottom: false,
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    const Text(
+                      'FlexiMart',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.menu_open, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
@@ -447,12 +508,14 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: selected
-                          ? Colors.white.withOpacity(
-                              0.2,
-                            ) // Light background for active
-                          : Colors.transparent,
+                      color: Colors.white, // White container
                       borderRadius: BorderRadius.circular(12),
+                      border: selected
+                          ? Border.all(
+                              color: AppColors.secondary,
+                              width: 2,
+                            ) // Red border for active
+                          : null,
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
@@ -462,11 +525,9 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       leading: Icon(
                         item['icon'] as IconData,
                         color: selected
-                            ? Colors
-                                  .white // White for active
-                            : Colors.white.withOpacity(
-                                0.7,
-                              ), // Semi-transparent white for inactive
+                            ? AppColors
+                                  .secondary // Red for active
+                            : const Color(0xFF1D3B53), // Dark blue for inactive
                         size: 24,
                       ),
                       title: Text(
@@ -477,11 +538,11 @@ class _StaffDashboardState extends State<StaffDashboard> {
                               : FontWeight.normal,
                           fontSize: 15,
                           color: selected
-                              ? Colors
-                                    .white // White for active
-                              : Colors.white.withOpacity(
-                                  0.7,
-                                ), // Semi-transparent white for inactive
+                              ? AppColors
+                                    .secondary // Red for active
+                              : const Color(
+                                  0xFF1D3B53,
+                                ), // Dark blue for inactive
                         ),
                       ),
                       selected: selected,
@@ -502,10 +563,10 @@ class _StaffDashboardState extends State<StaffDashboard> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withOpacity(0.2),
                 border: Border(
                   top: BorderSide(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.3),
                     width: 1,
                   ),
                 ),
@@ -576,64 +637,9 @@ class _StaffDashboardState extends State<StaffDashboard> {
       ),
     );
   }
-
-  Widget? _buildBottomNavBar() {
-    // Show only first 4 items in bottom nav
-    final bottomNavItems = _navItems.take(4).toList();
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _selectedIndex < 4 ? _selectedIndex : 0,
-        selectedItemColor: StaffThemeColors.navActive, // #D90747
-        unselectedItemColor: Colors.black54,
-        backgroundColor: Colors.white,
-        elevation: 0,
-        selectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.w600,
-          fontSize: 12,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontWeight: FontWeight.normal,
-          fontSize: 12,
-        ),
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        items: bottomNavItems.map((item) {
-          final itemIndex = bottomNavItems.indexOf(item);
-          final isSelected = _selectedIndex == itemIndex;
-          return BottomNavigationBarItem(
-            icon: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? StaffThemeColors.navActiveBg
-                    : Colors.transparent,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(item['icon'] as IconData),
-            ),
-            label: item['label'] as String,
-          );
-        }).toList(),
-      ),
-    );
-  }
 }
 
-class _NavTile extends StatelessWidget {
+class _NavTile extends StatefulWidget {
   const _NavTile({
     required this.icon,
     required this.label,
@@ -649,39 +655,88 @@ class _NavTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavTile> createState() => _NavTileState();
+}
+
+class _NavTileState extends State<_NavTile>
+    with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.2) : Colors.transparent,
+          color: widget.selected
+              ? Colors.white.withOpacity(
+                  0.2,
+                ) // Brighter red background for active
+              : _isHovered
+              ? Colors.white.withOpacity(0.1) // Hover effect
+              : Colors.white.withOpacity(
+                  0.05,
+                ), // Subtle background for inactive
           borderRadius: BorderRadius.circular(12),
+          border: widget.selected
+              ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
+              : null,
+          boxShadow: widget.selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: selected ? Colors.white : Colors.white.withOpacity(0.7),
-              size: 24,
-            ),
-            if (!collapsed) ...[
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.7),
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-                    fontSize: 14,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                color: widget.selected
+                    ? Colors
+                          .white // White for active
+                    : Colors.white.withOpacity(
+                        0.8,
+                      ), // Lighter red/pink for inactive
+                size: 22,
+              ),
+              if (!widget.collapsed) ...[
+                const SizedBox(width: 14),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: widget.selected
+                          ? Colors
+                                .white // White text for active
+                          : Colors.white.withOpacity(
+                              0.85,
+                            ), // Lighter red/pink for inactive
+                      fontWeight: widget.selected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      fontSize: 15,
+                      letterSpacing: 0.2,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -740,7 +795,7 @@ class _StaffDashboardPage extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withOpacity(0.3),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Icon(
@@ -759,7 +814,8 @@ class _StaffDashboardPage extends StatelessWidget {
                             style: TextStyle(
                               fontSize: isCompact ? 24 : 28,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Colors
+                                  .white, // White text for better contrast
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -767,7 +823,9 @@ class _StaffDashboardPage extends StatelessWidget {
                             'Quick stats and pending tasks',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withOpacity(
+                                0.9,
+                              ), // White text for better contrast
                             ),
                           ),
                         ],
@@ -980,7 +1038,7 @@ class _StaffKpiCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF4D0020), // Card value color
+                        color: Color(0xFFCD5656), // Card value color (primary)
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -1476,56 +1534,12 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                             ],
                           ),
                         ),
-                        if (!isMobile)
-                          ElevatedButton.icon(
-                            onPressed: () => _showAddProductDialog(context),
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Add Product'),
-                            style:
-                                ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.transparent,
-                                  foregroundColor: Colors.white,
-                                  textStyle: DashboardTheme.buttonTextStyle,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(30),
-                                  ),
-                                ).copyWith(
-                                  backgroundColor:
-                                      MaterialStateProperty.all<Color>(
-                                        DashboardTheme.gradientStart,
-                                      ),
-                                ),
-                          ),
+                        // Add Product button hidden for staff (view-only)
+                        const SizedBox.shrink(),
                       ],
                     ),
-                    if (isMobile) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showAddProductDialog(context),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Add Product'),
-                          style:
-                              ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                foregroundColor: Colors.white,
-                                textStyle: DashboardTheme.buttonTextStyle,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(30),
-                                ),
-                              ).copyWith(
-                                backgroundColor:
-                                    MaterialStateProperty.all<Color>(
-                                      DashboardTheme.gradientStart,
-                                    ),
-                              ),
-                        ),
-                      ),
-                    ],
+                    // Add Product button hidden for staff (view-only)
+                    const SizedBox.shrink(),
                     const SizedBox(height: 16),
                     // Search Bar
                     Container(
@@ -1774,16 +1788,8 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                             color: AppColors.textSecondary,
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: () => _showAddProductDialog(context),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add First Product'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: StaffThemeColors.crimsonRed,
-                            foregroundColor: Colors.white,
-                          ),
-                        ),
+                        // Add Product button hidden for staff (view-only)
+                        const SizedBox.shrink(),
                       ],
                     ),
                   );
@@ -1956,7 +1962,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                       child: Text(
                         category,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12, // Increased for clarity
                           color: StaffThemeColors.crimsonRed,
                           fontWeight: FontWeight.w600,
                         ),
@@ -2000,43 +2006,8 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _showEditProductDialog(context, productId, product),
-                        icon: const Icon(Icons.edit, size: 16),
-                        label: Text(isMobile ? '' : 'Edit'),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 8 : 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    if (isLowStock)
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _showRestockDialog(context, productId, product),
-                          icon: const Icon(Icons.add_box, size: 16),
-                          label: Text(isMobile ? '' : 'Restock'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isMobile ? 8 : 12,
-                              vertical: 8,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                // Action buttons hidden for staff (view-only)
+                const SizedBox.shrink(),
               ],
             ),
           ),
@@ -3782,6 +3753,21 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
     final phone = customer['phone'] as String? ?? 'No phone';
     final userId = customerDoc.id;
 
+    // Check multiple possible field names for profile picture
+    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
+    final String? profilePicUrl =
+        (customer['profilePic'] as String?) ??
+        (customer['profilePictureUrl'] as String?) ??
+        (customer['profileImageUrl'] as String?) ??
+        (customer['photoUrl'] as String?) ??
+        (customer['imageUrl'] as String?) ??
+        (customer['profileImage'] as String?);
+
+    // Check if profile picture URL exists and is not empty
+    final bool hasProfilePicture =
+        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
+    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -3798,14 +3784,27 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                 children: [
                   CircleAvatar(
                     radius: isMobile ? 24 : 28,
-                    backgroundColor: StaffThemeColors.crimsonRed,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: validProfilePicUrl != null
+                        ? NetworkImage(validProfilePicUrl)
+                        : null,
+                    onBackgroundImageError: validProfilePicUrl != null
+                        ? (exception, stackTrace) {
+                            // Handle image loading errors gracefully
+                            debugPrint(
+                              'Error loading profile image: $exception',
+                            );
+                          }
+                        : null,
+                    child: validProfilePicUrl == null
+                        ? Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'C',
+                            style: TextStyle(
+                              color: StaffThemeColors.crimsonRed,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -3956,6 +3955,21 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
     final phone = customer['phone'] as String? ?? 'No phone';
     final userId = customerDoc.id;
 
+    // Check multiple possible field names for profile picture
+    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
+    final String? profilePicUrl =
+        (customer['profilePic'] as String?) ??
+        (customer['profilePictureUrl'] as String?) ??
+        (customer['profileImageUrl'] as String?) ??
+        (customer['photoUrl'] as String?) ??
+        (customer['imageUrl'] as String?) ??
+        (customer['profileImage'] as String?);
+
+    // Check if profile picture URL exists and is not empty
+    final bool hasProfilePicture =
+        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
+    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
+
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -3971,15 +3985,28 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                 children: [
                   CircleAvatar(
                     radius: 32,
-                    backgroundColor: StaffThemeColors.crimsonRed,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 24,
-                      ),
-                    ),
+                    backgroundColor: Colors.grey.shade200,
+                    backgroundImage: validProfilePicUrl != null
+                        ? NetworkImage(validProfilePicUrl)
+                        : null,
+                    onBackgroundImageError: validProfilePicUrl != null
+                        ? (exception, stackTrace) {
+                            // Handle image loading errors gracefully
+                            debugPrint(
+                              'Error loading profile image: $exception',
+                            );
+                          }
+                        : null,
+                    child: validProfilePicUrl == null
+                        ? Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : 'C',
+                            style: TextStyle(
+                              color: StaffThemeColors.crimsonRed,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 24,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -4036,8 +4063,47 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                       .where('customerId', isEqualTo: userId)
                       .orderBy('createdAt', descending: true)
                       .limit(10)
-                      .snapshots(),
+                      .snapshots()
+                      .handleError((error) {
+                        if (kDebugMode) {
+                          debugPrint(
+                            '⚠️ OrderBy createdAt failed, using simple query: $error',
+                          );
+                        }
+                        // Fallback: return orders without orderBy
+                        return FirebaseFirestore.instance
+                            .collection('orders')
+                            .where('customerId', isEqualTo: userId)
+                            .limit(10)
+                            .snapshots();
+                      }),
                   builder: (context, snapshot) {
+                    // Handle connection state
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    // Handle errors
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Error loading orders',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
@@ -4047,11 +4113,26 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                       );
                     }
 
+                    // Sort orders by createdAt in memory if orderBy failed
+                    final orders = List<QueryDocumentSnapshot>.from(
+                      snapshot.data!.docs,
+                    );
+                    orders.sort((a, b) {
+                      final aData = a.data() as Map<String, dynamic>;
+                      final bData = b.data() as Map<String, dynamic>;
+                      final aCreatedAt = aData['createdAt'] as Timestamp?;
+                      final bCreatedAt = bData['createdAt'] as Timestamp?;
+                      if (aCreatedAt == null && bCreatedAt == null) return 0;
+                      if (aCreatedAt == null) return 1;
+                      if (bCreatedAt == null) return -1;
+                      return bCreatedAt.compareTo(aCreatedAt);
+                    });
+
                     return ListView.builder(
                       shrinkWrap: true,
-                      itemCount: snapshot.data!.docs.length,
+                      itemCount: orders.length,
                       itemBuilder: (context, index) {
-                        final order = snapshot.data!.docs[index];
+                        final order = orders[index];
                         final data = order.data() as Map<String, dynamic>;
                         // Get totalPrice from Firestore, or compute from items if missing
                         final totalPriceValue = data['totalPrice'];
@@ -4112,7 +4193,10 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                           trailing: Chip(
                             label: Text(
                               status.toUpperCase(),
-                              style: const TextStyle(fontSize: 10),
+                              style: const TextStyle(
+                                fontSize: 12, // Increased for clarity
+                                letterSpacing: 0.2,
+                              ),
                             ),
                             backgroundColor: StaffThemeColors.crimsonRed
                                 .withOpacity(0.1),
@@ -4170,31 +4254,409 @@ class _FeedbackSupportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Scaffold(
+      backgroundColor: AppColors.dashboardBackground,
+      body: Column(
         children: [
-          Icon(
-            Icons.feedback_outlined,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Feedback/Support',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+          // Header
+          Container(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.feedback_outlined,
+                  size: isMobile ? 28 : 32,
+                  color: StaffThemeColors.crimsonRed,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Feedback Center',
+                  style: TextStyle(
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'View Customer Feedback\nContact Admin',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+          // Feedback List
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots()
+                  .handleError((error) {
+                    if (kDebugMode) {
+                      debugPrint(
+                        '⚠️ OrderBy createdAt failed, using simple query: $error',
+                      );
+                    }
+                    // Fallback: return orders without orderBy
+                    return FirebaseFirestore.instance
+                        .collection('orders')
+                        .snapshots();
+                  }),
+              builder: (context, snapshot) {
+                // Handle connection state
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // Handle errors
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppColors.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading feedback',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          style: TextStyle(color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.feedback_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No feedback yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Customer ratings and reviews will appear here',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Filter orders with ratings and sort by createdAt
+                final allOrders = List<QueryDocumentSnapshot>.from(
+                  snapshot.data!.docs,
+                );
+
+                // Filter orders that have ratings
+                final ordersWithRatings = allOrders.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final hasRating = data['hasRating'] as bool? ?? false;
+                  final rating = data['rating'] as num?;
+                  return hasRating || (rating != null && rating > 0);
+                }).toList();
+
+                // Sort by createdAt in memory if orderBy failed
+                ordersWithRatings.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aCreatedAt = aData['createdAt'] as Timestamp?;
+                  final bCreatedAt = bData['createdAt'] as Timestamp?;
+                  if (aCreatedAt == null && bCreatedAt == null) return 0;
+                  if (aCreatedAt == null) return 1;
+                  if (bCreatedAt == null) return -1;
+                  return bCreatedAt.compareTo(aCreatedAt);
+                });
+
+                if (ordersWithRatings.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.feedback_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No feedback yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Customer ratings and reviews will appear here',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final orders = ordersWithRatings;
+
+                return ListView.builder(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    final orderDoc = orders[index];
+                    final orderData = orderDoc.data() as Map<String, dynamic>;
+                    return _buildFeedbackCard(
+                      context,
+                      orderDoc,
+                      orderData,
+                      isMobile,
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackCard(
+    BuildContext context,
+    QueryDocumentSnapshot orderDoc,
+    Map<String, dynamic> orderData,
+    bool isMobile,
+  ) {
+    final orderId = orderDoc.id;
+    final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
+    final review = orderData['review'] as String? ?? '';
+    final ratingImageUrl = orderData['ratingImageUrl'] as String?;
+    final customerName =
+        orderData['customerName'] as String? ??
+        orderData['customer_name'] as String? ??
+        'Unknown Customer';
+    final createdAt = orderData['createdAt'] as Timestamp?;
+    final orderDate = createdAt != null
+        ? '${createdAt.toDate().toString().substring(0, 16)}'
+        : 'Unknown date';
+    final totalPrice =
+        (orderData['totalPrice'] as num?)?.toDouble() ??
+        (orderData['price'] as num?)?.toDouble() ??
+        0.0;
+
+    return Card(
+      margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with customer info and date
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: isMobile ? 20 : 24,
+                  backgroundColor: StaffThemeColors.crimsonRed.withOpacity(0.1),
+                  child: Icon(
+                    Icons.person,
+                    size: isMobile ? 20 : 24,
+                    color: StaffThemeColors.crimsonRed,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        customerName,
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        orderDate,
+                        style: TextStyle(
+                          fontSize: isMobile ? 11 : 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Rating stars
+                Row(
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: StaffThemeColors.crimsonRed,
+                      size: isMobile ? 18 : 20,
+                    );
+                  }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Review text
+            if (review.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  review,
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    color: AppColors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Rating image
+            if (ratingImageUrl != null) ...[
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => Dialog(
+                      child: Image.network(
+                        ratingImageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Text('Failed to load image'),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    ratingImageUrl,
+                    width: double.infinity,
+                    height: isMobile ? 150 : 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: isMobile ? 150 : 200,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.broken_image),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: isMobile ? 150 : 200,
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Order info
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: isMobile ? 12 : 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  PriceFormatter.formatPrice(totalPrice),
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.bold,
+                    color: StaffThemeColors.crimsonRed,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // View order button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OrderDetailPage(
+                        orderId: orderId,
+                        orderRef: FirebaseFirestore.instance
+                            .collection('orders')
+                            .doc(orderId),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.visibility, size: 18),
+                label: const Text('View Order Details'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: StaffThemeColors.crimsonRed,
+                  side: const BorderSide(color: StaffThemeColors.crimsonRed),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -4224,7 +4686,7 @@ class _StaffProfilePage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -4305,20 +4767,29 @@ class _StaffProfilePage extends StatelessWidget {
                       title: 'Full Name',
                       value: fullName.isNotEmpty ? fullName : 'Not set',
                     ),
-                    Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                    Divider(
+                      height: 1,
+                      color: const Color(0xFFCD5656).withOpacity(0.8),
+                    ),
                     _buildInfoCard(
                       icon: Icons.email_outlined,
                       title: 'Email',
                       value: email,
                     ),
-                    Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                    Divider(
+                      height: 1,
+                      color: const Color(0xFFCD5656).withOpacity(0.8),
+                    ),
                     _buildInfoCard(
                       icon: Icons.phone_outlined,
                       title: 'Phone Number',
                       value: phone,
                     ),
                     if (salary != null) ...[
-                      Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                      Divider(
+                        height: 1,
+                        color: const Color(0xFFCD5656).withOpacity(0.8),
+                      ),
                       _buildInfoCard(
                         icon: Icons.account_balance_wallet_outlined,
                         title: 'Monthly Salary',
@@ -4327,7 +4798,10 @@ class _StaffProfilePage extends StatelessWidget {
                       ),
                     ],
                     if (salaryBalance != 0.0) ...[
-                      Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+                      Divider(
+                        height: 1,
+                        color: const Color(0xFFCD5656).withOpacity(0.8),
+                      ),
                       _buildInfoCard(
                         icon: Icons.savings_outlined,
                         title: 'Salary Balance',
@@ -4354,7 +4828,7 @@ class _StaffProfilePage extends StatelessWidget {
                 _showEditProfileDialog(context);
               },
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
             _buildSettingsTile(
               context,
               icon: Icons.lock_outline,
@@ -4364,7 +4838,7 @@ class _StaffProfilePage extends StatelessWidget {
                 _showChangePasswordDialog(context);
               },
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
 
             // Support Section
             _buildSectionHeader('Support'),
@@ -4391,7 +4865,7 @@ class _StaffProfilePage extends StatelessWidget {
                 );
               },
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
             _buildSettingsTile(
               context,
               icon: Icons.notifications_active_outlined,
@@ -4414,7 +4888,7 @@ class _StaffProfilePage extends StatelessWidget {
                 }
               },
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
             _buildSettingsTile(
               context,
               icon: Icons.info_outline,
@@ -4438,7 +4912,7 @@ class _StaffProfilePage extends StatelessWidget {
                 );
               },
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
 
             // Logout Section
             const SizedBox(height: 32),

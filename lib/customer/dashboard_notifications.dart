@@ -4,7 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
-import 'customer_dashboard.dart';
+import '../widgets/notification_detail_modal.dart';
 
 class DashboardNotifications extends StatefulWidget {
   const DashboardNotifications({super.key});
@@ -679,15 +679,16 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                 .doc(notificationDoc.id)
                 .update({'read': true});
           }
-          // Navigate to shop if it's a quotation approval
-          if (type == 'quotation_approved' && context.mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const CustomerDashboard(initialIndex: 0),
-              ),
-            );
-          }
+          // Show notification detail modal
+          NotificationDetailModal.show(
+            context,
+            title: title,
+            message: message,
+            type: type,
+            createdAt: createdAt,
+            iconData: iconData,
+            iconColor: iconColor,
+          );
         },
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
@@ -803,4 +804,5 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
     ];
     return '${months[dateTime.month - 1]} ${dateTime.day}, ${dateTime.year}';
   }
+
 }

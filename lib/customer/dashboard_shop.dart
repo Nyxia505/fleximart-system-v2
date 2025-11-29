@@ -182,7 +182,7 @@ class _DashboardShopState extends State<DashboardShop> {
                             ? IconButton(
                                 icon: Icon(
                                   Icons.clear,
-                                  color: AppColors.textSecondary,
+                                  color: const Color(0xFF1D3B53), // Dark blue for better contrast
                                   size: 20,
                                 ),
                                 onPressed: () {
@@ -229,7 +229,7 @@ class _DashboardShopState extends State<DashboardShop> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary,
+                                color: const Color(0xFF1D3B53), // Dark blue for better contrast
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -237,7 +237,7 @@ class _DashboardShopState extends State<DashboardShop> {
                               'Please check your connection and try again',
                               style: TextStyle(
                                 fontSize: 14,
-                                color: AppColors.textSecondary.withOpacity(0.7),
+                                color: const Color(0xFF1D3B53).withOpacity(0.9), // Darker for better readability
                               ),
                               textAlign: TextAlign.center,
                             ),
@@ -255,7 +255,7 @@ class _DashboardShopState extends State<DashboardShop> {
                           Icon(
                             Icons.inventory_2_outlined,
                             size: 64,
-                            color: AppColors.textSecondary.withOpacity(0.5),
+                            color: const Color(0xFF1D3B53).withOpacity(0.8), // Darker for better readability
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -281,7 +281,7 @@ class _DashboardShopState extends State<DashboardShop> {
                           Icon(
                             Icons.inventory_2_outlined,
                             size: 64,
-                            color: AppColors.textSecondary.withOpacity(0.5),
+                            color: const Color(0xFF1D3B53).withOpacity(0.8), // Darker for better readability
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -359,7 +359,7 @@ class _DashboardShopState extends State<DashboardShop> {
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.textSecondary,
+                                color: const Color(0xFF1D3B53), // Dark blue for better contrast
                               ),
                             ),
                           ],
@@ -368,7 +368,17 @@ class _DashboardShopState extends State<DashboardShop> {
                     );
                   }
 
-                  if (products.isEmpty) {
+                  // Remove entries with missing images to avoid blank cards
+                  final validProducts = products.where((doc) {
+                    final product = doc.data() as Map<String, dynamic>?;
+                    if (product == null) return false;
+                    final imageString = product['image']?.toString() ??
+                        product['imageUrl']?.toString() ??
+                        '';
+                    return imageString.trim().isNotEmpty;
+                  }).toList();
+
+                  if (products.isEmpty || validProducts.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -376,7 +386,7 @@ class _DashboardShopState extends State<DashboardShop> {
                           Icon(
                             Icons.search_off,
                             size: 64,
-                            color: AppColors.textSecondary.withOpacity(0.5),
+                            color: const Color(0xFF1D3B53).withOpacity(0.8), // Darker for better readability
                           ),
                           const SizedBox(height: 16),
                           Text(
@@ -414,19 +424,28 @@ class _DashboardShopState extends State<DashboardShop> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          childAspectRatio: 0.58, // Reduced to give more vertical space
+                          childAspectRatio: 0.54, // Adjusted to give more vertical space and prevent overflow
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 16,
                         ),
-                    itemCount: products.length,
+                    itemCount: validProducts.length,
                     itemBuilder: (context, i) {
-                      final productDoc = products[i];
+                      final productDoc = validProducts[i];
                       final product = productDoc.data() as Map<String, dynamic>;
                       // Use 'name' field, fallback to 'title' for backward compatibility
                       final name = product['name'] as String? ?? product['title'] as String? ?? 'Unknown';
                       // Use 'image' field (base64), fallback to 'imageUrl' for backward compatibility
                       final imageString = product['image'] as String? ?? product['imageUrl'] as String? ?? '';
-                      final price = (product['price'] as num?)?.toDouble() ?? 0.0;
+                      // Safe price parsing - handle both String and num types
+                      double price = 0.0;
+                      final priceValue = product['price'];
+                      if (priceValue != null) {
+                        if (priceValue is num) {
+                          price = priceValue.toDouble();
+                        } else if (priceValue is String) {
+                          price = double.tryParse(priceValue) ?? 0.0;
+                        }
+                      }
                       final description = product['description'] as String? ?? '';
                       
                       // Get product ID and customizable flag
@@ -480,6 +499,7 @@ class _DashboardShopState extends State<DashboardShop> {
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Product Image - Expanded to fill available space
                                 Expanded(
                                   flex: 6,
                                   child: Container(
@@ -493,39 +513,38 @@ class _DashboardShopState extends State<DashboardShop> {
                                               child: Icon(
                                                 Icons.image_not_supported,
                                                 size: 40,
-                                                color: AppColors.textHint.withOpacity(0.5),
+                                                color: const Color(0xFF1D3B53).withOpacity(0.8),
                                               ),
                                             ),
                                           ),
                                   ),
                                 ),
+                                // Product Info - Expanded to prevent overflow
                                 Expanded(
                                   flex: 4,
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 14),
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Flexible(
-                                          child: Text(
-                                            name,
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 12,
-                                              color: AppColors.textPrimary,
-                                              height: 1.2,
-                                            ),
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
+                                        Text(
+                                          name,
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                            color: AppColors.textPrimary,
+                                            height: 1.2,
                                           ),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
                                           productData['size'] as String? ?? 'Standard Size',
                                           style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 10,
+                                            color: const Color(0xFF1D3B53),
+                                            fontSize: 12,
                                           ),
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
@@ -539,11 +558,10 @@ class _DashboardShopState extends State<DashboardShop> {
                                             fontSize: 14,
                                           ),
                                         ),
-                                        const SizedBox(height: 4),
-                                        // REQUEST QUOTATION Button
+                                        const SizedBox(height: 10),
+                                        // Request Quotation Button - Moved upward with spacing
                                         SizedBox(
                                           width: double.infinity,
-                                          height: 28,
                                           child: OutlinedButton(
                                             onPressed: () {
                                               final user = FirebaseAuth.instance.currentUser;
@@ -570,27 +588,28 @@ class _DashboardShopState extends State<DashboardShop> {
                                             style: OutlinedButton.styleFrom(
                                               foregroundColor: AppColors.primary,
                                               side: const BorderSide(color: AppColors.primary, width: 1),
-                                              padding: EdgeInsets.zero,
-                                              minimumSize: const Size(0, 28),
+                                              padding: const EdgeInsets.symmetric(vertical: 6),
+                                              minimumSize: const Size(0, 32),
                                               shape: RoundedRectangleBorder(
                                                 borderRadius: BorderRadius.circular(18),
                                               ),
                                             ),
                                             child: const Text(
-                                              'REQUEST QUOTATION',
+                                              'Request Quotation',
                                               style: TextStyle(
-                                                fontSize: 8,
+                                                fontSize: 11,
                                                 fontWeight: FontWeight.w700,
                                                 letterSpacing: 0.2,
                                               ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(height: 2),
-                                        // PROCEED BUY Button - Gradient Style
+                                        const SizedBox(height: 4),
+                                        // PROCEED BUY Button - No fixed height
                                         SizedBox(
                                           width: double.infinity,
-                                          height: 28,
                                           child: Container(
                                             decoration: BoxDecoration(
                                               gradient: AppColors.buttonGradient,
@@ -630,8 +649,8 @@ class _DashboardShopState extends State<DashboardShop> {
                                                 backgroundColor: Colors.transparent,
                                                 shadowColor: Colors.transparent,
                                                 foregroundColor: Colors.white,
-                                                padding: EdgeInsets.zero,
-                                                minimumSize: const Size(0, 28),
+                                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                                minimumSize: const Size(0, 32),
                                                 shape: RoundedRectangleBorder(
                                                   borderRadius: BorderRadius.circular(18),
                                                 ),
@@ -640,10 +659,12 @@ class _DashboardShopState extends State<DashboardShop> {
                                               child: const Text(
                                                 'PROCEED BUY',
                                                 style: TextStyle(
-                                                  fontSize: 8,
+                                                  fontSize: 11,
                                                   fontWeight: FontWeight.w700,
                                                   letterSpacing: 0.2,
                                                 ),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
                                               ),
                                             ),
                                           ),

@@ -9,7 +9,10 @@ class ChatService {
 
   /// Get or create a chat conversation between two users
   /// Returns the chat document ID
-  Future<String> getOrCreateChat(String otherUserId, String otherUserName) async {
+  Future<String> getOrCreateChat(
+    String otherUserId,
+    String otherUserName,
+  ) async {
     final currentUserId = _auth.currentUser?.uid;
     if (currentUserId == null) throw Exception('User not authenticated');
 
@@ -41,29 +44,26 @@ class ChatService {
         currentUserId: currentUserName,
         otherUserId: otherUserName,
       },
-      'unreadCount': {
-        currentUserId: 0,
-        otherUserId: 0,
-      },
+      'unreadCount': {currentUserId: 0, otherUserId: 0},
     });
 
     return chatRef.id;
   }
 
   /// Send a message to a chat room
-  /// 
+  ///
   /// This function:
   /// - Uses FieldValue.serverTimestamp() for timestamps
   /// - Accepts senderId, receiverId, text, and chatId
-  /// - Automatically ensures the chatId document exists in chat_rooms
-  /// - Writes messages to /chat_rooms/chatId/messages
-  /// 
+  /// - Automatically ensures the chatId document exists in chats collection
+  /// - Writes messages to /chats/chatId/messages
+  ///
   /// Parameters:
   /// - [senderId]: The UID of the message sender
   /// - [receiverId]: The UID of the message receiver
   /// - [text]: The message text content
   /// - [chatId]: The chat room ID (can be generated using makeChatId())
-  /// 
+  ///
   /// Throws:
   /// - Exception if text is empty or null
   Future<void> sendMessage(
@@ -77,30 +77,47 @@ class ChatService {
       throw Exception('Message text cannot be empty');
     }
 
-    // Ensure chat room document exists
-    final chatRoomRef = _firestore.collection('chat_rooms').doc(chatId);
-    final chatRoomDoc = await chatRoomRef.get();
+    // Ensure chat document exists in 'chats' collection (not 'chat_rooms')
+    final chatRef = _firestore.collection('chats').doc(chatId);
+    final chatDoc = await chatRef.get();
 
-    if (!chatRoomDoc.exists) {
-      // Create the chat room document if it doesn't exist
-      await chatRoomRef.set({
+    if (!chatDoc.exists) {
+      // Create the chat document if it doesn't exist
+      await chatRef.set({
         'participants': [senderId, receiverId],
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
+        'lastMessage': text.trim(),
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'unreadCount': {senderId: 0, receiverId: 1},
       }, SetOptions(merge: true));
     }
 
     // Add message to messages subcollection
-    await chatRoomRef.collection('messages').add({
+    await chatRef.collection('messages').add({
       'senderId': senderId,
       'receiverId': receiverId,
       'text': text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    // Update chat room's updatedAt timestamp
-    await chatRoomRef.update({
+    // Update chat document with last message and unread count
+    final chatData = chatDoc.data() ?? {};
+    final unreadCount = Map<String, dynamic>.from(
+      chatData['unreadCount'] ?? {},
+    );
+    for (var participant
+        in (chatData['participants'] as List<dynamic>? ?? [])) {
+      if (participant != senderId) {
+        unreadCount[participant] = (unreadCount[participant] ?? 0) + 1;
+      }
+    }
+
+    await chatRef.update({
+      'lastMessage': text.trim(),
+      'lastMessageTime': FieldValue.serverTimestamp(),
       'updatedAt': FieldValue.serverTimestamp(),
+      'unreadCount': unreadCount,
     });
   }
 
@@ -141,7 +158,7 @@ class ChatService {
         .child('chat_images')
         .child(chatId)
         .child(storageFileName);
-    
+
     // Upload with timeout (120 seconds for large files and slow connections)
     try {
       final uploadTask = ref.putData(
@@ -151,7 +168,7 @@ class ChatService {
           cacheControl: 'public, max-age=31536000',
         ),
       );
-      
+
       // Wait for upload to complete with timeout
       await uploadTask.timeout(
         const Duration(seconds: 120),
@@ -162,25 +179,38 @@ class ChatService {
           } catch (_) {
             // Ignore cancellation errors
           }
-          throw Exception('Upload timeout. Please check your internet connection.');
+          throw Exception(
+            'Upload timeout. Please check your internet connection.',
+          );
         },
       );
     } catch (e) {
       // Re-throw with more context
       final errorStr = e.toString().toLowerCase();
-      if (errorStr.contains('timeout') || errorStr.contains('deadline exceeded')) {
-        throw Exception('Upload timeout. Please check your internet connection.');
-      } else if (errorStr.contains('permission') || errorStr.contains('unauthorized') || errorStr.contains('403')) {
-        throw Exception('Permission denied. Please check Firebase Storage rules.');
-      } else if (errorStr.contains('network') || errorStr.contains('connection') || errorStr.contains('socket')) {
-        throw Exception('Network error. Please check your internet connection.');
+      if (errorStr.contains('timeout') ||
+          errorStr.contains('deadline exceeded')) {
+        throw Exception(
+          'Upload timeout. Please check your internet connection.',
+        );
+      } else if (errorStr.contains('permission') ||
+          errorStr.contains('unauthorized') ||
+          errorStr.contains('403')) {
+        throw Exception(
+          'Permission denied. Please check Firebase Storage rules.',
+        );
+      } else if (errorStr.contains('network') ||
+          errorStr.contains('connection') ||
+          errorStr.contains('socket')) {
+        throw Exception(
+          'Network error. Please check your internet connection.',
+        );
       } else if (errorStr.contains('cancel')) {
         throw Exception('Upload cancelled.');
       }
       // Re-throw original error with context
       throw Exception('Upload failed: ${e.toString()}');
     }
-    
+
     // Get download URL with timeout
     String downloadUrl;
     try {
@@ -209,22 +239,24 @@ class ChatService {
         .doc(chatId)
         .collection('messages')
         .add({
-      'senderId': currentUserId,
-      'receiverId': receiverId,
-      'text': '',
-      'message': '',
-      'imageUrl': downloadUrl,
-      'type': 'image',
-      'createdAt': FieldValue.serverTimestamp(),
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+          'senderId': currentUserId,
+          'receiverId': receiverId,
+          'text': '',
+          'message': '',
+          'imageUrl': downloadUrl,
+          'type': 'image',
+          'createdAt': FieldValue.serverTimestamp(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
 
     // Update chat document with placeholder last message
     final chatRef = _firestore.collection('chats').doc(chatId);
     final chatDoc = await chatRef.get();
     final chatData = chatDoc.data() ?? {};
     final participants = (chatData['participants'] as List<dynamic>?) ?? [];
-    final unreadCount = Map<String, dynamic>.from(chatData['unreadCount'] ?? {});
+    final unreadCount = Map<String, dynamic>.from(
+      chatData['unreadCount'] ?? {},
+    );
     for (var participant in participants) {
       if (participant != currentUserId) {
         unreadCount[participant] = (unreadCount[participant] ?? 0) + 1;
@@ -262,9 +294,11 @@ class ChatService {
     final chatRef = _firestore.collection('chats').doc(chatId);
     final chatDoc = await chatRef.get();
     if (!chatDoc.exists) return;
-    
+
     final chatData = chatDoc.data() ?? {};
-    final unreadCount = Map<String, dynamic>.from(chatData['unreadCount'] ?? {});
+    final unreadCount = Map<String, dynamic>.from(
+      chatData['unreadCount'] ?? {},
+    );
     unreadCount[currentUserId] = 0;
 
     await chatRef.update({'unreadCount': unreadCount});
@@ -278,18 +312,24 @@ class ChatService {
     final chatDoc = await _firestore.collection('chats').doc(chatId).get();
     final chatData = chatDoc.data() ?? {};
     final participants = (chatData['participants'] as List<dynamic>?) ?? [];
-    final participantNames =
-        Map<String, dynamic>.from(chatData['participantNames'] ?? {});
+    final participantNames = Map<String, dynamic>.from(
+      chatData['participantNames'] ?? {},
+    );
 
-    final otherUserId = participants.firstWhere(
-      (id) => id != currentUserId,
-      orElse: () => currentUserId,
-    ) as String;
+    final otherUserId =
+        participants.firstWhere(
+              (id) => id != currentUserId,
+              orElse: () => currentUserId,
+            )
+            as String;
 
-    return {
-      'userId': otherUserId,
-      'userName': participantNames[otherUserId] ?? 'Unknown',
-    };
+    // Get name from participantNames first, then fallback to users collection
+    String otherUserName = participantNames[otherUserId] ?? '';
+    if (otherUserName.isEmpty || otherUserName == 'Unknown') {
+      otherUserName = await _getUserName(otherUserId);
+    }
+
+    return {'userId': otherUserId, 'userName': otherUserName};
   }
 
   /// Get user name from users collection
@@ -310,7 +350,9 @@ class ChatService {
 
     final chatDoc = await _firestore.collection('chats').doc(chatId).get();
     final chatData = chatDoc.data() ?? {};
-    final unreadCount = Map<String, dynamic>.from(chatData['unreadCount'] ?? {});
+    final unreadCount = Map<String, dynamic>.from(
+      chatData['unreadCount'] ?? {},
+    );
     return (unreadCount[currentUserId] ?? 0) as int;
   }
 
@@ -326,21 +368,23 @@ class ChatService {
         .where('participants', arrayContains: currentUserId)
         .snapshots()
         .map((snapshot) {
-      int total = 0;
-      for (var doc in snapshot.docs) {
-        final data = doc.data();
-        final unreadCount = Map<String, dynamic>.from(data['unreadCount'] ?? {});
-        total += (unreadCount[currentUserId] ?? 0) as int;
-      }
-      return total;
-    });
+          int total = 0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final unreadCount = Map<String, dynamic>.from(
+              data['unreadCount'] ?? {},
+            );
+            total += (unreadCount[currentUserId] ?? 0) as int;
+          }
+          return total;
+        });
   }
 
   /// Generate a consistent chatId from two UIDs
-  /// 
+  ///
   /// This ensures the same chatId is generated regardless of the order
   /// of the UIDs (customer and staff will get the same chatId).
-  /// 
+  ///
   /// Example:
   /// - makeChatId('uid1', 'uid2') returns 'uid1_uid2'
   /// - makeChatId('uid2', 'uid1') returns 'uid1_uid2' (same result)

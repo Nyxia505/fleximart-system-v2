@@ -295,7 +295,7 @@ class ProductDetailsPage extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    'REQUEST QUOTATION',
+                    'Request Quotation',
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,

@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'shop_dashboard.dart';
 import 'dashboard_notifications.dart';
 import 'dashboard_profile.dart';
-import '../constants/app_colors.dart';
 import '../services/notification_service.dart';
 
 class CustomerDashboard extends StatefulWidget {
@@ -91,7 +90,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? AppColors.primary.withOpacity(0.2) // Crimson Red highlight
+                ? const Color(0xFFCD5656) // Solid primary color for active
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -104,9 +103,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? AppColors.primary.withOpacity(
-                          0.25,
-                        ) // Crimson Red circle
+                      ? const Color(0xFFCD5656) // Solid primary color circle
                       : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
@@ -115,8 +112,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                     : Icon(
                         icon,
                         color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
+                            ? Colors
+                                  .white // White for active
+                            : const Color(0xFF1D3B53), // Dark blue for inactive
                         size: isSelected ? 22 : 20,
                       ),
               ),
@@ -125,12 +123,13 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: 12, // Increased for clarity
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: isSelected
-                        ? AppColors.primary
-                        : AppColors.textSecondary,
-                    letterSpacing: 0.2,
+                        ? Colors
+                              .white // White for active
+                        : const Color(0xFF1B3B53), // Darker blue text for inactive
+                    letterSpacing: 0.3, // Increased for clarity
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -150,8 +149,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       return Icon(
         Icons.notifications_outlined,
         color: isSelected
-            ? AppColors.primary
-            : AppColors.textSecondary,
+            ? Colors
+                  .white // White for active
+            : const Color(0xFF1D3B53), // Dark blue for inactive
         size: isSelected ? 22 : 20,
       );
     }
@@ -169,8 +169,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
             Icon(
               Icons.notifications_outlined,
               color: isSelected
-                  ? AppColors.primary
-                  : AppColors.textSecondary,
+                  ? Colors
+                        .white // White for active
+                  : const Color(0xFF1D3B53), // Dark blue for inactive
               size: isSelected ? 22 : 20,
             ),
             if (unreadCount > 0)
@@ -180,7 +181,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: const BoxDecoration(
-                    color: AppColors.primary, // Crimson Red badge
+                    color: Color(0xFFCD5656), // Primary color badge
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(
@@ -189,12 +190,10 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                   ),
                   child: Center(
                     child: Text(
-                      unreadCount > 99
-                          ? '99+'
-                          : '$unreadCount',
+                      unreadCount > 99 ? '99+' : '$unreadCount',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 10,
+                        fontSize: 12, // Increased for clarity
                         fontWeight: FontWeight.bold,
                       ),
                       textAlign: TextAlign.center,

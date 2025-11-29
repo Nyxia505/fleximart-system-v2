@@ -323,7 +323,7 @@ class NotificationBadge extends StatelessWidget {
                   unreadCount > 9 ? '9+' : '$unreadCount',
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 10,
+                    fontSize: 12, // Increased for clarity
                     fontWeight: FontWeight.bold,
                   ),
                   textAlign: TextAlign.center,

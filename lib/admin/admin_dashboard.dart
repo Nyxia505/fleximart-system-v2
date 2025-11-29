@@ -18,17 +18,21 @@ import '../utils/price_formatter.dart';
 import '../services/role_service.dart';
 import '../services/notification_service.dart';
 import '../utils/role_helper.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
 
-// Official theme colors matching Sign In/Sign Up screens
+// Official theme colors - New Theme
 class AdminThemeColors {
   AdminThemeColors._();
-  static const Color crimsonRed = Color(0xFFD90747);
-  static const Color deepBerryRed = Color(0xFF8B0030);
-  static const Color darkWinePurple = Color(0xFF4D0020);
+  static const Color crimsonRed = Color(0xFFCD5656);
+  static const Color deepBerryRed = Color(0xFFAF3E3E);
+  static const Color darkWinePurple = Color(0xFF8B2E2E);
 
   // Navigation colors
-  static const Color navActive = Color(0xFFD90747);
-  static const Color navActiveBg = Color(0x428B0030); // #8B003042
+  static const Color navActive = Color(0xFFCD5656);
+  static const Color navActiveBg = Color(
+    0x42AF3E3E,
+  ); // Secondary red with opacity
 }
 
 class AdminDashboard extends StatefulWidget {
@@ -97,6 +101,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     {'icon': Icons.dashboard_outlined, 'label': 'Dashboard'},
     {'icon': Icons.inventory_2_outlined, 'label': 'Products'},
     {'icon': Icons.receipt_long, 'label': 'Transactions'},
+    {'icon': Icons.calendar_today, 'label': 'Sales Calendar'},
     {'icon': Icons.shopping_bag_outlined, 'label': 'Orders'},
     {'icon': Icons.description_outlined, 'label': 'Quotations'},
     {'icon': Icons.people_outline, 'label': 'Customers'},
@@ -110,6 +115,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const _DashboardOverviewPage(),
     const _ProductsManagementPage(),
     const _PosPage(),
+    const _SalesCalendarPage(),
     const _OrdersManagementPage(),
     const AdminQuotationScreen(),
     const _CustomersManagementPage(),
@@ -177,12 +183,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
             )
           : _pages[_selectedIndex],
-      bottomNavigationBar: isMobile ? _buildBottomNavBar() : null,
     );
   }
 
   PreferredSizeWidget? _buildMobileAppBar(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
     return AppBar(
       flexibleSpace: Container(
         decoration: const BoxDecoration(
@@ -190,24 +194,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ),
       ),
       elevation: 0,
-      title: const Text('FlexiMart', style: DashboardTheme.titleTextStyle),
-      actions: [
-        if (user != null)
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {
-              // Navigate to settings if not already there
-              final adminState = context
-                  .findAncestorStateOfType<_AdminDashboardState>();
-              if (adminState != null) {
-                adminState.setState(() {
-                  adminState._selectedIndex = 7; // Settings index
-                });
-              }
-            },
-            tooltip: 'Settings',
-          ),
-      ],
+      title: const Text(
+        'Admin Dashboard',
+        style: DashboardTheme.titleTextStyle,
+      ),
     );
   }
 
@@ -220,89 +210,114 @@ class _AdminDashboardState extends State<AdminDashboard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AdminThemeColors.crimsonRed,
-            AdminThemeColors.deepBerryRed,
-            AdminThemeColors.darkWinePurple,
+            Color(0xFFCD5656), // Primary color start
+            Color(0xFFAF3E3E), // Secondary color end
           ],
-          stops: [0.0, 0.5, 1.0],
         ),
         boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 12,
+            offset: const Offset(4, 0),
+            spreadRadius: 2,
+          ),
         ],
       ),
       child: SafeArea(
         child: Column(
+          mainAxisSize: MainAxisSize.max,
           children: [
-            // Header with Title and Collapse Button
+            // Enhanced Header with Title and Collapse Button
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+                border: Border(
+                  bottom: BorderSide(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
                   ),
-                ],
+                ),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   if (!_sidebarCollapsed)
-                    const Expanded(
+                    Expanded(
                       child: Text(
-                        'Analytics Dashboard',
+                        'FlexiMart Admin Dashboard',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white,
+                          color: Colors.white.withOpacity(0.95),
+                          letterSpacing: 0.5,
                         ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                  IconButton(
-                    icon: Icon(
-                      _sidebarCollapsed ? Icons.menu : Icons.menu_open,
-                      color: Colors.white,
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    onPressed: () {
-                      setState(() {
-                        _sidebarCollapsed = !_sidebarCollapsed;
-                      });
-                    },
-                    tooltip: _sidebarCollapsed ? 'Expand' : 'Collapse',
+                    child: IconButton(
+                      icon: Icon(
+                        _sidebarCollapsed ? Icons.menu : Icons.menu_open,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                      onPressed: () {
+                        setState(() {
+                          _sidebarCollapsed = !_sidebarCollapsed;
+                        });
+                      },
+                      tooltip: _sidebarCollapsed ? 'Expand' : 'Collapse',
+                    ),
                   ),
                 ],
               ),
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
-            // Navigation Items
+            // Navigation Items - Scrollable with Expanded
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: _navItems.length,
-                itemBuilder: (context, index) {
-                  final item = _navItems[index];
-                  final selected = _selectedIndex == index;
-                  return _NavTile(
-                    icon: item['icon'] as IconData,
-                    label: item['label'] as String,
-                    selected: selected,
-                    collapsed: _sidebarCollapsed,
-                    onTap: () {
-                      if (mounted) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                      }
-                    },
-                  );
-                },
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    children: List.generate(_navItems.length, (index) {
+                      final item = _navItems[index];
+                      final selected = _selectedIndex == index;
+                      return _NavTile(
+                        icon: item['icon'] as IconData,
+                        label: item['label'] as String,
+                        selected: selected,
+                        collapsed: _sidebarCollapsed,
+                        onTap: () {
+                          if (mounted) {
+                            setState(() {
+                              _selectedIndex = index;
+                            });
+                          }
+                        },
+                      );
+                    }),
+                  ),
+                ),
               ),
             ),
-            Divider(height: 1, color: Colors.white.withOpacity(0.2)),
-            // Profile Section
-            _buildProfileSection(context),
+            // Profile Section - Pinned at bottom with proper spacing
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildProfileSection(context),
+            ),
           ],
         ),
       ),
@@ -329,50 +344,70 @@ class _AdminDashboardState extends State<AdminDashboard> {
             'Admin';
         final userEmail = user?.email ?? '';
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: _sidebarCollapsed ? 16 : 20,
-                backgroundColor: AdminThemeColors.crimsonRed,
-                child: Text(
-                  userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
+        return Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: _sidebarCollapsed ? 18 : 24,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: _sidebarCollapsed ? 16 : 22,
+                  backgroundColor: AdminThemeColors.crimsonRed,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: _sidebarCollapsed ? 16 : 20,
+                    ),
                   ),
                 ),
               ),
-              if (!_sidebarCollapsed) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        userName,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+            ),
+            if (!_sidebarCollapsed) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withOpacity(0.95),
+                        letterSpacing: 0.2,
                       ),
-                      Text(
-                        userEmail,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(0.8),
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      userEmail,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                        letterSpacing: 0.1,
                       ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         );
       },
     );
@@ -386,23 +421,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              AdminThemeColors.crimsonRed,
-              AdminThemeColors.deepBerryRed,
-              AdminThemeColors.darkWinePurple,
+              Color(0xFFCD5656), // Primary color
+              Color(0xFFAF3E3E), // Secondary color
             ],
-            stops: [0.0, 0.5, 1.0],
           ),
         ),
         child: Column(
           children: [
-            // Top Header with Close Button
+            // Top Header with FlexiMart Title and Close Button
             Container(
               padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
+                    color: Colors.black.withOpacity(0.2),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   ),
@@ -411,8 +443,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
               child: SafeArea(
                 bottom: false,
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
+                    const Text(
+                      'FlexiMart',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                     IconButton(
                       icon: const Icon(Icons.menu_open, color: Colors.white),
                       onPressed: () => Navigator.pop(context),
@@ -436,12 +477,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       vertical: 3,
                     ),
                     decoration: BoxDecoration(
-                      color: selected
-                          ? Colors.white.withOpacity(
-                              0.2,
-                            ) // Light background for active
-                          : Colors.transparent,
+                      color: Colors.white, // White container
                       borderRadius: BorderRadius.circular(12),
+                      border: selected
+                          ? Border.all(
+                              color: AppColors.secondary,
+                              width: 2,
+                            ) // Red border for active
+                          : null,
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.symmetric(
@@ -451,11 +494,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       leading: Icon(
                         item['icon'] as IconData,
                         color: selected
-                            ? Colors
-                                  .white // White for active
-                            : Colors.white.withOpacity(
-                                0.7,
-                              ), // Semi-transparent white for inactive
+                            ? AppColors
+                                  .secondary // Red for active
+                            : const Color(0xFF1D3B53), // Dark blue for inactive
                         size: 24,
                       ),
                       title: Text(
@@ -466,11 +507,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               : FontWeight.normal,
                           fontSize: 15,
                           color: selected
-                              ? Colors
-                                    .white // White for active
-                              : Colors.white.withOpacity(
-                                  0.7,
-                                ), // Semi-transparent white for inactive
+                              ? AppColors
+                                    .secondary // Red for active
+                              : const Color(
+                                  0xFF1D3B53,
+                                ), // Dark blue for inactive
                         ),
                       ),
                       selected: selected,
@@ -491,10 +532,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.1),
+                color: Colors.white.withOpacity(0.2),
                 border: Border(
                   top: BorderSide(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withOpacity(0.3),
                     width: 1,
                   ),
                 ),
@@ -548,8 +589,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             Text(
                               user?.email ?? '',
                               style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.white.withOpacity(0.8),
+                                fontSize: 14, // Increased for clarity
+                                color: Colors.white.withOpacity(
+                                  0.95,
+                                ), // Brighter for better readability
+                                letterSpacing: 0.2,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -566,93 +610,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
-
-  Widget? _buildBottomNavBar() {
-    // Show only first 4 items in bottom nav
-    final bottomNavItems = _navItems.take(4).toList();
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: List.generate(bottomNavItems.length, (index) {
-              final item = bottomNavItems[index];
-              final isSelected = _selectedIndex == index;
-              return Expanded(
-                child: GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = index;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? AdminThemeColors.navActiveBg
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            item['icon'] as IconData,
-                            color: isSelected
-                                ? AdminThemeColors.navActive
-                                : Colors.black54,
-                            size: 24,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          item['label'] as String,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                            color: isSelected
-                                ? AdminThemeColors.navActive
-                                : Colors.black54,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-class _NavTile extends StatelessWidget {
+class _NavTile extends StatefulWidget {
   const _NavTile({
     required this.icon,
     required this.label,
@@ -668,39 +628,85 @@ class _NavTile extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_NavTile> createState() => _NavTileState();
+}
+
+class _NavTileState extends State<_NavTile>
+    with SingleTickerProviderStateMixin {
+  bool _isHovered = false;
+
+  @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeInOut,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          color: widget.selected
+              ? Colors.white.withOpacity(
+                  0.2,
+                ) // Brighter red background for active
+              : _isHovered
+              ? Colors.white.withOpacity(0.1) // Hover effect
+              : Colors.white.withOpacity(
+                  0.05,
+                ), // Subtle background for inactive
+          borderRadius: BorderRadius.circular(12),
+          border: widget.selected
+              ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
+              : null,
+          boxShadow: widget.selected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
         ),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: selected ? Colors.white : Colors.white.withOpacity(0.7),
-              size: 24,
-            ),
-            if (!collapsed) ...[
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected
-                        ? Colors.white
-                        : Colors.white.withOpacity(0.7),
-                    fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-                    fontSize: 14,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              Icon(
+                widget.icon,
+                color: widget.selected
+                    ? Colors
+                          .white // White for active
+                    : Colors.white.withOpacity(
+                        0.8,
+                      ), // Lighter red/pink for inactive
+                size: 22,
+              ),
+              if (!widget.collapsed) ...[
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    widget.label,
+                    style: TextStyle(
+                      color: widget.selected
+                          ? Colors
+                                .white // White text for active
+                          : Colors.white.withOpacity(
+                              0.85,
+                            ), // Lighter red/pink for inactive
+                      fontWeight: widget.selected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      fontSize: 15,
+                      letterSpacing: 0.2,
+                    ),
                   ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -731,7 +737,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                     colors: [
                       AdminThemeColors.crimsonRed,
                       AdminThemeColors.deepBerryRed,
-                      AdminThemeColors.darkWinePurple
+                      AdminThemeColors.darkWinePurple,
                     ],
                     stops: [0.0, 0.5, 1.0],
                   ),
@@ -745,30 +751,31 @@ class _DashboardOverviewPage extends StatelessWidget {
                   ],
                 ),
                 child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(
-                            Icons.analytics,
-                            color: Colors.white,
-                            size: 32,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.3),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(
+                        Icons.analytics,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
                             'Admin Dashboard',
                             style: TextStyle(
                               fontSize: isCompact ? 24 : 28,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Colors
+                                  .white, // White text for better contrast
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -776,10 +783,12 @@ class _DashboardOverviewPage extends StatelessWidget {
                             'Quick stats and pending tasks',
                             style: TextStyle(
                               fontSize: 14,
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withOpacity(
+                                0.9,
+                              ), // White text for better contrast
                             ),
                           ),
-                      ],
+                        ],
                       ),
                     ),
                   ],
@@ -879,10 +888,19 @@ class _DashboardOverviewPage extends StatelessWidget {
                       int totalStaff = 0;
                       int activeStaff = 0;
 
+                      // Filter out quotations from orders
+                      final actualOrders = orders.where((order) {
+                        final data = order.data() as Map<String, dynamic>;
+                        final isQuotation =
+                            data['isQuotation'] as bool? ?? false;
+                        return !isQuotation;
+                      }).toList();
+
                       // Process orders
-                      if (orders.isNotEmpty) {
-                        totalSales = orders.length;
-                        for (var order in orders) {
+
+                      if (actualOrders.isNotEmpty) {
+                        totalSales = actualOrders.length;
+                        for (var order in actualOrders) {
                           final data = order.data() as Map<String, dynamic>;
                           // Read totalPrice with null safety: default to 0 if missing
                           final items = (data['items'] as List?) ?? [];
@@ -893,7 +911,10 @@ class _DashboardOverviewPage extends StatelessWidget {
                             for (var item in items) {
                               if (item is Map<String, dynamic>) {
                                 final itemPrice = _parsePrice(item['price']);
-                                final quantity = _parseInt(item['quantity'], defaultValue: 1);
+                                final quantity = _parseInt(
+                                  item['quantity'],
+                                  defaultValue: 1,
+                                );
                                 price += itemPrice * quantity;
                               }
                             }
@@ -918,14 +939,43 @@ class _DashboardOverviewPage extends StatelessWidget {
                             : 0;
                       }
 
-                      // Process products
+                      // Process products - calculate inventory value from real product data
+                      // Formula: inventoryValue = sum of (price × stock) for all products
                       if (products.isNotEmpty) {
+                        int validProductsCount = 0;
+                        int skippedProductsCount = 0;
+
                         for (var product in products) {
                           final data = product.data() as Map<String, dynamic>;
                           // Handle price as String or num
                           double price = _parsePrice(data['price']);
                           final stock = (data['stock'] as num?)?.toInt() ?? 0;
-                          inventoryValue += price * stock;
+
+                          // Only count products with valid, reasonable values
+                          // Filter out invalid data (negative, zero, or unreasonably high values)
+                          if (price > 0 &&
+                              stock > 0 &&
+                              price <= 1000000 && // Max price: 1M per unit
+                              stock <= 100000) {
+                            // Max stock: 100K units
+                            inventoryValue += price * stock;
+                            validProductsCount++;
+                          } else {
+                            skippedProductsCount++;
+                            if (kDebugMode &&
+                                (price > 1000000 || stock > 100000)) {
+                              debugPrint(
+                                '⚠️ Skipped product ${product.id}: price=$price, stock=$stock (values too high)',
+                              );
+                            }
+                          }
+                        }
+
+                        if (kDebugMode) {
+                          debugPrint(
+                            '📊 Inventory calculation: $validProductsCount valid products, '
+                            '$skippedProductsCount skipped, total value: ₱${inventoryValue.toStringAsFixed(2)}',
+                          );
                         }
                       }
 
@@ -934,10 +984,10 @@ class _DashboardOverviewPage extends StatelessWidget {
 
                       // Process staff
                       totalStaff = staff.length;
-                      // Count active staff (those assigned to orders)
+                      // Count active staff (those assigned to actual orders, not quotations)
                       final assignedStaffIds = <String>{};
-                      if (orders.isNotEmpty) {
-                        for (var order in orders) {
+                      if (actualOrders.isNotEmpty) {
+                        for (var order in actualOrders) {
                           final data = order.data() as Map<String, dynamic>;
                           final assignedId = data['assignedStaffId'] as String?;
                           if (assignedId != null) {
@@ -967,7 +1017,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                                 icon: Icons.currency_exchange,
                                 color: AdminThemeColors.darkWinePurple,
                                 width: cardWidth,
-                                trend: totalRevenue > 0 ? '+12.5%' : null,
+                                trend: null,
                               ),
                               _EnhancedKpiCard(
                                 title: 'Total Orders',
@@ -977,16 +1027,16 @@ class _DashboardOverviewPage extends StatelessWidget {
                                 icon: Icons.shopping_cart_outlined,
                                 color: AdminThemeColors.crimsonRed,
                                 width: cardWidth,
-                                trend: totalSales > 0 ? '+8.2%' : null,
+                                trend: null,
                               ),
                               _EnhancedKpiCard(
                                 title: 'Customers',
                                 value: totalCustomers.toString(),
-                                subtitle: 'Active customers',
+                                subtitle: 'Total registered customers',
                                 icon: Icons.people_outline,
                                 color: AdminThemeColors.deepBerryRed,
                                 width: cardWidth,
-                                trend: totalCustomers > 0 ? '+5.1%' : null,
+                                trend: null,
                               ),
                               _EnhancedKpiCard(
                                 title: 'Staff',
@@ -1004,7 +1054,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                                 icon: Icons.analytics_outlined,
                                 color: AdminThemeColors.crimsonRed,
                                 width: cardWidth,
-                                trend: avgOrderValue > 0 ? '+3.4%' : null,
+                                trend: null,
                               ),
                               _EnhancedKpiCard(
                                 title: 'Inventory Value',
@@ -1109,7 +1159,6 @@ class _DashboardOverviewPage extends StatelessWidget {
     }
     return defaultValue;
   }
-
 }
 
 class _EnhancedKpiCard extends StatelessWidget {
@@ -1198,8 +1247,8 @@ class _EnhancedKpiCard extends StatelessWidget {
             Text(
               title,
               style: const TextStyle(
-                fontSize: 13,
-                color: Color(0xFF3A0016), // Card title color
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.3,
               ),
@@ -1210,17 +1259,20 @@ class _EnhancedKpiCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF4D0020), // Card value color
+                color: Color(0xFFCD5656), // Card value color (primary)
                 height: 1.2,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               subtitle,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF8A8A8A), // Card subtext color
+              style: TextStyle(
+                fontSize: 13, // Increased for clarity
+                color: const Color(
+                  0xFF1D3B53,
+                ).withOpacity(0.9), // Darker for better readability
                 fontWeight: FontWeight.w400,
+                letterSpacing: 0.2, // Added for clarity
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -1402,8 +1454,9 @@ class _RecentOrdersTable extends StatelessWidget {
               'Date',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Color(0xFF424242),
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -1412,8 +1465,9 @@ class _RecentOrdersTable extends StatelessWidget {
               'Customer',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Color(0xFF424242),
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -1422,8 +1476,9 @@ class _RecentOrdersTable extends StatelessWidget {
               'Items',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Color(0xFF424242),
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -1432,8 +1487,9 @@ class _RecentOrdersTable extends StatelessWidget {
               'Total',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Color(0xFF424242),
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -1442,8 +1498,9 @@ class _RecentOrdersTable extends StatelessWidget {
               'Status',
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                fontSize: 13,
-                color: Color(0xFF424242),
+                fontSize: 14, // Increased for clarity
+                color: Color(0xFF1D3B53), // Dark blue for better readability
+                letterSpacing: 0.2,
               ),
             ),
           ),
@@ -1457,14 +1514,21 @@ class _RecentOrdersTable extends StatelessWidget {
           final items = order['items'] as List<dynamic>? ?? [];
           final itemCount = items.length;
           // Read totalPrice with null safety: default to 0 if missing
-          double price = _DashboardOverviewPage._parsePrice(order['totalPrice']);
+          double price = _DashboardOverviewPage._parsePrice(
+            order['totalPrice'],
+          );
 
           // If totalPrice is 0 or missing, compute from items as fallback
           if (price == 0.0 && items.isNotEmpty) {
             for (var item in items) {
               if (item is Map<String, dynamic>) {
-                final itemPrice = _DashboardOverviewPage._parsePrice(item['price']);
-                final quantity = _DashboardOverviewPage._parseInt(item['quantity'], defaultValue: 1);
+                final itemPrice = _DashboardOverviewPage._parsePrice(
+                  item['price'],
+                );
+                final quantity = _DashboardOverviewPage._parseInt(
+                  item['quantity'],
+                  defaultValue: 1,
+                );
                 price += itemPrice * quantity;
               }
             }
@@ -1496,8 +1560,11 @@ class _RecentOrdersTable extends StatelessWidget {
                 Text(
                   date,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF212121),
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
@@ -1506,8 +1573,11 @@ class _RecentOrdersTable extends StatelessWidget {
                   customerName,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF212121),
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
@@ -1515,8 +1585,11 @@ class _RecentOrdersTable extends StatelessWidget {
                 Text(
                   itemCount.toString(),
                   style: const TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFF212121),
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.1,
                   ),
                 ),
               ),
@@ -1710,14 +1783,21 @@ class _TopCustomersList extends StatelessWidget {
           final customerName = order['customerName'] as String? ?? 'Unknown';
           // Read totalPrice with null safety: default to 0 if missing
           final items = (order['items'] as List?) ?? [];
-          double price = _DashboardOverviewPage._parsePrice(order['totalPrice']);
+          double price = _DashboardOverviewPage._parsePrice(
+            order['totalPrice'],
+          );
 
           // If totalPrice is 0 or missing, compute from items as fallback
           if (price == 0.0 && items.isNotEmpty) {
             for (var item in items) {
               if (item is Map<String, dynamic>) {
-                final itemPrice = _DashboardOverviewPage._parsePrice(item['price']);
-                final quantity = _DashboardOverviewPage._parseInt(item['quantity'], defaultValue: 1);
+                final itemPrice = _DashboardOverviewPage._parsePrice(
+                  item['price'],
+                );
+                final quantity = _DashboardOverviewPage._parseInt(
+                  item['quantity'],
+                  defaultValue: 1,
+                );
                 price += itemPrice * quantity;
               }
             }
@@ -1822,10 +1902,11 @@ class _TopCustomersList extends StatelessWidget {
                         ),
                         child: const Text(
                           'TOP',
-                          style: TextStyle(
-                            fontSize: 10,
+                          style: const TextStyle(
+                            fontSize: 12, // Increased for clarity
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ),
@@ -2065,9 +2146,10 @@ class _StaffPerformanceList extends StatelessWidget {
                             child: const Text(
                               'BEST',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 12, // Increased for clarity
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
+                                letterSpacing: 0.3,
                               ),
                             ),
                           ),
@@ -2207,31 +2289,71 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                           ),
                         ),
                         if (!isMobile)
-                          ElevatedButton.icon(
-                            onPressed: () => _showAddProductDialog(context),
-                            icon: const Icon(Icons.add, size: 18),
-                            label: const Text('Add Product'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
-                            ),
+                          StreamBuilder<DocumentSnapshot>(
+                            stream: FirebaseAuth.instance.currentUser != null
+                                ? FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(
+                                        FirebaseAuth.instance.currentUser!.uid,
+                                      )
+                                      .snapshots()
+                                : null,
+                            builder: (context, snapshot) {
+                              final userRole =
+                                  (snapshot.data?.data()
+                                          as Map<String, dynamic>?)?['role']
+                                      as String?;
+                              final isAdmin = userRole == 'admin';
+
+                              if (!isAdmin) return const SizedBox.shrink();
+
+                              return ElevatedButton.icon(
+                                onPressed: () => _showAddProductDialog(context),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('Add Product'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                              );
+                            },
                           ),
                       ],
                     ),
                     if (isMobile) ...[
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showAddProductDialog(context),
-                          icon: const Icon(Icons.add, size: 18),
-                          label: const Text('Add Product'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
+                      StreamBuilder<DocumentSnapshot>(
+                        stream: FirebaseAuth.instance.currentUser != null
+                            ? FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(FirebaseAuth.instance.currentUser!.uid)
+                                  .snapshots()
+                            : null,
+                        builder: (context, snapshot) {
+                          final userRole =
+                              (snapshot.data?.data()
+                                      as Map<String, dynamic>?)?['role']
+                                  as String?;
+                          final isAdmin = userRole == 'admin';
+
+                          if (!isAdmin) return const SizedBox.shrink();
+
+                          return SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showAddProductDialog(context),
+                              icon: const Icon(Icons.add, size: 18),
+                              label: const Text('Add Product'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                     const SizedBox(height: 16),
@@ -2472,10 +2594,27 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                             fontSize: 16,
                           ),
                         ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: () => _showAddProductDialog(context),
-                          child: const Text('Add First Product'),
+                        StreamBuilder<DocumentSnapshot>(
+                          stream: FirebaseAuth.instance.currentUser != null
+                              ? FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(FirebaseAuth.instance.currentUser!.uid)
+                                    .snapshots()
+                              : null,
+                          builder: (context, snapshot) {
+                            final userRole =
+                                (snapshot.data?.data()
+                                        as Map<String, dynamic>?)?['role']
+                                    as String?;
+                            final isAdmin = userRole == 'admin';
+
+                            if (!isAdmin) return const SizedBox.shrink();
+
+                            return ElevatedButton(
+                              onPressed: () => _showAddProductDialog(context),
+                              child: const Text('Add First Product'),
+                            );
+                          },
                         ),
                       ],
                     ),
@@ -2649,9 +2788,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       child: Text(
                         category,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: 12, // Increased for clarity
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
                         ),
                       ),
                     ),
@@ -2695,58 +2835,82 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                // Action Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            _showEditProductDialog(context, productId, product),
-                        icon: const Icon(Icons.edit, size: 16),
-                        label: Text(isMobile ? '' : 'Edit'),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 8 : 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _deleteProduct(context, productId),
-                        icon: const Icon(Icons.delete, size: 16),
-                        label: Text(isMobile ? '' : 'Delete'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.error,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isMobile ? 8 : 12,
-                            vertical: 8,
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (isLowStock) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _showRestockDialog(context, productId, product),
-                          icon: const Icon(Icons.add_box, size: 16),
-                          label: Text(isMobile ? '' : 'Restock'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            foregroundColor: Colors.white,
-                            padding: EdgeInsets.symmetric(
-                              horizontal: isMobile ? 8 : 12,
-                              vertical: 8,
+                // Action Buttons - Only show for admin
+                StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseAuth.instance.currentUser != null
+                      ? FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(FirebaseAuth.instance.currentUser!.uid)
+                            .snapshots()
+                      : null,
+                  builder: (context, snapshot) {
+                    final userRole =
+                        (snapshot.data?.data()
+                                as Map<String, dynamic>?)?['role']
+                            as String?;
+                    final isAdmin = userRole == 'admin';
+
+                    if (!isAdmin) return const SizedBox.shrink();
+
+                    return Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showEditProductDialog(
+                              context,
+                              productId,
+                              product,
+                            ),
+                            icon: const Icon(Icons.edit, size: 16),
+                            label: Text(isMobile ? '' : 'Edit'),
+                            style: OutlinedButton.styleFrom(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 8 : 12,
+                                vertical: 8,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ],
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _deleteProduct(context, productId),
+                            icon: const Icon(Icons.delete, size: 16),
+                            label: Text(isMobile ? '' : 'Delete'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: AppColors.error,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isMobile ? 8 : 12,
+                                vertical: 8,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isLowStock) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => _showRestockDialog(
+                                context,
+                                productId,
+                                product,
+                              ),
+                              icon: const Icon(Icons.add_box, size: 16),
+                              label: Text(isMobile ? '' : 'Restock'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.error,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isMobile ? 8 : 12,
+                                  vertical: 8,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -2763,7 +2927,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final stockController = TextEditingController(text: '0');
     final minStockController = TextEditingController(text: '10');
     final imageUrlController = TextEditingController();
-    String selectedCategory = 'Sliding window';
+    String selectedCategory = 'Windows';
     File? _selectedImage;
     bool _uploadingImage = false;
 
@@ -2780,7 +2944,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                 maxWidth: constraints.maxWidth > 600
                     ? 500
                     : constraints.maxWidth - 32,
-                maxHeight: constraints.maxHeight - 64,
+                maxHeight: constraints.maxHeight * 0.9,
               ),
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
@@ -2837,24 +3001,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                             ),
                             items: const [
                               DropdownMenuItem(
-                                value: 'Mantle',
-                                child: Text('Mantle'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Frames',
-                                child: Text('Frames'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Sliding window',
-                                child: Text('Sliding window'),
+                                value: 'Windows',
+                                child: Text('Windows'),
                               ),
                               DropdownMenuItem(
                                 value: 'Doors',
                                 child: Text('Doors'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Glass type',
-                                child: Text('Glass type'),
                               ),
                             ],
                             onChanged: (value) {
@@ -3227,8 +3379,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
       text: product['imageUrl'] as String? ?? '',
     );
 
-    // Get existing category or default to 'Glass'
-    String selectedCategory = (product['category'] as String?) ?? 'Glass';
+    // Get existing category or default to 'Windows'
+    String selectedCategory = (product['category'] as String?) ?? 'Windows';
     File? _selectedImage;
     bool _uploadingImage = false;
     String? _existingImageUrl = product['imageUrl'] as String?;
@@ -3246,7 +3398,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                 maxWidth: constraints.maxWidth > 600
                     ? 500
                     : constraints.maxWidth - 32,
-                maxHeight: constraints.maxHeight - 64,
+                maxHeight: constraints.maxHeight * 0.9,
               ),
               padding: const EdgeInsets.all(24),
               child: SingleChildScrollView(
@@ -3305,32 +3457,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                             ),
                             items: const [
                               DropdownMenuItem(
-                                value: 'Glass',
-                                child: Text('Glass'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Doors',
-                                child: Text('Doors'),
-                              ),
-                              DropdownMenuItem(
                                 value: 'Windows',
                                 child: Text('Windows'),
                               ),
                               DropdownMenuItem(
-                                value: 'Mantle',
-                                child: Text('Mantle'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Frames',
-                                child: Text('Frames'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Sliding window',
-                                child: Text('Sliding window'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'Glass type',
-                                child: Text('Glass type'),
+                                value: 'Doors',
+                                child: Text('Doors'),
                               ),
                             ],
                             onChanged: (value) {
@@ -3985,7 +4117,8 @@ class _PosPage extends StatelessWidget {
 
                   final totalAmount = price;
                   final status = (data['status'] as String? ?? 'pending')
-                      .toString().toLowerCase();
+                      .toString()
+                      .toLowerCase();
                   final createdAt = data['createdAt'];
 
                   String formattedDate = 'N/A';
@@ -4208,6 +4341,612 @@ class _PosPage extends StatelessWidget {
   }
 }
 
+// ==================== SALES CALENDAR PAGE ====================
+class _SalesCalendarPage extends StatefulWidget {
+  const _SalesCalendarPage();
+
+  @override
+  State<_SalesCalendarPage> createState() => _SalesCalendarPageState();
+}
+
+class _SalesCalendarPageState extends State<_SalesCalendarPage> {
+  DateTime _focusedDay = DateTime.now();
+  DateTime _selectedDay = DateTime.now();
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(isMobile ? 16 : 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AdminThemeColors.crimsonRed,
+                  AdminThemeColors.deepBerryRed,
+                  AdminThemeColors.darkWinePurple,
+                ],
+                stops: [0.0, 0.5, 1.0],
+              ),
+              borderRadius: const BorderRadius.all(Radius.circular(24)),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 20,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.calendar_today,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Daily Sales Calendar',
+                        style: TextStyle(
+                          fontSize: isMobile ? 24 : 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'View sales by date',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          // Calendar
+          Card(
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: TableCalendar(
+                firstDay: DateTime.utc(2020, 1, 1),
+                lastDay: DateTime.utc(2030, 12, 31),
+                focusedDay: _focusedDay,
+                selectedDayPredicate: (day) {
+                  return isSameDay(_selectedDay, day);
+                },
+                calendarFormat: _calendarFormat,
+                onFormatChanged: (format) {
+                  if (_calendarFormat != format) {
+                    setState(() {
+                      _calendarFormat = format;
+                    });
+                  }
+                },
+                onDaySelected: (selectedDay, focusedDay) {
+                  if (!isSameDay(_selectedDay, selectedDay)) {
+                    setState(() {
+                      _selectedDay = selectedDay;
+                      _focusedDay = focusedDay;
+                    });
+                    _showSalesBottomSheet(context, selectedDay);
+                  }
+                },
+                onPageChanged: (focusedDay) {
+                  _focusedDay = focusedDay;
+                },
+                calendarStyle: CalendarStyle(
+                  outsideDaysVisible: false,
+                  weekendTextStyle: TextStyle(
+                    color: AdminThemeColors.crimsonRed,
+                  ),
+                  selectedDecoration: BoxDecoration(
+                    color: AdminThemeColors.crimsonRed,
+                    shape: BoxShape.circle,
+                  ),
+                  todayDecoration: BoxDecoration(
+                    color: AdminThemeColors.crimsonRed.withOpacity(0.8),
+                    shape: BoxShape.circle,
+                  ),
+                  markerDecoration: BoxDecoration(
+                    color: AdminThemeColors.deepBerryRed,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                headerStyle: HeaderStyle(
+                  formatButtonVisible: true,
+                  titleCentered: true,
+                  formatButtonShowsNext: false,
+                  formatButtonDecoration: BoxDecoration(
+                    color: AdminThemeColors.crimsonRed,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  formatButtonTextStyle: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                  leftChevronIcon: Icon(
+                    Icons.chevron_left,
+                    color: AdminThemeColors.crimsonRed,
+                  ),
+                  rightChevronIcon: Icon(
+                    Icons.chevron_right,
+                    color: AdminThemeColors.crimsonRed,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSalesBottomSheet(BuildContext context, DateTime selectedDate) {
+    // Calculate start and end of selected day
+    final startOfDay = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      0,
+      0,
+      0,
+    );
+    final endOfDay = DateTime(
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+      23,
+      59,
+      59,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AdminThemeColors.crimsonRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.calendar_today,
+                      color: AdminThemeColors.crimsonRed,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Sales for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          DateFormat('EEEE').format(selectedDate),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: const Color(
+                              0xFF1D3B53,
+                            ), // Dark blue for better contrast
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+            const Divider(height: 1),
+            // Sales Data
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseAuth.instance.currentUser != null
+                    ? FirebaseFirestore.instance
+                          .collection('sales')
+                          .where(
+                            'date',
+                            isGreaterThanOrEqualTo: Timestamp.fromDate(
+                              startOfDay,
+                            ),
+                          )
+                          .where(
+                            'date',
+                            isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
+                          )
+                          .snapshots()
+                    : null,
+                builder: (context, snapshot) {
+                  // Check authentication first
+                  if (FirebaseAuth.instance.currentUser == null) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.lock_outline,
+                              size: 64,
+                              color: Colors.orange[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Authentication Required',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Please log in to view sales data.',
+                              style: const TextStyle(color: Color(0xFF1D3B53)),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (snapshot.hasError) {
+                    final error = snapshot.error.toString();
+                    final isPermissionError =
+                        error.contains('permission-denied') ||
+                        error.contains('Missing or insufficient permissions');
+                    final isIndexError =
+                        error.contains('index') ||
+                        error.contains('requires an index');
+
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isIndexError
+                                  ? Icons.build_outlined
+                                  : Icons.error_outline,
+                              size: 64,
+                              color: isIndexError
+                                  ? Colors.orange[300]
+                                  : Colors.red[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              isIndexError
+                                  ? 'Index Required'
+                                  : 'Error loading sales',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isIndexError
+                                  ? 'A Firestore index is required for this query. Please check the console for the index creation link, or contact your administrator.'
+                                  : isPermissionError
+                                  ? 'Permission denied. Please ensure you are logged in and have the correct permissions.'
+                                  : error,
+                              style: const TextStyle(color: Color(0xFF1D3B53)),
+                              textAlign: TextAlign.center,
+                            ),
+                            if (isPermissionError) ...[
+                              const SizedBox(height: 16),
+                              Text(
+                                'If this error persists, please contact your administrator.',
+                                style: TextStyle(
+                                  color: const Color(
+                                    0xFF1D3B53,
+                                  ).withOpacity(0.8),
+                                  fontSize: 12,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  }
+
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.receipt_long,
+                            size: 64,
+                            color: Colors.grey[300],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No sales for this date',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.grey[800],
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'No transactions found for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  // Sort sales by date (descending) in memory since we removed orderBy
+                  final sales = snapshot.data!.docs.toList()
+                    ..sort((a, b) {
+                      final aDate = a.data() as Map<String, dynamic>;
+                      final bDate = b.data() as Map<String, dynamic>;
+                      final aTimestamp = aDate['date'] as Timestamp?;
+                      final bTimestamp = bDate['date'] as Timestamp?;
+                      if (aTimestamp == null && bTimestamp == null) return 0;
+                      if (aTimestamp == null) return 1;
+                      if (bTimestamp == null) return -1;
+                      return bTimestamp.compareTo(
+                        aTimestamp,
+                      ); // Descending order
+                    });
+
+                  double totalSales = 0;
+                  int transactionCount = sales.length;
+
+                  // Calculate total sales
+                  for (var sale in sales) {
+                    final data = sale.data() as Map<String, dynamic>;
+                    final amount = data['amount'];
+                    if (amount != null) {
+                      if (amount is num) {
+                        totalSales += amount.toDouble();
+                      } else if (amount is String) {
+                        totalSales += double.tryParse(amount) ?? 0;
+                      }
+                    }
+                  }
+
+                  return Column(
+                    children: [
+                      // Summary Cards
+                      Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: _buildSummaryCard(
+                                'Total Sales',
+                                PriceFormatter.formatPrice(totalSales),
+                                Icons.attach_money,
+                                AdminThemeColors.crimsonRed,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: _buildSummaryCard(
+                                'Transactions',
+                                transactionCount.toString(),
+                                Icons.receipt_long,
+                                AdminThemeColors.deepBerryRed,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Divider(height: 1),
+                      // Transactions List
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(20),
+                          itemCount: sales.length,
+                          itemBuilder: (context, index) {
+                            final sale = sales[index];
+                            final data = sale.data() as Map<String, dynamic>;
+                            final amount = data['amount'];
+                            final date = data['date'] as Timestamp?;
+
+                            double saleAmount = 0;
+                            if (amount != null) {
+                              if (amount is num) {
+                                saleAmount = amount.toDouble();
+                              } else if (amount is String) {
+                                saleAmount = double.tryParse(amount) ?? 0;
+                              }
+                            }
+
+                            String timeString = '';
+                            if (date != null) {
+                              timeString = DateFormat(
+                                'h:mm a',
+                              ).format(date.toDate());
+                            }
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: ListTile(
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                leading: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AdminThemeColors.crimsonRed
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(
+                                    Icons.payment,
+                                    color: AdminThemeColors.crimsonRed,
+                                    size: 24,
+                                  ),
+                                ),
+                                title: Text(
+                                  'Transaction ${index + 1}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  timeString.isNotEmpty
+                                      ? 'Time: $timeString'
+                                      : 'No time available',
+                                  style: TextStyle(
+                                    color: const Color(
+                                      0xFF1D3B53,
+                                    ), // Dark blue for better contrast
+                                    fontSize: 14,
+                                  ),
+                                ),
+                                trailing: Text(
+                                  PriceFormatter.formatPrice(saleAmount),
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AdminThemeColors.crimsonRed,
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _OrdersManagementPage extends StatefulWidget {
   const _OrdersManagementPage();
 
@@ -4218,8 +4957,7 @@ class _OrdersManagementPage extends StatefulWidget {
 class _OrdersManagementPageState extends State<_OrdersManagementPage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _filterStatus =
-      'all'; // all, pending, processing, completed
+  String _filterStatus = 'all'; // all, pending, processing, completed
   String _filterPayment = 'all'; // all, paid, unpaid
 
   static const Set<String> _pendingStatuses = {
@@ -4238,10 +4976,7 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
     'awaiting installation',
   };
 
-  static const Set<String> _completedStatuses = {
-    'completed',
-    'delivered',
-  };
+  static const Set<String> _completedStatuses = {'completed', 'delivered'};
 
   @override
   void initState() {
@@ -4265,9 +5000,7 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
       case 'completed':
         return _completedStatuses.contains(normalized);
       default:
-        return group == 'all'
-            ? true
-            : normalized == group.toLowerCase();
+        return group == 'all' ? true : normalized == group.toLowerCase();
     }
   }
 
@@ -4300,8 +5033,10 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
         return normalized
             .replaceAll('_', ' ')
             .split(' ')
-            .map((word) =>
-                word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
+            .map(
+              (word) =>
+                  word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1),
+            )
             .join(' ');
     }
   }
@@ -5203,11 +5938,11 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                 'statusLabel': label,
               });
 
-        // Create notification for customer when status changes
-        if (customerId.isNotEmpty && oldStatus != status) {
-          try {
-            final notificationService = NotificationService.instance;
-            await notificationService.notifyOrderStatusChange(
+          // Create notification for customer when status changes
+          if (customerId.isNotEmpty && oldStatus != status) {
+            try {
+              final notificationService = NotificationService.instance;
+              await notificationService.notifyOrderStatusChange(
                 customerId: customerId,
                 orderId: orderId,
                 orderData: orderData,
@@ -5522,14 +6257,19 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
-                // Get unique customer IDs from orders
+                // Get unique customer IDs from orders (check both customerId and userId fields)
                 final Set<String> customerIdsWithOrders = {};
                 if (ordersSnapshot.hasData) {
                   for (var orderDoc in ordersSnapshot.data!.docs) {
                     final orderData = orderDoc.data() as Map<String, dynamic>;
+                    // Check both customerId and userId fields
                     final customerId = orderData['customerId'] as String?;
+                    final userId = orderData['userId'] as String?;
                     if (customerId != null && customerId.isNotEmpty) {
                       customerIdsWithOrders.add(customerId);
+                    }
+                    if (userId != null && userId.isNotEmpty) {
+                      customerIdsWithOrders.add(userId);
                     }
                   }
                 }
@@ -5582,7 +6322,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    // Filter customers in memory
+                    // Filter customers in memory - include all users who have placed orders
+                    // Check both explicit 'customer' role and users who have orders
                     final customers =
                         (allUsersSnapshot.hasData
                                 ? allUsersSnapshot.data!.docs
@@ -5590,7 +6331,13 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                             .where((doc) {
                               final data = doc.data() as Map<String, dynamic>;
                               final role = (data['role'] as String?) ?? '';
-                              return role.toLowerCase() == 'customer';
+                              // Include if role is 'customer' OR if they have placed orders
+                              final isCustomerRole =
+                                  role.toLowerCase() == 'customer';
+                              final hasOrder = customerIdsWithOrders.contains(
+                                doc.id,
+                              );
+                              return isCustomerRole || hasOrder;
                             })
                             .toList();
 
@@ -5626,12 +6373,14 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                     if (_searchQuery.isNotEmpty) {
                       filteredCustomers = filteredCustomers.where((doc) {
                         final data = doc.data() as Map<String, dynamic>;
-                        final name = ((data['name'] as String?) ??
-                                (data['fullName'] as String?) ??
+                        final name =
+                            ((data['name'] as String?) ??
+                                    (data['fullName'] as String?) ??
                                     (data['customerName'] as String?) ??
                                     '')
                                 .toLowerCase();
-                        final email = (data['email'] as String? ?? '').toLowerCase();
+                        final email = (data['email'] as String? ?? '')
+                            .toLowerCase();
                         final query = _searchQuery.toLowerCase();
                         return name.contains(query) || email.contains(query);
                       }).toList();
@@ -5711,7 +6460,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
     bool isMobile,
   ) {
     final customer = customerDoc.data() as Map<String, dynamic>;
-    final name = (customer['name'] as String?) ??
+    final name =
+        (customer['name'] as String?) ??
         (customer['fullName'] as String?) ??
         (customer['customerName'] as String?) ??
         'Unknown';
@@ -5722,7 +6472,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
 
     // Check multiple possible field names for profile picture
     // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl = (customer['profilePic'] as String?) ??
+    final String? profilePicUrl =
+        (customer['profilePic'] as String?) ??
         (customer['profilePictureUrl'] as String?) ??
         (customer['profileImageUrl'] as String?) ??
         (customer['photoUrl'] as String?) ??
@@ -5730,7 +6481,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
         (customer['profileImage'] as String?);
 
     // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture = profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
+    final bool hasProfilePicture =
+        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
     final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
 
     return Card(
@@ -5753,10 +6505,14 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                     backgroundImage: validProfilePicUrl != null
                         ? NetworkImage(validProfilePicUrl)
                         : null,
-                    onBackgroundImageError: (exception, stackTrace) {
-                      // Handle image loading errors gracefully
-                      debugPrint('Error loading profile image: $exception');
-                    },
+                    onBackgroundImageError: validProfilePicUrl != null
+                        ? (exception, stackTrace) {
+                            // Handle image loading errors gracefully
+                            debugPrint(
+                              'Error loading profile image: $exception',
+                            );
+                          }
+                        : null,
                     child: validProfilePicUrl == null
                         ? Icon(
                             Icons.person,
@@ -5813,7 +6569,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                   ),
                   if (phoneVerified)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.success.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -5831,9 +6590,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                           Text(
                             'Verified',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 12, // Increased for clarity
                               color: AppColors.success,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ],
@@ -5841,7 +6601,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                     )
                   else if (phone != 'No phone')
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -5859,9 +6622,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                           Text(
                             'Not Verified',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 12, // Increased for clarity
                               color: Colors.orange,
                               fontWeight: FontWeight.bold,
+                              letterSpacing: 0.2,
                             ),
                           ),
                         ],
@@ -5935,7 +6699,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
     DocumentSnapshot customerDoc,
   ) {
     final customer = customerDoc.data() as Map<String, dynamic>;
-    final name = (customer['name'] as String?) ??
+    final name =
+        (customer['name'] as String?) ??
         (customer['fullName'] as String?) ??
         (customer['customerName'] as String?) ??
         'Unknown';
@@ -5947,7 +6712,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
 
     // Check multiple possible field names for profile picture
     // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl = (customer['profilePic'] as String?) ??
+    final String? profilePicUrl =
+        (customer['profilePic'] as String?) ??
         (customer['profilePictureUrl'] as String?) ??
         (customer['profileImageUrl'] as String?) ??
         (customer['photoUrl'] as String?) ??
@@ -5955,7 +6721,8 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
         (customer['profileImage'] as String?);
 
     // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture = profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
+    final bool hasProfilePicture =
+        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
     final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
 
     showDialog(
@@ -5977,10 +6744,14 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                     backgroundImage: validProfilePicUrl != null
                         ? NetworkImage(validProfilePicUrl)
                         : null,
-                    onBackgroundImageError: (exception, stackTrace) {
-                      // Handle image loading errors gracefully
-                      debugPrint('Error loading profile image: $exception');
-                    },
+                    onBackgroundImageError: validProfilePicUrl != null
+                        ? (exception, stackTrace) {
+                            // Handle image loading errors gracefully
+                            debugPrint(
+                              'Error loading profile image: $exception',
+                            );
+                          }
+                        : null,
                     child: validProfilePicUrl == null
                         ? Icon(
                             Icons.person,
@@ -6026,7 +6797,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                   const SizedBox(width: 12),
                   Text(
                     'Phone',
-                    style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
@@ -6041,7 +6815,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                   ),
                   if (phoneVerified)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.success.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -6069,7 +6846,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                     )
                   else if (phone != 'No phone')
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.orange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
@@ -6134,8 +6914,47 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                       .where('customerId', isEqualTo: userId)
                       .orderBy('createdAt', descending: true)
                       .limit(10)
-                      .snapshots(),
+                      .snapshots()
+                      .handleError((error) {
+                        if (kDebugMode) {
+                          debugPrint(
+                            '⚠️ OrderBy createdAt failed, using simple query: $error',
+                          );
+                        }
+                        // Fallback: return orders without orderBy
+                        return FirebaseFirestore.instance
+                            .collection('orders')
+                            .where('customerId', isEqualTo: userId)
+                            .limit(10)
+                            .snapshots();
+                      }),
                   builder: (context, snapshot) {
+                    // Handle connection state
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    // Handle errors
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 48,
+                              color: AppColors.textSecondary,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Error loading orders',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+
                     if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                       return Center(
                         child: Text(
@@ -6145,11 +6964,26 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                       );
                     }
 
+                    // Sort orders by createdAt in memory if orderBy failed
+                    final orders = List<QueryDocumentSnapshot>.from(
+                      snapshot.data!.docs,
+                    );
+                    orders.sort((a, b) {
+                      final aData = a.data() as Map<String, dynamic>;
+                      final bData = b.data() as Map<String, dynamic>;
+                      final aCreatedAt = aData['createdAt'] as Timestamp?;
+                      final bCreatedAt = bData['createdAt'] as Timestamp?;
+                      if (aCreatedAt == null && bCreatedAt == null) return 0;
+                      if (aCreatedAt == null) return 1;
+                      if (bCreatedAt == null) return -1;
+                      return bCreatedAt.compareTo(aCreatedAt);
+                    });
+
                     return ListView.builder(
                       shrinkWrap: true,
-                      itemCount: snapshot.data!.docs.length,
+                      itemCount: orders.length,
                       itemBuilder: (context, index) {
-                        final order = snapshot.data!.docs[index];
+                        final order = orders[index];
                         final data = order.data() as Map<String, dynamic>;
                         // Use totalPrice field (correct Firestore field name)
                         final total =
@@ -6175,7 +7009,10 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
                           trailing: Chip(
                             label: Text(
                               status.toUpperCase(),
-                              style: const TextStyle(fontSize: 10),
+                              style: const TextStyle(
+                                fontSize: 12, // Increased for clarity
+                                letterSpacing: 0.2,
+                              ),
                             ),
                             backgroundColor: AppColors.primary.withOpacity(0.1),
                             labelStyle: TextStyle(color: AppColors.primary),
@@ -6577,31 +7414,409 @@ class _FeedbackPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    final isMobile = MediaQuery.of(context).size.width < 768;
+
+    return Scaffold(
+      backgroundColor: AppColors.dashboardBackground,
+      body: Column(
         children: [
-          Icon(
-            Icons.feedback_outlined,
-            size: 64,
-            color: AppColors.textSecondary,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Feedback Center',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
+          // Header
+          Container(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.feedback_outlined,
+                  size: isMobile ? 28 : 32,
+                  color: AppColors.primary,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Feedback Center',
+                  style: TextStyle(
+                    fontSize: isMobile ? 20 : 24,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'View & Respond to Feedback',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textSecondary),
+          // Feedback List
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('orders')
+                  .orderBy('createdAt', descending: true)
+                  .snapshots()
+                  .handleError((error) {
+                    if (kDebugMode) {
+                      debugPrint(
+                        '⚠️ OrderBy createdAt failed, using simple query: $error',
+                      );
+                    }
+                    // Fallback: return orders without orderBy
+                    return FirebaseFirestore.instance
+                        .collection('orders')
+                        .snapshots();
+                  }),
+              builder: (context, snapshot) {
+                // Handle connection state
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // Handle errors
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          size: 64,
+                          color: AppColors.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading feedback',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          style: TextStyle(color: AppColors.textSecondary),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.feedback_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No feedback yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Customer ratings and reviews will appear here',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                // Filter orders with ratings and sort by createdAt
+                final allOrders = List<QueryDocumentSnapshot>.from(
+                  snapshot.data!.docs,
+                );
+
+                // Filter orders that have ratings
+                final ordersWithRatings = allOrders.where((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final hasRating = data['hasRating'] as bool? ?? false;
+                  final rating = data['rating'] as num?;
+                  return hasRating || (rating != null && rating > 0);
+                }).toList();
+
+                // Sort by createdAt in memory if orderBy failed
+                ordersWithRatings.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aCreatedAt = aData['createdAt'] as Timestamp?;
+                  final bCreatedAt = bData['createdAt'] as Timestamp?;
+                  if (aCreatedAt == null && bCreatedAt == null) return 0;
+                  if (aCreatedAt == null) return 1;
+                  if (bCreatedAt == null) return -1;
+                  return bCreatedAt.compareTo(aCreatedAt);
+                });
+
+                if (ordersWithRatings.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.feedback_outlined,
+                          size: 64,
+                          color: AppColors.textSecondary.withOpacity(0.5),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No feedback yet',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Customer ratings and reviews will appear here',
+                          style: TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+
+                final orders = ordersWithRatings;
+
+                return ListView.builder(
+                  padding: EdgeInsets.all(isMobile ? 12 : 16),
+                  itemCount: orders.length,
+                  itemBuilder: (context, index) {
+                    final orderDoc = orders[index];
+                    final orderData = orderDoc.data() as Map<String, dynamic>;
+                    return _buildFeedbackCard(
+                      context,
+                      orderDoc,
+                      orderData,
+                      isMobile,
+                    );
+                  },
+                );
+              },
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFeedbackCard(
+    BuildContext context,
+    QueryDocumentSnapshot orderDoc,
+    Map<String, dynamic> orderData,
+    bool isMobile,
+  ) {
+    final orderId = orderDoc.id;
+    final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
+    final review = orderData['review'] as String? ?? '';
+    final ratingImageUrl = orderData['ratingImageUrl'] as String?;
+    final customerName =
+        orderData['customerName'] as String? ??
+        orderData['customer_name'] as String? ??
+        'Unknown Customer';
+    final createdAt = orderData['createdAt'] as Timestamp?;
+    final orderDate = createdAt != null
+        ? '${createdAt.toDate().toString().substring(0, 16)}'
+        : 'Unknown date';
+    final totalPrice =
+        (orderData['totalPrice'] as num?)?.toDouble() ??
+        (orderData['price'] as num?)?.toDouble() ??
+        0.0;
+
+    return Card(
+      margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.all(isMobile ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header with customer info and date
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: isMobile ? 20 : 24,
+                  backgroundColor: AppColors.primary.withOpacity(0.1),
+                  child: Icon(
+                    Icons.person,
+                    size: isMobile ? 20 : 24,
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        customerName,
+                        style: TextStyle(
+                          fontSize: isMobile ? 14 : 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        orderDate,
+                        style: TextStyle(
+                          fontSize: isMobile ? 11 : 12,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Rating stars
+                Row(
+                  children: List.generate(5, (index) {
+                    return Icon(
+                      index < rating ? Icons.star : Icons.star_border,
+                      color: AppColors.primary,
+                      size: isMobile ? 18 : 20,
+                    );
+                  }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Review text
+            if (review.isNotEmpty) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  review,
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    color: AppColors.textPrimary,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Rating image
+            if (ratingImageUrl != null) ...[
+              GestureDetector(
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => Dialog(
+                      child: Image.network(
+                        ratingImageUrl,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Text('Failed to load image'),
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    ratingImageUrl,
+                    width: double.infinity,
+                    height: isMobile ? 150 : 200,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        height: isMobile ? 150 : 200,
+                        color: Colors.grey[200],
+                        child: const Icon(Icons.broken_image),
+                      );
+                    },
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        height: isMobile ? 150 : 200,
+                        color: Colors.grey[200],
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            // Order info
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Order #${orderId.length >= 8 ? orderId.substring(0, 8).toUpperCase() : orderId.toUpperCase()}',
+                  style: TextStyle(
+                    fontSize: isMobile ? 12 : 13,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  PriceFormatter.formatPrice(totalPrice),
+                  style: TextStyle(
+                    fontSize: isMobile ? 13 : 14,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            // View order button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => OrderDetailPage(
+                        orderId: orderId,
+                        orderRef: FirebaseFirestore.instance
+                            .collection('orders')
+                            .doc(orderId),
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.visibility, size: 18),
+                label: const Text('View Order Details'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -6648,7 +7863,7 @@ class _SettingsPage extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withOpacity(0.3),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -8105,7 +9320,7 @@ class _AdminMessagesPage extends StatelessWidget {
           ),
 
           // Chat List
-          Expanded(child: ChatListPage()),
+          Expanded(child: ChatListPage(showBackButton: false)),
         ],
       ),
     );

@@ -633,7 +633,7 @@ class _OrdersList extends StatelessWidget {
                                           'Scheduled',
                                           style: TextStyle(
                                             color: Colors.white,
-                                            fontSize: 11,
+                                            fontSize: 12, // Increased for clarity
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
@@ -649,7 +649,7 @@ class _OrdersList extends StatelessWidget {
                                           'Delivered',
                                           style: TextStyle(
                                             color: Colors.white,
-                                            fontSize: 11,
+                                            fontSize: 12, // Increased for clarity
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),

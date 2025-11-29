@@ -4,11 +4,11 @@ import 'dart:math' as math;
 class WelcomeBackScreen extends StatelessWidget {
   const WelcomeBackScreen({super.key});
 
-  // Exact colors from reference image (for background)
-  static const Color deepRed = Color(0xFF7A002F);
-  static const Color crimson = Color(0xFFBD003B);
-  static const Color magenta = Color(0xFF9B0034);
-  static const Color darkPurple = Color(0xFF3E0024);
+  // New theme colors (for background)
+  static const Color deepRed = Color(0xFFCD5656);
+  static const Color crimson = Color(0xFFAF3E3E);
+  static const Color magenta = Color(0xFFAF3E3E);
+  static const Color darkPurple = Color(0xFF8B2E2E);
 
   @override
   Widget build(BuildContext context) {
@@ -334,7 +334,7 @@ class FMLogoPainter extends CustomPainter {
         Color(0xFFF97316), // Orange
         Color(0xFFEF4444), // Red
         Color(0xFFDC2626), // Dark red
-        Color(0xFF7A002F), // Deep red
+        Color(0xFF5B9EE7), // Soft blue
         Color(0xFF1E40AF), // Back to dark blue
       ],
       stops: const [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 0.95, 1.0],
@@ -428,17 +428,24 @@ class FMLogoPainter extends CustomPainter {
 class BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
     final random = math.Random(42);
+    
+    // Red bubble colors
+    final bubbleColors = [
+      const Color(0xFFCD5656).withOpacity(0.3),
+      const Color(0xFFAF3E3E).withOpacity(0.25),
+      const Color(0xFF8B2E2E).withOpacity(0.2),
+    ];
 
-    // Draw multiple glossy bubbles
+    // Draw multiple glossy bubbles with soft blue tones
     for (int i = 0; i < 10; i++) {
       final x = size.width * (0.1 + random.nextDouble() * 0.8);
       final y = size.height * (0.1 + random.nextDouble() * 0.8);
       final radius = 50 + random.nextDouble() * 100;
+      
+      final paint = Paint()
+        ..color = bubbleColors[i % bubbleColors.length]
+        ..style = PaintingStyle.fill;
 
       canvas.drawCircle(Offset(x, y), radius, paint);
     }

@@ -207,7 +207,7 @@ class _StatusTracker extends StatelessWidget {
     {'label': 'Ordered', 'icon': Icons.receipt_long},
     {'label': 'Packed', 'icon': Icons.inventory_2_outlined},
     {'label': 'In transit', 'icon': Icons.local_shipping_outlined},
-    {'label': 'Out for delivery', 'icon': Icons.directions_bike_outlined},
+    {'label': 'Out for delivery', 'icon': Icons.local_shipping},
     {'label': 'Delivered', 'icon': Icons.home_outlined},
   ];
 

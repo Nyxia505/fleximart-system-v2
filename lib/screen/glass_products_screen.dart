@@ -143,10 +143,13 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
               onChanged: (value) => setState(() => _searchQuery = value),
               decoration: InputDecoration(
                 hintText: 'What type of installation do you need?',
-                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                hintStyle: const TextStyle(
+                  color: Color(0xFF4A6B7F), // Darker for better readability
+                  fontSize: 14,
+                ),
                 prefixIcon: Icon(
                   Icons.search,
-                  color: Colors.grey[600],
+                  color: const Color(0xFF1D3B53), // Dark blue for better contrast
                   size: 22,
                 ),
                 border: InputBorder.none,
@@ -208,7 +211,7 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                 Text(
                   cat['name'] as String,
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 12, // Increased for clarity
                     fontWeight: FontWeight.w500,
                   ),
                   textAlign: TextAlign.center,
@@ -298,7 +301,7 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                     'ORDER NOW',
                     style: TextStyle(
                       color: AppColors.primary,
-                      fontSize: 11,
+                      fontSize: 12, // Increased for clarity
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5,
                     ),
@@ -347,7 +350,7 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                       const SizedBox(height: 12),
                       Text(
                         'No services match "$_searchQuery"',
-                        style: TextStyle(color: Colors.grey[600]),
+                        style: const TextStyle(color: Color(0xFF1D3B53)), // Dark blue for better contrast
                       ),
                     ],
                   ),
@@ -435,7 +438,10 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                     const SizedBox(width: 3),
                     Text(
                       '(${service['reviews']})',
-                      style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                      style: TextStyle(
+                        fontSize: 12, // Increased for clarity
+                        color: const Color(0xFF1D3B53), // Dark blue for better contrast
+                      ),
                     ),
                   ],
                 ),
@@ -466,7 +472,7 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                     child: const Text(
                       'ORDER NOW',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12, // Increased for clarity
                         fontWeight: FontWeight.bold,
                         letterSpacing: 0.3,
                       ),

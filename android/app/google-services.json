@@ -15,6 +15,58 @@
       },
       "oauth_client": [
         {
+          "client_id": "201166763483-msn2jgeqr6k6obi2vnehs153akderfut.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fleximart",
+            "certificate_hash": "34111f67989f09837c1e2fec7b31ac10a1d2fe4f"
+          }
+        },
+        {
+          "client_id": "201166763483-hvqaih21m1b628vvstvru65prpr4eva8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD125VEo6_g0j4H2RMYyZSBQCGwwRbB6qA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "201166763483-hvqaih21m1b628vvstvru65prpr4eva8.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "201166763483-cetgc2vmr6gaa27suesfeitisqcnlr4u.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.fleximart"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:201166763483:android:c745fe1ada5ad18341e3fe",
+        "android_client_info": {
+          "package_name": "com.example.fleximart_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "201166763483-vj74sesq9blmgiulse86eifdjt1lqp0m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.fleximart_app",
+            "certificate_hash": "34111f67989f09837c1e2fec7b31ac10a1d2fe4f"
+          }
+        },
+        {
           "client_id": "201166763483-hvqaih21m1b628vvstvru65prpr4eva8.apps.googleusercontent.com",
           "client_type": 3
         }

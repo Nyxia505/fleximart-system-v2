@@ -201,35 +201,28 @@ class _DashboardProfileState extends State<DashboardProfile> {
                               Text(
                                 displayName,
                                 style: const TextStyle(
-                                  color: Colors.white,
+                                  color: Colors.white, // Pure white (#FFFFFF)
                                   fontSize: 22,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 0.3,
-                                  shadows: [
-                                    Shadow(
-                                      offset: Offset(0, 1),
-                                      blurRadius: 2,
-                                      color: Colors.black12,
-                                    ),
-                                  ],
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.email_outlined,
                                     size: 16,
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.white, // Pure white (#FFFFFF)
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       userEmail,
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.9),
+                                      style: const TextStyle(
+                                        color: Colors.white, // Pure white (#FFFFFF)
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w400,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -240,19 +233,19 @@ class _DashboardProfileState extends State<DashboardProfile> {
                               const SizedBox(height: 6),
                               Row(
                                 children: [
-                                  Icon(
+                                  const Icon(
                                     Icons.phone_outlined,
                                     size: 16,
-                                    color: Colors.white.withOpacity(0.9),
+                                    color: Colors.white, // Pure white (#FFFFFF)
                                   ),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
                                       userPhone,
-                                      style: TextStyle(
-                                        color: Colors.white.withOpacity(0.9),
+                                      style: const TextStyle(
+                                        color: Colors.white, // Pure white (#FFFFFF)
                                         fontSize: 14,
-                                        fontWeight: FontWeight.w400,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
@@ -266,7 +259,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
                         IconButton(
                           icon: const Icon(
                             Icons.settings,
-                            color: Colors.white,
+                            color: Colors.black, // Changed to black for clarity
                             size: 28,
                           ),
                           onPressed: () {
@@ -626,7 +619,7 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: SizedBox(
               height: 50,
-              child: OutlinedButton.icon(
+              child: OutlinedButton(
                 onPressed: () async {
                   final shouldLogout = await showDialog<bool>(
                     context: context,
@@ -664,8 +657,7 @@ class SettingsScreen extends StatelessWidget {
                     Navigator.pushReplacementNamed(context, '/login');
                   }
                 },
-                icon: const Icon(Icons.logout, color: AppColors.error, size: 20),
-                label: Text(
+                child: Text(
                   'Logout',
                   style: AppTextStyles.buttonMedium(color: AppColors.error),
                 ),
@@ -1740,7 +1732,7 @@ class MyAddressesScreen extends StatelessWidget {
                                 child: const Text(
                                   'Default',
                                   style: TextStyle(
-                                    fontSize: 11,
+                                    fontSize: 12, // Increased for clarity
                                     color: AppColors.secondary,
                                     fontWeight: FontWeight.w600,
                                   ),

@@ -26,9 +26,7 @@ import 'customer/customer_quotation_details_page.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Initialize Firebase for background isolates
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.instance.init();
   await NotificationService.instance.showRemoteNotification(message);
 }
@@ -77,8 +75,10 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  // Set up background handler for FCM
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Set up background handler for FCM (not supported on web)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  }
 
   // Initialize local notifications and FCM listeners
   await NotificationService.instance.init();
@@ -88,6 +88,27 @@ void main() async {
   initFcmTokenRefresh();
 
   runApp(const MyApp());
+}
+
+// Create MaterialColor from primary color
+MaterialColor createMaterialColor(Color color) {
+  List strengths = <double>[.05];
+  Map<int, Color> swatch = {};
+  final int r = color.red, g = color.green, b = color.blue;
+
+  for (int i = 1; i < 10; i++) {
+    strengths.add(0.1 * i);
+  }
+  for (var strength in strengths) {
+    final double ds = 0.5 - strength;
+    swatch[(strength * 1000).round()] = Color.fromRGBO(
+      r + ((ds < 0 ? r : (255 - r)) * ds).round(),
+      g + ((ds < 0 ? g : (255 - g)) * ds).round(),
+      b + ((ds < 0 ? b : (255 - b)) * ds).round(),
+      1,
+    );
+  }
+  return MaterialColor(color.value, swatch);
 }
 
 class MyApp extends StatelessWidget {
@@ -105,7 +126,7 @@ class MyApp extends StatelessWidget {
         title: 'FlexiMart System',
         theme: ThemeData(
           primaryColor: AppColors.primary,
-          primarySwatch: Colors.green,
+          primarySwatch: createMaterialColor(AppColors.primary),
           scaffoldBackgroundColor: AppColors.background,
           appBarTheme: const AppBarTheme(
             backgroundColor: AppColors.primary,

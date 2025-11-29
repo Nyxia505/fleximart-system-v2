@@ -16,11 +16,11 @@ class _SignInScreenState extends State<SignInScreen> {
   bool obscure = true;
   bool loading = false;
 
-  // Exact colors from reference image
-  static const Color deepRed = Color(0xFF7A002F);
-  static const Color crimson = Color(0xFFBD003B);
-  static const Color magenta = Color(0xFF9B0034);
-  static const Color darkPurple = Color(0xFF3E0024);
+  // New theme colors
+  static const Color deepRed = Color(0xFFCD5656);
+  static const Color crimson = Color(0xFFAF3E3E);
+  static const Color magenta = Color(0xFFAF3E3E);
+  static const Color darkPurple = Color(0xFF8B2E2E);
 
   @override
   void dispose() {
@@ -87,7 +87,7 @@ class _SignInScreenState extends State<SignInScreen> {
       style: TextStyle(
         fontSize: 42,
         fontWeight: FontWeight.bold,
-        color: Colors.white,
+        color: Colors.white, // White text for better contrast on red background
         letterSpacing: 0.5,
         height: 1.2,
       ),
@@ -149,7 +149,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 'Forgot Password?',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white,
+                  color: Colors.white, // White text for better contrast
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration.underline,
@@ -197,7 +197,7 @@ class _SignInScreenState extends State<SignInScreen> {
             keyboardType: keyboardType,
             style: const TextStyle(
               fontSize: 16,
-              color: Colors.black,
+              color: Color(0xFF1B3B53),
               fontWeight: FontWeight.w500,
             ),
             decoration: InputDecoration(
@@ -247,13 +247,21 @@ class _SignInScreenState extends State<SignInScreen> {
     return Container(
       height: 56,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [crimson, darkPurple]),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFCD5656), Color(0xFFAF3E3E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.9), // White border
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: crimson.withOpacity(0.4),
-            blurRadius: 15,
-            offset: const Offset(0, 6),
+            color: const Color(0xFFCD5656).withOpacity(0.3),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -280,7 +288,7 @@ class _SignInScreenState extends State<SignInScreen> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.white,
+                  color: Colors.white, // White text for contrast on red
                   letterSpacing: 1.2,
                 ),
               ),
@@ -296,7 +304,7 @@ class _SignInScreenState extends State<SignInScreen> {
         text: const TextSpan(
           style: TextStyle(
             fontSize: 15,
-            color: Colors.white,
+            color: Colors.white, // White text for better contrast
             fontWeight: FontWeight.w500,
           ),
           children: [
@@ -304,10 +312,10 @@ class _SignInScreenState extends State<SignInScreen> {
             TextSpan(
               text: 'Sign Up',
               style: TextStyle(
-                color: Color(0xFFFFB6D1),
+                color: Colors.white, // White text for better contrast
                 fontWeight: FontWeight.bold,
                 decoration: TextDecoration.underline,
-                decorationColor: Color(0xFFFFB6D1),
+                decorationColor: Colors.white,
               ),
             ),
           ],
@@ -527,17 +535,24 @@ class _SignInScreenState extends State<SignInScreen> {
 class BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
     final random = math.Random(42);
+    
+    // Theme bubble colors
+    final bubbleColors = [
+      const Color(0xFFCD5656).withOpacity(0.3),
+      const Color(0xFFAF3E3E).withOpacity(0.25),
+      const Color(0xFF8B2E2E).withOpacity(0.2),
+    ];
 
-    // Draw multiple glossy bubbles
+    // Draw multiple glossy bubbles with soft blue tones
     for (int i = 0; i < 10; i++) {
       final x = size.width * (0.1 + random.nextDouble() * 0.8);
       final y = size.height * (0.1 + random.nextDouble() * 0.8);
       final radius = 50 + random.nextDouble() * 100;
+      
+      final paint = Paint()
+        ..color = bubbleColors[i % bubbleColors.length]
+        ..style = PaintingStyle.fill;
 
       canvas.drawCircle(Offset(x, y), radius, paint);
     }

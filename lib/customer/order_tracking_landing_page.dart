@@ -408,7 +408,7 @@ class OrderTrackingLandingPage extends StatelessWidget {
                                           _formatStatus(status),
                                           style: TextStyle(
                                             color: _getStatusColor(status),
-                                            fontSize: 11,
+                                            fontSize: 12, // Increased for clarity
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),

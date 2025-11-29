@@ -32,10 +32,13 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
   bool _loading = false;
   bool _resending = false;
   String? _errorMessage;
+  late String _currentVerificationId; // Store the current verification ID
 
   @override
   void initState() {
     super.initState();
+    // Store the initial verification ID
+    _currentVerificationId = widget.verificationId;
     // Auto-focus the first field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNodes[0].requestFocus();
@@ -84,6 +87,7 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
     if (code.length != 6) {
       setState(() {
         _errorMessage = 'Please enter the complete 6-digit code';
+        _loading = false;
       });
       return;
     }
@@ -91,6 +95,7 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
     if (!RegExp(r'^\d{6}$').hasMatch(code)) {
       setState(() {
         _errorMessage = 'Code must contain only numbers';
+        _loading = false;
       });
       _clearAllFields();
       return;
@@ -103,42 +108,85 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
     });
 
     try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) {
-        throw Exception('User not authenticated. Please log in again.');
-      }
-
-      // Verify OTP
+      // Step 1: Create credential from OTP code using saved verificationId
       final credential = await _phoneVerificationService.verifyOtp(
         smsCode: code,
-        verificationId: widget.verificationId,
+        verificationId: _currentVerificationId,
       );
 
-      // Link phone and save to Firestore
-      await _phoneVerificationService.saveVerifiedPhone(
-        uid: user.uid,
-        phoneNumber: widget.phoneNumber,
+      // Step 2: Sign in with credential (or link if user already logged in)
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final uid = await _phoneVerificationService.verifyAndSignIn(
         credential: credential,
+      );
+
+      // Step 3: Save phone verification to Firestore
+      await _phoneVerificationService.saveVerifiedPhone(
+        uid: uid,
+        phoneNumber: widget.phoneNumber,
       );
 
       if (!mounted) return;
 
-      // Show success message
+      // Step 4: Stop loading
+      setState(() {
+        _loading = false;
+      });
+
+      // Step 5: Show success message
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Phone number verified successfully!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: const Text('Phone number verified successfully!'),
+          backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
         ),
       );
 
-      // Navigate back
-      Navigator.pop(context, true);
+      // Step 6: Navigate to next screen
+      // If user was signed in, go back; if new sign-in, navigate to dashboard
+      if (currentUser == null) {
+        // New phone sign-in - navigate to dashboard
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          '/dashboard',
+          (route) => false,
+        );
+      } else {
+        // Phone verification for existing user - go back
+        Navigator.pop(context, true);
+      }
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
+      String errorMessage = 'Verification failed';
+      
+      if (e.code == 'invalid-verification-code') {
+        errorMessage = 'Invalid verification code. Please check and try again.';
+      } else if (e.code == 'session-expired') {
+        errorMessage = 'Verification session expired. Please request a new code.';
+      } else if (e.code == 'code-expired') {
+        errorMessage = 'Verification code has expired. Please request a new code.';
+      } else if (e.code == 'invalid-verification-id') {
+        errorMessage = 'Invalid verification session. Please request a new OTP.';
+      } else {
+        errorMessage = e.message ?? 'Verification failed. Please try again.';
+      }
+
+      setState(() {
+        _errorMessage = errorMessage;
+        _loading = false;
+      });
+
+      _clearAllFields();
     } catch (e) {
       if (!mounted) return;
 
       String errorMessage = e.toString().replaceFirst('Exception: ', '');
-      if (errorMessage.isEmpty) {
+      if (errorMessage.isEmpty || errorMessage == 'null') {
         errorMessage = 'Invalid or expired code. Please try again.';
       }
 
@@ -173,14 +221,20 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
         phoneNumber: widget.phoneNumber,
         onCodeSent: (verificationId) {
           if (!mounted) return;
+          // Save the new verification ID
           setState(() {
             _resending = false;
+            _currentVerificationId = verificationId;
           });
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('New OTP sent successfully!'),
-              backgroundColor: Colors.green,
+            SnackBar(
+              content: const Text('New OTP sent successfully!'),
+              backgroundColor: AppColors.success,
               behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              margin: const EdgeInsets.all(16),
             ),
           );
         },

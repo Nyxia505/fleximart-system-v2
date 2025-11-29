@@ -6,8 +6,52 @@ import '../constants/app_colors.dart';
 import 'chat_detail_page.dart';
 import 'start_chat_page.dart';
 
+/// Get user name from users collection if not available in participantNames
+Future<String> _getUserNameFromUsers(String userId, String existingName) async {
+  // If we already have a valid name, return it
+  if (existingName.isNotEmpty && existingName != 'Unknown') {
+    return existingName;
+  }
+
+  // Otherwise, fetch from users collection
+  try {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+    final userData = userDoc.data() ?? {};
+    return userData['fullName'] ?? userData['email'] ?? 'Unknown';
+  } catch (e) {
+    return existingName.isNotEmpty ? existingName : 'Unknown';
+  }
+}
+
+/// Get profile picture URL from users collection
+/// Checks profilePic (primary) and profileImageUrl (backward compatibility)
+Future<String?> _getUserProfilePic(String userId) async {
+  try {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userId)
+        .get();
+    final userData = userDoc.data() ?? {};
+    // Priority: profilePic (primary) > profileImageUrl (backward compatibility)
+    final profilePicUrl =
+        userData['profilePic'] as String? ??
+        userData['profileImageUrl'] as String?;
+    return (profilePicUrl != null && profilePicUrl.isNotEmpty)
+        ? profilePicUrl
+        : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 class ChatListPage extends StatelessWidget {
-  const ChatListPage({super.key});
+  final bool showBackButton;
+
+  const ChatListPage({super.key, bool? showBackButton})
+    : showBackButton = showBackButton ?? true;
 
   @override
   Widget build(BuildContext context) {
@@ -19,6 +63,7 @@ class ChatListPage extends StatelessWidget {
         title: const Text('Messages'),
         backgroundColor: AppColors.secondary,
         foregroundColor: Colors.white,
+        automaticallyImplyLeading: showBackButton,
         actions: [
           // Start new chat button
           IconButton(
@@ -33,14 +78,14 @@ class ChatListPage extends StatelessWidget {
                     .doc(user.uid)
                     .get()
                     .then((doc) {
-                  final role = doc.data()?['role'] ?? 'customer';
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => StartChatPage(userRole: role),
-                    ),
-                  );
-                });
+                      final role = doc.data()?['role'] ?? 'customer';
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => StartChatPage(userRole: role),
+                        ),
+                      );
+                    });
               }
             },
           ),
@@ -112,14 +157,16 @@ class ChatListPage extends StatelessWidget {
                                   .doc(user.uid)
                                   .get()
                                   .then((doc) {
-                                final role = doc.data()?['role'] ?? 'customer';
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => StartChatPage(userRole: role),
-                                  ),
-                                );
-                              });
+                                    final role =
+                                        doc.data()?['role'] ?? 'customer';
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            StartChatPage(userRole: role),
+                                      ),
+                                    );
+                                  });
                             }
                           },
                           icon: const Icon(Icons.add_comment),
@@ -135,13 +182,58 @@ class ChatListPage extends StatelessWidget {
                 }
 
                 final chats = snapshot.data!.docs;
-                
-                // Sort by lastMessageTime (client-side since we removed orderBy)
-                chats.sort((a, b) {
+
+                // Deduplicate chats: if multiple chats exist with the same other participant,
+                // keep only the one with the most recent message
+                final Map<String, QueryDocumentSnapshot> uniqueChats = {};
+
+                for (var chatDoc in chats) {
+                  final chatData = chatDoc.data() as Map<String, dynamic>;
+                  final participants =
+                      (chatData['participants'] as List<dynamic>?) ?? [];
+
+                  // Get the other participant ID (not the current user)
+                  final otherUserId =
+                      participants.firstWhere(
+                            (id) => id != currentUserId,
+                            orElse: () => currentUserId,
+                          )
+                          as String;
+
+                  // Use otherUserId as the key to deduplicate
+                  if (!uniqueChats.containsKey(otherUserId)) {
+                    uniqueChats[otherUserId] = chatDoc;
+                  } else {
+                    // Compare timestamps and keep the one with the most recent message
+                    final existingChat = uniqueChats[otherUserId]!;
+                    final existingData =
+                        existingChat.data() as Map<String, dynamic>;
+                    final existingTime =
+                        existingData['lastMessageTime'] as Timestamp?;
+                    final currentTime =
+                        chatData['lastMessageTime'] as Timestamp?;
+
+                    // Keep the chat with the more recent message, or the current one if existing has no message
+                    if (currentTime != null) {
+                      if (existingTime == null ||
+                          currentTime.compareTo(existingTime) > 0) {
+                        uniqueChats[otherUserId] = chatDoc;
+                      }
+                    }
+                  }
+                }
+
+                // Convert back to list and sort by lastMessageTime
+                final uniqueChatsList = uniqueChats.values.toList();
+                uniqueChatsList.sort((a, b) {
                   final aData = a.data() as Map<String, dynamic>?;
                   final bData = b.data() as Map<String, dynamic>?;
-                  final aTime = aData != null ? (aData['lastMessageTime'] as Timestamp?) : null;
-                  final bTime = bData != null ? (bData['lastMessageTime'] as Timestamp?) : null;
+                  final aTime = aData != null
+                      ? (aData['lastMessageTime'] as Timestamp?)
+                      : null;
+                  final bTime = bData != null
+                      ? (bData['lastMessageTime'] as Timestamp?)
+                      : null;
                   if (aTime == null && bTime == null) return 0;
                   if (aTime == null) return 1;
                   if (bTime == null) return -1;
@@ -149,38 +241,65 @@ class ChatListPage extends StatelessWidget {
                 });
 
                 return ListView.builder(
-                  itemCount: chats.length,
+                  itemCount: uniqueChatsList.length,
                   itemBuilder: (context, index) {
-                    final chatDoc = chats[index];
+                    final chatDoc = uniqueChatsList[index];
                     final chatData = chatDoc.data() as Map<String, dynamic>;
                     final participants =
                         (chatData['participants'] as List<dynamic>?) ?? [];
-                    final participantNames =
-                        Map<String, dynamic>.from(chatData['participantNames'] ?? {});
-                    final unreadCount =
-                        Map<String, dynamic>.from(chatData['unreadCount'] ?? {});
+                    final participantNames = Map<String, dynamic>.from(
+                      chatData['participantNames'] ?? {},
+                    );
+                    final unreadCount = Map<String, dynamic>.from(
+                      chatData['unreadCount'] ?? {},
+                    );
                     final lastMessage = chatData['lastMessage'] as String?;
-                    final lastMessageTime = chatData['lastMessageTime'] as Timestamp?;
+                    final lastMessageTime =
+                        chatData['lastMessageTime'] as Timestamp?;
                     final chatId = chatDoc.id;
 
                     // Get other participant
-                    final otherUserId = participants.firstWhere(
-                      (id) => id != currentUserId,
-                      orElse: () => currentUserId,
-                    ) as String;
-                    final otherUserName = participantNames[otherUserId] ?? 'Unknown';
+                    final otherUserId =
+                        participants.firstWhere(
+                              (id) => id != currentUserId,
+                              orElse: () => currentUserId,
+                            )
+                            as String;
+                    String otherUserName = participantNames[otherUserId] ?? '';
 
                     // Get unread count for current user
-                    final userUnreadCount = (unreadCount[currentUserId] ?? 0) as int;
+                    final userUnreadCount =
+                        (unreadCount[currentUserId] ?? 0) as int;
 
-                    return _buildChatTile(
-                      context,
-                      chatId,
-                      otherUserId,
-                      otherUserName,
-                      lastMessage,
-                      lastMessageTime,
-                      userUnreadCount,
+                    // If name is missing, fetch from users collection
+                    // Also fetch profile picture
+                    return FutureBuilder<Map<String, dynamic>>(
+                      future:
+                          Future.wait([
+                            _getUserNameFromUsers(otherUserId, otherUserName),
+                            _getUserProfilePic(otherUserId),
+                          ]).then(
+                            (results) => {
+                              'name': results[0],
+                              'profilePic': results[1],
+                            },
+                          ),
+                      builder: (context, snapshot) {
+                        final displayName =
+                            snapshot.data?['name'] ?? otherUserName;
+                        final profilePicUrl =
+                            snapshot.data?['profilePic'] as String?;
+                        return _buildChatTile(
+                          context,
+                          chatId,
+                          otherUserId,
+                          displayName,
+                          lastMessage,
+                          lastMessageTime,
+                          userUnreadCount,
+                          profilePicUrl: profilePicUrl,
+                        );
+                      },
                     );
                   },
                 );
@@ -196,8 +315,9 @@ class ChatListPage extends StatelessWidget {
     String otherUserName,
     String? lastMessage,
     Timestamp? lastMessageTime,
-    int unreadCount,
-  ) {
+    int unreadCount, {
+    String? profilePicUrl,
+  }) {
     String timeText = 'Now';
     if (lastMessageTime != null) {
       final now = DateTime.now();
@@ -205,13 +325,15 @@ class ChatListPage extends StatelessWidget {
       final difference = now.difference(messageTime);
 
       if (difference.inDays == 0) {
-        timeText = '${messageTime.hour}:${messageTime.minute.toString().padLeft(2, '0')}';
+        timeText =
+            '${messageTime.hour}:${messageTime.minute.toString().padLeft(2, '0')}';
       } else if (difference.inDays == 1) {
         timeText = 'Yesterday';
       } else if (difference.inDays < 7) {
         timeText = '${difference.inDays}d ago';
       } else {
-        timeText = '${messageTime.day}/${messageTime.month}/${messageTime.year}';
+        timeText =
+            '${messageTime.day}/${messageTime.month}/${messageTime.year}';
       }
     }
 
@@ -240,18 +362,25 @@ class ChatListPage extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Avatar
+            // Avatar with profile picture
             CircleAvatar(
               radius: 28,
               backgroundColor: AppColors.secondary,
-              child: Text(
-                otherUserName.isNotEmpty ? otherUserName[0].toUpperCase() : '?',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundImage: profilePicUrl != null && profilePicUrl.isNotEmpty
+                  ? NetworkImage(profilePicUrl)
+                  : null,
+              child: profilePicUrl == null || profilePicUrl.isEmpty
+                  ? Text(
+                      otherUserName.isNotEmpty
+                          ? otherUserName[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(width: 16),
             // Name and message
@@ -328,4 +457,3 @@ class ChatListPage extends StatelessWidget {
     );
   }
 }
-

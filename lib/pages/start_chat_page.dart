@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import 'chat_detail_page.dart';
+import '../utils/role_helper.dart';
 
 class StartChatPage extends StatefulWidget {
   final String? userRole; // 'customer' or 'staff' or 'admin'
@@ -16,6 +16,31 @@ class StartChatPage extends StatefulWidget {
 class _StartChatPageState extends State<StartChatPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? _currentUserRole;
+  bool _isLoadingRole = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserRole();
+  }
+
+  Future<void> _loadUserRole() async {
+    // Use provided role or fetch from Firestore
+    if (widget.userRole != null) {
+      setState(() {
+        _currentUserRole = widget.userRole;
+        _isLoadingRole = false;
+      });
+    } else {
+      // Fetch role from Firestore
+      final role = await RoleHelper.getUserRole();
+      setState(() {
+        _currentUserRole = role;
+        _isLoadingRole = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -54,18 +79,26 @@ class _StartChatPageState extends State<StartChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    final currentUserRole = widget.userRole ?? 
-        (currentUser != null ? _getUserRole(currentUser.uid) : null);
+    // Show loading while fetching role
+    if (_isLoadingRole) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Start Chat'),
+          backgroundColor: AppColors.secondary,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     // Determine who to show based on role
     String? targetRole;
     String title;
     
-    if (currentUserRole == 'customer') {
+    if (_currentUserRole == 'customer') {
       targetRole = 'staff'; // Customer chats with staff
       title = 'Start Chat with Staff';
-    } else if (currentUserRole == 'staff' || currentUserRole == 'admin') {
+    } else if (_currentUserRole == 'staff' || _currentUserRole == 'admin') {
       targetRole = 'customer'; // Staff/Admin chats with customers
       title = 'Start Chat with Customer';
     } else {
@@ -82,7 +115,7 @@ class _StartChatPageState extends State<StartChatPage> {
       body: Column(
         children: [
           // Info banner for customers
-          if (currentUserRole == 'customer' && targetRole == 'staff')
+          if (_currentUserRole == 'customer' && targetRole == 'staff')
             Container(
               margin: const EdgeInsets.all(16),
               padding: const EdgeInsets.all(12),
@@ -315,7 +348,7 @@ class _StartChatPageState extends State<StartChatPage> {
                                               'Staff',
                                               style: TextStyle(
                                                 color: AppColors.primary,
-                                                fontSize: 11,
+                                                fontSize: 12, // Increased for clarity
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
@@ -334,7 +367,7 @@ class _StartChatPageState extends State<StartChatPage> {
                                               'Admin',
                                               style: TextStyle(
                                                 color: Colors.orange,
-                                                fontSize: 11,
+                                                fontSize: 12, // Increased for clarity
                                                 fontWeight: FontWeight.w600,
                                               ),
                                             ),
@@ -395,10 +428,5 @@ class _StartChatPageState extends State<StartChatPage> {
     );
   }
 
-  String? _getUserRole(String userId) {
-    // This is a synchronous helper, but we can't query Firestore synchronously
-    // So we'll rely on the widget.userRole parameter
-    return null;
-  }
 }
 

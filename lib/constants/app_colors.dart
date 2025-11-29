@@ -1,34 +1,34 @@
 import 'package:flutter/material.dart';
 
 /// FlexiMart Brand Color System
-/// Modern E-commerce Installation Service App - Soft Green Theme
+/// Modern E-commerce Installation Service App - Light Blue Theme
 class AppColors {
   AppColors._(); // Private constructor to prevent instantiation
 
-  // 🎨 Primary Color System - Red-Purple Theme (Matching Sign In/Sign Up)
-  /// Primary: Crimson Red #D90747 (Main brand color - for primary actions, status success)
-  static const Color primary = Color(0xFFD90747);
+  // 🎨 Primary Color System - New Theme
+  /// Primary: #CD5656 (Main brand color - for primary actions, status success)
+  static const Color primary = Color(0xFFCD5656);
 
-  /// Secondary: Deep Berry Red #8B0030 (for secondary elements)
-  static const Color secondary = Color(0xFF8B0030);
+  /// Secondary: #AF3E3E (for secondary elements)
+  static const Color secondary = Color(0xFFAF3E3E);
 
-  /// Accent: Dark Wine Purple #4D0020
-  static const Color accent = Color(0xFF4D0020);
+  /// Accent: Darker shade of secondary for depth
+  static const Color accent = Color(0xFF8B2E2E);
   
-  // 🎨 Red-Purple Theme Colors
-  /// Crimson Red: #D90747
-  static const Color redCrimson = Color(0xFFD90747);
+  // 🎨 Theme Color Variants
+  /// Primary Red: #CD5656
+  static const Color redCrimson = Color(0xFFCD5656);
   
-  /// Berry Red: #8B0030
-  static const Color berryRed = Color(0xFF8B0030);
+  /// Secondary Red: #AF3E3E
+  static const Color berryRed = Color(0xFFAF3E3E);
   
-  /// Dark Wine: #4D0020
-  static const Color darkWine = Color(0xFF4D0020);
+  /// Darker Red: #8B2E2E
+  static const Color darkWine = Color(0xFF8B2E2E);
   
-  /// Bubble Colors
-  static const Color bubble1 = Color(0xFFA80038);
-  static const Color bubble2 = Color(0xFF660026);
-  static const Color bubble3 = Color(0xFF2B0013);
+  /// Bubble Colors (Red Tones)
+  static const Color bubble1 = Color(0xFFCD5656);
+  static const Color bubble2 = Color(0xFFAF3E3E);
+  static const Color bubble3 = Color(0xFF8B2E2E);
 
   // 🎨 Status Colors
   /// Pending: Yellow #FFCE43
@@ -44,14 +44,14 @@ class AppColors {
   static const Color info = Color(0xFF3B82F6);
 
   // 🎨 Neutral Colors
-  /// Background: #F6F6F6
-  static const Color background = Color(0xFFF6F6F6);
+  /// Background: Light Red Tint #FFF0F0
+  static const Color background = Color(0xFFFFF0F0);
 
   /// White: #FFFFFF (for cards)
   static const Color white = Color(0xFFFFFFFF);
 
-  /// Dashboard Background: #F6F6F6
-  static const Color dashboardBackground = Color(0xFFF6F6F6);
+  /// Dashboard Background: Light Red Tint #FFF0F0
+  static const Color dashboardBackground = Color(0xFFFFF0F0);
 
   /// Dashboard Card: Pure white
   static const Color dashboardCard = Color(0xFFFFFFFF);
@@ -63,102 +63,102 @@ class AppColors {
   static const Color border = Color(0xFFE0E0E0);
 
   // 🎨 Text Colors
-  /// Text Primary: #212121
-  static const Color textPrimary = Color(0xFF212121);
+  /// Text Primary: Dark blue for maximum readability
+  static const Color textPrimary = Color(0xFF1D3B53);
 
-  /// Text Secondary: #757575
-  static const Color textSecondary = Color(0xFF757575);
+  /// Text Secondary: Dark blue with slight opacity for secondary text
+  static const Color textSecondary = Color(0xFF1D3B53);
 
-  /// Light text for hints and placeholders
-  static const Color textHint = Color(0xFF9E9E9E);
+  /// Light text for hints and placeholders - darker for better readability
+  static const Color textHint = Color(0xFF4A6B7F);
 
   // 🎨 Legacy/Compatibility Colors (mapped to new system)
   /// Error/Alert: Red for errors (using cancelled color)
   static const Color error = Color(0xFFEF4444);
 
-  /// Success: Red-Purple for success messages (using primary)
-  static const Color success = Color(0xFFD90747);
+  /// Success: Primary color for success messages
+  static const Color success = Color(0xFFCD5656);
 
   /// Warning: Orange for warnings (using toInstall)
   static const Color warning = Color(0xFFFF8A39);
 
-  /// Customer Primary: Crimson Red
-  static const Color customerPrimary = Color(0xFFD90747);
+  /// Customer Primary: Primary color
+  static const Color customerPrimary = Color(0xFFCD5656);
 
-  /// Customer Secondary: Deep Berry Red
-  static const Color customerSecondary = Color(0xFF8B0030);
+  /// Customer Secondary: Secondary color
+  static const Color customerSecondary = Color(0xFFAF3E3E);
 
-  /// Cart Background: Light Red-Purple Tint
-  static const Color cartBackground = Color(0xFFF8F1F4);
+  /// Cart Background: Light Red Tint
+  static const Color cartBackground = Color(0xFFFFF0F0);
 
-  /// Checkout Background: Crimson Red
-  static const Color checkoutBackground = Color(0xFFD90747);
+  /// Checkout Background: Primary color
+  static const Color checkoutBackground = Color(0xFFCD5656);
 
-  // 🛒 Feature-Based Gradients (Red-Purple Theme - Matching Sign In/Sign Up)
-  /// Main Gradient: Crimson Red → Deep Berry Red → Dark Wine Purple
+  // 🛒 Feature-Based Gradients (New Theme)
+  /// Main Gradient: Primary → Secondary → Darker
   static const LinearGradient mainGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
   
-  /// Button Gradient: #D80F49 → #42001D
+  /// Button Gradient: Primary → Secondary
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [Color(0xFFD80F49), Color(0xFF42001D)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
-  /// Welcome Screen → Red-Purple Gradient
+  /// Welcome Screen → Primary Gradient
   static const LinearGradient welcomeGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
 
-  /// Home Page → Red-Purple Gradient
+  /// Home Page → Primary Gradient
   static const LinearGradient homeGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
 
-  /// Profile Page → Red-Purple Gradient
+  /// Profile Page → Primary Gradient
   static const LinearGradient profileGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
 
-  /// Shop Page → Red-Purple Gradient
+  /// Shop Page → Primary Gradient
   static const LinearGradient shopGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
 
-  /// Promo/Sale Banner → Red-Purple Gradient
+  /// Promo/Sale Banner → Primary Gradient
   static const LinearGradient promoGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFD90747), Color(0xFF8B0030), Color(0xFF4D0020)],
+    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
     stops: [0.0, 0.5, 1.0],
   );
 
   // Price colors
   static const Color priceOriginal = Color(0xFF9E9E9E);
-  static const Color priceSale = Color(0xFFD90747);
-  static const Color priceHighlight = Color(0xFFD90747);
+  static const Color priceSale = Color(0xFFCD5656);
+  static const Color priceHighlight = Color(0xFFCD5656);
 
   // Login/Signup colors
   /// Login/Signup background - Clean white
   static const Color loginBackground = Color(0xFFFFFFFF);
 
-  /// Login/Signup red-purple highlight
-  static const Color loginBlue = Color(0xFFD90747);
+  /// Login/Signup primary color highlight
+  static const Color loginBlue = Color(0xFFCD5656);
 }

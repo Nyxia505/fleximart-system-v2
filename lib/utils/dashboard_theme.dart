@@ -5,10 +5,10 @@ import 'dart:math' as math;
 class DashboardTheme {
   DashboardTheme._();
 
-  // Red-Purple gradient colors
-  static const Color gradientStart = Color(0xFFD90747);
-  static const Color gradientMiddle = Color(0xFF8B0030);
-  static const Color gradientEnd = Color(0xFF4D0020);
+  // New theme gradient colors
+  static const Color gradientStart = Color(0xFFCD5656);
+  static const Color gradientMiddle = Color(0xFFAF3E3E);
+  static const Color gradientEnd = Color(0xFF8B2E2E);
 
   // Gradient for headers and top bars
   static const LinearGradient headerGradient = LinearGradient(
@@ -75,17 +75,24 @@ class DashboardTheme {
 class _BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.black.withOpacity(0.2)
-      ..style = PaintingStyle.fill;
-
     final random = math.Random(42);
+    
+    // Theme bubble colors
+    final bubbleColors = [
+      const Color(0xFFCD5656).withOpacity(0.3),
+      const Color(0xFFAF3E3E).withOpacity(0.25),
+      const Color(0xFF8B2E2E).withOpacity(0.2),
+    ];
 
-    // Draw multiple glossy bubbles
+    // Draw multiple glossy bubbles with soft blue tones
     for (int i = 0; i < 10; i++) {
       final x = size.width * (0.1 + random.nextDouble() * 0.8);
       final y = size.height * (0.1 + random.nextDouble() * 0.8);
       final radius = 50 + random.nextDouble() * 100;
+      
+      final paint = Paint()
+        ..color = bubbleColors[i % bubbleColors.length]
+        ..style = PaintingStyle.fill;
 
       canvas.drawCircle(
         Offset(x, y),

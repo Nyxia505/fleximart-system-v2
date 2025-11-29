@@ -29,6 +29,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   final ScrollController _scrollController = ScrollController();
   final currentUserId = FirebaseAuth.instance.currentUser?.uid;
   final ImagePicker _picker = ImagePicker();
+  String? _otherUserProfilePic;
 
   @override
   void initState() {
@@ -37,6 +38,32 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _chatService.markMessagesAsRead(widget.chatId);
     });
+    // Load profile picture
+    _loadProfilePicture();
+  }
+
+  Future<void> _loadProfilePicture() async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.otherUserId)
+          .get();
+      final userData = userDoc.data() ?? {};
+      // Priority: profilePic (primary) > profileImageUrl (backward compatibility)
+      final profilePicUrl =
+          userData['profilePic'] as String? ??
+          userData['profileImageUrl'] as String?;
+      if (mounted) {
+        setState(() {
+          _otherUserProfilePic =
+              (profilePicUrl != null && profilePicUrl.isNotEmpty)
+              ? profilePicUrl
+              : null;
+        });
+      }
+    } catch (e) {
+      // Ignore errors, will show initial instead
+    }
   }
 
   @override
@@ -70,7 +97,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         widget.chatId,
       );
       _messageController.clear();
-      
+
       // Scroll to bottom after sending
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -93,7 +120,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
 
   Future<void> _pickAndSendImage() async {
     bool dialogShown = false;
-    
+
     try {
       ImageSource source = ImageSource.gallery;
 
@@ -124,7 +151,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         if (selectedSource == null) return;
         source = selectedSource;
       }
-      
+
       // Pick image from selected source FIRST (before showing loading)
       final XFile? picked = await _picker.pickImage(
         source: source,
@@ -132,44 +159,47 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         maxWidth: 1024, // Slightly larger but still compressed
         maxHeight: 1024,
       );
-      
+
       // If user cancelled, just return (no loading dialog was shown)
       if (picked == null) return;
 
       // NOW show loading indicator (after image is picked)
       if (!mounted) return;
-      
+
       dialogShown = true;
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(color: Colors.white),
-        ),
+        builder: (context) =>
+            const Center(child: CircularProgressIndicator(color: Colors.white)),
       );
 
       // Read image as bytes (works on both web and mobile)
       final Uint8List imageBytes = await picked.readAsBytes();
-      
+
       // Check file size (max 5MB)
       if (imageBytes.length > 5 * 1024 * 1024) {
-        throw Exception('Image too large. Maximum size is 5MB. Please choose a smaller image.');
+        throw Exception(
+          'Image too large. Maximum size is 5MB. Please choose a smaller image.',
+        );
       }
-      
+
       // If image is still large (> 2MB), show warning but allow
       if (imageBytes.length > 2 * 1024 * 1024) {
         // Show a brief warning that upload may take longer
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Large image detected. Upload may take a moment...'),
+              content: const Text(
+                'Large image detected. Upload may take a moment...',
+              ),
               backgroundColor: AppColors.secondary,
               duration: const Duration(seconds: 2),
             ),
           );
         }
       }
-      
+
       // Send image message (timeout is handled in the service)
       await _chatService.sendImageMessage(
         widget.chatId,
@@ -207,18 +237,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           // Ignore if dialog wasn't actually shown
         }
       }
-      
+
       if (!mounted) return;
-      
+
       // Show user-friendly error message
       String errorMessage = 'Failed to send image';
       final errorText = e.toString().toLowerCase();
-      
+
       if (errorText.contains('timeout')) {
         errorMessage = 'Upload timeout. Please check your internet connection.';
-      } else if (errorText.contains('permission') || errorText.contains('unauthorized')) {
-        errorMessage = 'Permission denied. Please check Firebase Storage rules.';
-      } else if (errorText.contains('network') || errorText.contains('connection')) {
+      } else if (errorText.contains('permission') ||
+          errorText.contains('unauthorized')) {
+        errorMessage =
+            'Permission denied. Please check Firebase Storage rules.';
+      } else if (errorText.contains('network') ||
+          errorText.contains('connection')) {
         errorMessage = 'Network error. Please check your internet connection.';
       } else if (errorText.contains('too large')) {
         errorMessage = 'Image too large. Maximum size is 5MB.';
@@ -231,22 +264,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           errorMessage = errorStr;
         }
       }
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(
-                Icons.error_outline,
-                color: Colors.white,
-                size: 20,
-              ),
+              Icon(Icons.error_outline, color: Colors.white, size: 20),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  errorMessage,
-                  style: const TextStyle(fontSize: 14),
-                ),
+                child: Text(errorMessage, style: const TextStyle(fontSize: 14)),
               ),
             ],
           ),
@@ -291,16 +317,24 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.white,
-              child: Text(
-                widget.otherUserName.isNotEmpty
-                    ? widget.otherUserName[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  color: AppColors.secondary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              backgroundImage:
+                  _otherUserProfilePic != null &&
+                      _otherUserProfilePic!.isNotEmpty
+                  ? NetworkImage(_otherUserProfilePic!)
+                  : null,
+              child:
+                  _otherUserProfilePic == null || _otherUserProfilePic!.isEmpty
+                  ? Text(
+                      widget.otherUserName.isNotEmpty
+                          ? widget.otherUserName[0].toUpperCase()
+                          : '?',
+                      style: TextStyle(
+                        color: AppColors.secondary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -331,11 +365,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
+                        Icon(
+                          Icons.error_outline,
+                          size: 48,
+                          color: Colors.grey[400],
+                        ),
                         const SizedBox(height: 12),
                         Text(
                           'Failed to load messages',
-                          style: TextStyle(color: Colors.grey[600]),
+                          style: const TextStyle(
+                            color: Color(0xFF1D3B53),
+                          ), // Dark blue for better contrast
                         ),
                         const SizedBox(height: 8),
                         TextButton(
@@ -351,12 +391,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 }
 
                 // Only show loading on initial load
-                if (snapshot.connectionState == ConnectionState.waiting && 
+                if (snapshot.connectionState == ConnectionState.waiting &&
                     !snapshot.hasData) {
                   return const Center(
-                    child: CircularProgressIndicator(
-                      color: Color(0xFF4CAF50),
-                    ),
+                    child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
                   );
                 }
 
@@ -392,7 +430,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 }
 
                 final messages = snapshot.data!.docs;
-                
+
                 // Scroll to bottom when new messages arrive
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
@@ -409,13 +447,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                  final messageDoc = messages[index];
-                  final messageData = messageDoc.data() as Map<String, dynamic>;
-                  final senderId = messageData['senderId'] as String?;
-                  final text = messageData['text'] as String? ?? '';
-                  final imageUrl = messageData['imageUrl'] as String?;
-                  final timestamp = messageData['createdAt'] as Timestamp?;
-                  final isMe = senderId == currentUserId;
+                    final messageDoc = messages[index];
+                    final messageData =
+                        messageDoc.data() as Map<String, dynamic>;
+                    final senderId = messageData['senderId'] as String?;
+                    final text = messageData['text'] as String? ?? '';
+                    final imageUrl = messageData['imageUrl'] as String?;
+                    final timestamp = messageData['createdAt'] as Timestamp?;
+                    final isMe = senderId == currentUserId;
 
                     return _buildMessageBubble(
                       text,
@@ -423,7 +462,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       timestamp,
                       isMe,
                       index < messages.length - 1
-                          ? (messages[index + 1].data() as Map<String, dynamic>)['senderId']
+                          ? (messages[index + 1].data()
+                                as Map<String, dynamic>)['senderId']
                           : null,
                     );
                   },
@@ -445,7 +485,10 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             ),
             child: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     IconButton(
@@ -511,14 +554,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
-        mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: isMe
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) const SizedBox(width: 8),
           Flexible(
             child: Column(
-              crossAxisAlignment:
-                  isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: isMe
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
@@ -526,7 +572,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     vertical: 10,
                   ),
                   decoration: BoxDecoration(
-                    color: isMe ? AppColors.secondary : AppColors.dashboardBackground,
+                    color: isMe
+                        ? AppColors.secondary
+                        : AppColors.dashboardBackground,
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(20),
                       topRight: const Radius.circular(20),
@@ -550,7 +598,8 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           ),
                         ),
                       if (text.isNotEmpty) ...[
-                        if (imageUrl != null && imageUrl.isNotEmpty) const SizedBox(height: 8),
+                        if (imageUrl != null && imageUrl.isNotEmpty)
+                          const SizedBox(height: 8),
                         Text(
                           text,
                           style: TextStyle(
@@ -568,7 +617,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     child: Text(
                       _formatTime(timestamp),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 12, // Increased for clarity
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -594,10 +643,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
             children: [
               Center(
                 child: InteractiveViewer(
-                  child: Image.network(
-                    imageUrl,
-                    fit: BoxFit.contain,
-                  ),
+                  child: Image.network(imageUrl, fit: BoxFit.contain),
                 ),
               ),
               Positioned(
@@ -615,4 +661,3 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     );
   }
 }
-

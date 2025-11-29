@@ -15,8 +15,18 @@ class OrderHistoryPage extends StatelessWidget {
     if (timestamp is Timestamp) {
       final date = timestamp.toDate();
       final months = [
-        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        'Jan',
+        'Feb',
+        'Mar',
+        'Apr',
+        'May',
+        'Jun',
+        'Jul',
+        'Aug',
+        'Sep',
+        'Oct',
+        'Nov',
+        'Dec',
       ];
       return '${months[date.month - 1]} ${date.day}, ${date.year}';
     }
@@ -24,7 +34,7 @@ class OrderHistoryPage extends StatelessWidget {
   }
 
   String _getOrderShortId(String orderId) {
-    return orderId.length >= 8 
+    return orderId.length >= 8
         ? orderId.substring(0, 8).toUpperCase()
         : orderId.toUpperCase();
   }
@@ -38,7 +48,7 @@ class OrderHistoryPage extends StatelessWidget {
     } else if (totalPriceValue is String) {
       totalPrice = double.tryParse(totalPriceValue);
     }
-    
+
     // Compute from items if totalPrice doesn't exist
     if (totalPrice == null) {
       final items = (orderData['items'] as List?) ?? [];
@@ -53,7 +63,7 @@ class OrderHistoryPage extends StatelessWidget {
             } else if (priceValue is String) {
               price = double.tryParse(priceValue) ?? 0.0;
             }
-            
+
             final quantityValue = item['quantity'];
             int quantity = 1;
             if (quantityValue is num) {
@@ -61,14 +71,14 @@ class OrderHistoryPage extends StatelessWidget {
             } else if (quantityValue is String) {
               quantity = int.tryParse(quantityValue) ?? 1;
             }
-            
+
             computedTotal += price * quantity;
           }
         }
       }
       totalPrice = computedTotal;
     }
-    
+
     return totalPrice;
   }
 
@@ -110,8 +120,14 @@ class OrderHistoryPage extends StatelessWidget {
       case 'cancelled':
         return 'Cancelled';
       default:
-        return status.replaceAll('_', ' ').split(' ').map((word) =>
-            word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)).join(' ');
+        return status
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map(
+              (word) =>
+                  word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1),
+            )
+            .join(' ');
     }
   }
 
@@ -165,37 +181,29 @@ class OrderHistoryPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('orders')
             .where('customerId', isEqualTo: user.uid)
-            .orderBy('date', descending: true)
+            .orderBy('createdAt', descending: true)
             .snapshots()
             .handleError((error) {
-          // Fallback to createdAt if date field doesn't exist
-          if (kDebugMode) {
-            print('⚠️ OrderBy date failed, trying createdAt: $error');
-          }
-          return FirebaseFirestore.instance
-              .collection('orders')
-              .where('customerId', isEqualTo: user.uid)
-              .orderBy('createdAt', descending: true)
-              .snapshots()
-              .handleError((error2) {
-            if (kDebugMode) {
-              print('⚠️ OrderBy createdAt failed, using simple query: $error2');
-            }
-            return FirebaseFirestore.instance
-                .collection('orders')
-                .where('customerId', isEqualTo: user.uid)
-                .snapshots();
-          });
-        }),
+              // Fallback: return orders without orderBy if createdAt fails
+              if (kDebugMode) {
+                debugPrint(
+                  '⚠️ OrderBy createdAt failed, using simple query: $error',
+                );
+              }
+              return FirebaseFirestore.instance
+                  .collection('orders')
+                  .where('customerId', isEqualTo: user.uid)
+                  .snapshots();
+            }),
         builder: (context, snapshot) {
+          // Handle connection state
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
+              child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
 
+          // Handle errors
           if (snapshot.hasError) {
             return Center(
               child: Padding(
@@ -203,11 +211,7 @@ class OrderHistoryPage extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: AppColors.error,
-                    ),
+                    Icon(Icons.error_outline, size: 64, color: AppColors.error),
                     const SizedBox(height: 16),
                     Text(
                       'Error loading orders',
@@ -229,63 +233,90 @@ class OrderHistoryPage extends StatelessWidget {
 
           if (!snapshot.hasData) {
             return const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
+              child: CircularProgressIndicator(color: AppColors.primary),
             );
           }
-          
+
           // Filter orders to only show received/completed orders
-          final allOrders = snapshot.data!.docs;
-          
+          final allOrders = List<QueryDocumentSnapshot>.from(
+            snapshot.data!.docs,
+          );
+
           if (kDebugMode) {
-            debugPrint('📦 Order History: Found ${allOrders.length} total orders for user');
+            debugPrint(
+              '📦 Order History: Found ${allOrders.length} total orders for user',
+            );
             for (var doc in allOrders) {
               final orderData = doc.data() as Map<String, dynamic>;
               final status = orderData['status'] as String? ?? 'unknown';
-              debugPrint('   - Order ${doc.id.substring(0, 8)}: status = "$status"');
+              debugPrint(
+                '   - Order ${doc.id.substring(0, 8)}: status = "$status"',
+              );
             }
           }
-          
+
           final receivedOrders = allOrders.where((doc) {
             final orderData = doc.data() as Map<String, dynamic>;
             final status = (orderData['status'] as String? ?? '').toLowerCase();
             // Show orders that have been received: completed, awaiting_installation, or delivered
-            final isReceived = status == 'completed' || 
-                              status == 'awaiting_installation' || 
-                              status == 'delivered';
-            
+            final isReceived =
+                status == 'completed' ||
+                status == 'awaiting_installation' ||
+                status == 'delivered';
+
             if (kDebugMode && !isReceived) {
-              debugPrint('   ⚠️ Order ${doc.id.substring(0, 8)} filtered out (status: "$status")');
+              debugPrint(
+                '   ⚠️ Order ${doc.id.substring(0, 8)} filtered out (status: "$status")',
+              );
             }
-            
+
             return isReceived;
           }).toList();
-          
+
           if (kDebugMode) {
-            debugPrint('✅ Order History: Showing ${receivedOrders.length} received/completed orders');
+            debugPrint(
+              '✅ Order History: Showing ${receivedOrders.length} received/completed orders',
+            );
           }
-          
+
           // Sort by date (most recent first) - in case query orderBy didn't work
           receivedOrders.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;
             final bData = b.data() as Map<String, dynamic>;
-            final aDate = aData['date'] ?? aData['createdAt'];
-            final bDate = bData['date'] ?? bData['createdAt'];
+            // Prioritize createdAt over date field
+            final aDate = aData['createdAt'] ?? aData['date'];
+            final bDate = bData['createdAt'] ?? bData['date'];
             if (aDate == null && bDate == null) return 0;
             if (aDate == null) return 1;
             if (bDate == null) return -1;
-            final aTimestamp = aDate is Timestamp ? aDate.toDate() : null;
-            final bTimestamp = bDate is Timestamp ? bDate.toDate() : null;
-            if (aTimestamp == null && bTimestamp == null) return 0;
-            if (aTimestamp == null) return 1;
-            if (bTimestamp == null) return -1;
-            return bTimestamp.compareTo(aTimestamp); // Descending - newest first
+
+            // Handle both Timestamp and DateTime objects
+            DateTime? aDateTime;
+            DateTime? bDateTime;
+
+            if (aDate is Timestamp) {
+              aDateTime = aDate.toDate();
+            } else if (aDate is DateTime) {
+              aDateTime = aDate;
+            }
+
+            if (bDate is Timestamp) {
+              bDateTime = bDate.toDate();
+            } else if (bDate is DateTime) {
+              bDateTime = bDate;
+            }
+
+            if (aDateTime == null && bDateTime == null) return 0;
+            if (aDateTime == null) return 1;
+            if (bDateTime == null) return -1;
+            return bDateTime.compareTo(aDateTime); // Descending - newest first
           });
-          
+
           if (receivedOrders.isEmpty) {
             if (kDebugMode) {
-              debugPrint('ℹ️ Order History: No received orders found. User needs to confirm receipt of orders first.');
+              debugPrint(
+                'ℹ️ Order History: No received orders found. User needs to confirm receipt of orders first.',
+              );
             }
             return Center(
               child: Padding(
@@ -339,9 +370,10 @@ class OrderHistoryPage extends StatelessWidget {
                 final totalPrice = _getTotalPriceFromOrder(orderData);
                 final itemCount = _getItemCount(orderData);
                 final date = orderData['date'] ?? orderData['createdAt'];
-                final customerName = orderData['customerName'] as String? ?? 
-                                    orderData['customer_name'] as String? ?? 
-                                    'Customer';
+                final customerName =
+                    orderData['customerName'] as String? ??
+                    orderData['customer_name'] as String? ??
+                    'Customer';
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -495,4 +527,3 @@ class OrderHistoryPage extends StatelessWidget {
     );
   }
 }
-

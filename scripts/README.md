@@ -1,131 +1,90 @@
-# Firebase Custom Claims Setup Script
+# Firestore Cleanup Scripts
 
-This script sets custom claims (roles) for admin and staff users in Firebase Authentication.
+## Cleanup Products Without Images
 
-## Prerequisites
+This script finds and deletes all product documents in the Firestore "products" collection where the `imageUrl` field is null, empty, or missing.
 
-1. **Node.js** installed (v14 or higher)
-2. **Firebase Project** with Admin SDK enabled
-3. **Service Account Key** from Firebase Console
-
-## Setup Instructions
-
-### Step 1: Install Dependencies
-
-Navigate to the `scripts` directory and install dependencies:
+### Usage
 
 ```bash
-cd scripts
-npm install
+# From the project root directory
+dart run scripts/cleanup_products_without_images.dart
 ```
 
-### Step 2: Get Service Account Key
+### What it does
 
-1. Go to [Firebase Console](https://console.firebase.google.com/)
-2. Select your project
-3. Go to **Project Settings** (gear icon) > **Service Accounts**
-4. Click **"Generate New Private Key"**
-5. Save the downloaded JSON file as `serviceAccountKey.json` in the `scripts` directory
+1. **Connects to Firestore** - Initializes Firebase using your project's configuration
+2. **Fetches all products** - Retrieves all documents from the "products" collection
+3. **Analyzes products** - Checks each product for invalid `imageUrl` or `image` fields
+4. **Shows preview** - Displays up to 10 products that will be deleted
+5. **Asks for confirmation** - Requires you to type "yes" to proceed
+6. **Deletes products** - Removes invalid products in batches (up to 500 per batch)
+7. **Shows summary** - Reports how many products were deleted
 
-**⚠️ Important:** Never commit `serviceAccountKey.json` to version control! Add it to `.gitignore`.
+### Safety Features
 
-### Step 3: Run the Script
+- ✅ **Preview before deletion** - See what will be deleted before confirming
+- ✅ **Confirmation required** - Must type "yes" to proceed
+- ✅ **Batch operations** - Efficient deletion using Firestore batches
+- ✅ **Error handling** - Continues even if some deletions fail
+- ✅ **Detailed logging** - Shows progress and results
 
-```bash
-node set_custom_claims.js
-```
-
-Or use the npm script:
-
-```bash
-npm run set-claims
-```
-
-## What the Script Does
-
-1. **Sets Admin Role** for UID: `902rmTO6DCY0OCuBoOJ6BrtXiaL2`
-2. **Sets Staff Role** for UID: `tFQOi3Di1uZnds4cGfiBL7Nq9ys1`
-
-## Expected Output
+### Example Output
 
 ```
-✅ Firebase Admin SDK initialized with service account key
+============================================================
+Firestore Product Cleanup Script
+============================================================
 
-🚀 Starting custom claims assignment...
+🔧 Initializing Firebase...
+✅ Firebase initialized successfully
 
-==================================================
+📦 Fetching all products from Firestore...
+✅ Found 150 total products
 
-1️⃣ Setting ADMIN role for UID: 902rmTO6DCY0OCuBoOJ6BrtXiaL2
-📋 User found: admin@example.com
-✅ ADMIN role applied successfully
-   Custom claims: {"role":"admin"}
+🔍 Analyzing products for invalid imageUrl...
+📊 Analysis complete:
+   - Total products: 150
+   - Products with invalid/missing imageUrl: 12
+   - Products to keep: 138
 
-2️⃣ Setting STAFF role for UID: tFQOi3Di1uZnds4cGfiBL7Nq9ys1
-📋 User found: staff@example.com
-✅ STAFF role applied successfully
-   Custom claims: {"role":"staff"}
+⚠️  Products that will be DELETED:
+------------------------------------------------------------
+   1. Sample Product 1 (ID: abc123)
+   2. Sample Product 2 (ID: def456)
+   ... and 10 more products
+------------------------------------------------------------
 
-==================================================
+⚠️  WARNING: This will permanently delete 12 product(s)!
+   This action cannot be undone.
 
-📊 Summary:
-   ✅ Success: 2
-   ❌ Failed: 0
+Do you want to proceed? (yes/no): yes
 
-🎉 All roles assigned successfully!
+🗑️  Deleting products...
+   ✅ Deleted batch 1: 12 products
 
-⚠️  IMPORTANT: Users must refresh their tokens to see the new role.
-   In Flutter app, call: await user.getIdTokenResult(true)
-   Or users can sign out and sign in again.
+============================================================
+Cleanup Summary
+============================================================
+✅ Successfully deleted: 12 product(s)
+📦 Remaining products: 138
+============================================================
 
-✨ Script completed
+✅ Cleanup complete!
 ```
 
-## After Running the Script
+### Notes
 
-Users need to refresh their authentication tokens to see the new role:
+- The script checks both `imageUrl` and `image` fields (for base64 images)
+- Products are deleted in batches of 500 (Firestore limit)
+- Failed deletions are reported in the summary
+- The script requires Firebase to be properly configured in your project
 
-### Option 1: Force Token Refresh (Recommended)
-In your Flutter app, call:
-```dart
-final user = FirebaseAuth.instance.currentUser;
-if (user != null) {
-  await user.getIdTokenResult(true); // Force refresh
-}
-```
+### Troubleshooting
 
-### Option 2: Sign Out and Sign In
-Users can simply sign out and sign in again to get a new token with the updated claims.
+If you encounter errors:
 
-## Troubleshooting
-
-### Error: "Could not initialize Firebase Admin SDK"
-- Make sure `serviceAccountKey.json` exists in the `scripts` directory
-- Verify the JSON file is valid
-- Check that the service account has the necessary permissions
-
-### Error: "User not found"
-- Verify the UIDs are correct
-- Make sure the users exist in Firebase Authentication
-
-### Error: "Permission denied"
-- Ensure the service account has "Firebase Admin" role
-- Check that the service account key is not expired
-
-## Security Notes
-
-- **Never commit** `serviceAccountKey.json` to version control
-- Keep service account keys secure and private
-- Rotate keys periodically
-- Use environment variables in production/CI environments
-
-## Alternative: Using Environment Variable
-
-Instead of using a file, you can set the service account as an environment variable:
-
-```bash
-export FIREBASE_SERVICE_ACCOUNT='{"type":"service_account",...}'
-node set_custom_claims.js
-```
-
-This is recommended for CI/CD pipelines.
-
+1. **Firebase not initialized**: Make sure `firebase_options.dart` is properly configured
+2. **Permission denied**: Check your Firestore security rules allow deletions
+3. **Network errors**: Ensure you have internet connectivity
+4. **Batch limit exceeded**: The script handles this automatically by batching

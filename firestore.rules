@@ -71,6 +71,13 @@ service cloud.firestore {
       match /settings/{settingId} {
         allow read, write: if isOwner(uid) || isStaff() || isAdmin();
       }
+
+      // Cart subcollection - owner can manage their own cart
+      match /cart/{cartId} {
+        // Allow if user is signed in and owns the cart
+        // This is the primary use case - customers managing their own cart
+        allow read, write: if isSignedIn() && request.auth.uid == uid;
+      }
     }
 
     // ---------- Orders collection ----------
@@ -161,8 +168,9 @@ service cloud.firestore {
                       && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read'])
                     );
 
-      // Delete: only admin
-      allow delete: if isAdmin();
+      // Delete: admin/staff can delete any, customers can delete their own notifications
+      allow delete: if isAdmin() || isStaff() ||
+                    (isSignedIn() && resource.data.userId == request.auth.uid);
     }
 
     // ---------- Quotations ----------

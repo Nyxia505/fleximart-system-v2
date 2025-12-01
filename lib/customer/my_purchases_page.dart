@@ -95,17 +95,7 @@ class _ToPayTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where('customerId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .handleError((error) {
-            if (kDebugMode) {
-              print('⚠️ OrderBy failed, using simple query: $error');
-            }
-            return FirebaseFirestore.instance
-                .collection('orders')
-                .where('customerId', isEqualTo: userId)
-                .snapshots();
-          }),
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -132,11 +122,25 @@ class _ToPayTab extends StatelessWidget {
         }
 
         final allOrders = snapshot.data!.docs;
-        final orders = allOrders.where((doc) {
+        final filteredOrders = allOrders.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final status = (data['status'] as String? ?? '').toLowerCase();
           return status == 'pending_payment';
         }).toList();
+        
+        // Sort by createdAt in memory (descending - newest first)
+        final orders = List<QueryDocumentSnapshot>.from(filteredOrders);
+        orders.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreated = aData['createdAt'] as Timestamp?;
+          final bCreated = bData['createdAt'] as Timestamp?;
+          
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated); // Descending
+        });
 
         if (orders.isEmpty) {
           return _buildEmptyState('No orders to pay');
@@ -247,14 +251,7 @@ class _ToReceiveTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where('customerId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .handleError((error) {
-            return FirebaseFirestore.instance
-                .collection('orders')
-                .where('customerId', isEqualTo: userId)
-                .snapshots();
-          }),
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -281,11 +278,25 @@ class _ToReceiveTab extends StatelessWidget {
         }
 
         final allOrders = snapshot.data!.docs;
-        final orders = allOrders.where((doc) {
+        final filteredOrders = allOrders.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final status = (data['status'] as String? ?? '').toLowerCase();
           return status == 'shipped';
         }).toList();
+        
+        // Sort by createdAt in memory (descending - newest first)
+        final orders = List<QueryDocumentSnapshot>.from(filteredOrders);
+        orders.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreated = aData['createdAt'] as Timestamp?;
+          final bCreated = bData['createdAt'] as Timestamp?;
+          
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated); // Descending
+        });
 
         if (orders.isEmpty) {
           return _buildEmptyState('No orders to receive');
@@ -405,14 +416,7 @@ class _ToInstallTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where('customerId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .handleError((error) {
-            return FirebaseFirestore.instance
-                .collection('orders')
-                .where('customerId', isEqualTo: userId)
-                .snapshots();
-          }),
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -439,13 +443,27 @@ class _ToInstallTab extends StatelessWidget {
         }
 
         final allOrders = snapshot.data!.docs;
-        final orders = allOrders.where((doc) {
+        final filteredOrders = allOrders.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final installationRequired =
               data['installationRequired'] as bool? ?? false;
           final deliveredAt = data['deliveredAt'];
           return installationRequired && deliveredAt != null;
         }).toList();
+        
+        // Sort by createdAt in memory (descending - newest first)
+        final orders = List<QueryDocumentSnapshot>.from(filteredOrders);
+        orders.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreated = aData['createdAt'] as Timestamp?;
+          final bCreated = bData['createdAt'] as Timestamp?;
+          
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated); // Descending
+        });
 
         if (orders.isEmpty) {
           return _buildEmptyState('No orders awaiting installation');
@@ -545,14 +563,7 @@ class _ToRateTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection('orders')
           .where('customerId', isEqualTo: userId)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .handleError((error) {
-            return FirebaseFirestore.instance
-                .collection('orders')
-                .where('customerId', isEqualTo: userId)
-                .snapshots();
-          }),
+          .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -579,12 +590,26 @@ class _ToRateTab extends StatelessWidget {
         }
 
         final allOrders = snapshot.data!.docs;
-        final orders = allOrders.where((doc) {
+        final filteredOrders = allOrders.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final status = (data['status'] as String? ?? '').toLowerCase();
           final rating = data['rating'] as num?;
           return (status == 'completed' || status == 'delivered') && rating == null;
         }).toList();
+        
+        // Sort by createdAt in memory (descending - newest first)
+        final orders = List<QueryDocumentSnapshot>.from(filteredOrders);
+        orders.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreated = aData['createdAt'] as Timestamp?;
+          final bCreated = bData['createdAt'] as Timestamp?;
+          
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated); // Descending
+        });
 
         if (orders.isEmpty) {
           return _buildEmptyState('No orders to rate');

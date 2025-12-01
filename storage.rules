@@ -15,8 +15,14 @@ service firebase.storage {
     
     // Chat images - only chat participants can upload/view
     match /chat_images/{chatId}/{imageId} {
-      allow read: if request.auth != null;  // Any authenticated user can read
+      allow read: if true;  // Anyone can read chat images (for display)
       allow write: if request.auth != null;  // Any authenticated user can upload
+    }
+    
+    // Order rating images - anyone can read for display
+    match /order_ratings/{orderId}/{imageId} {
+      allow read: if true;  // Anyone can view rating images
+      allow write: if request.auth != null;  // Authenticated users can upload
     }
     
     // Product images - only admins can upload

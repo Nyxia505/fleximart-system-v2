@@ -122,18 +122,7 @@ class OrderTrackingLandingPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('orders')
             .where('customerId', isEqualTo: uid)
-            .orderBy('createdAt', descending: true)
-            .snapshots()
-            .handleError((error) {
-              if (kDebugMode) {
-                print('⚠️ Query failed, trying fallback: $error');
-              }
-              // Fallback: try without orderBy if createdAt field doesn't exist
-              return FirebaseFirestore.instance
-                  .collection('orders')
-                  .where('customerId', isEqualTo: uid)
-                  .snapshots();
-            }),
+            .snapshots(),
         builder: (context, snapshot) {
           // 1. Check for errors first
           if (snapshot.hasError) {
@@ -205,9 +194,20 @@ class OrderTrackingLandingPage extends StatelessWidget {
             );
           }
 
-          final orders = snapshot.data!.docs;
-
-          // Sort orders manually if orderBy failed
+          // Sort orders by createdAt in memory (descending - newest first)
+          final allOrders = snapshot.data!.docs;
+          final orders = List<QueryDocumentSnapshot>.from(allOrders);
+          orders.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aCreated = aData['createdAt'] as Timestamp?;
+            final bCreated = bData['createdAt'] as Timestamp?;
+            
+            if (aCreated == null && bCreated == null) return 0;
+            if (aCreated == null) return 1;
+            if (bCreated == null) return -1;
+            return bCreated.compareTo(aCreated); // Descending
+          });
           final ordersList = List<QueryDocumentSnapshot>.from(orders);
           ordersList.sort((a, b) {
             final aData = a.data() as Map<String, dynamic>;

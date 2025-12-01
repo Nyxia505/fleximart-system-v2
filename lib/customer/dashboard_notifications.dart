@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../widgets/notification_detail_modal.dart';
+import '../services/notification_service.dart';
 
 class DashboardNotifications extends StatefulWidget {
   const DashboardNotifications({super.key});
@@ -15,6 +16,7 @@ class DashboardNotifications extends StatefulWidget {
 
 class _DashboardNotificationsState extends State<DashboardNotifications> {
   final user = FirebaseAuth.instance.currentUser;
+  final NotificationService _notificationService = NotificationService.instance;
   int _refreshKey = 0; // Force StreamBuilder to refresh
 
   // Test function to verify notifications can be read
@@ -110,7 +112,7 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: Column(
         children: [
           // Header with back arrow
@@ -121,13 +123,18 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
               right: 16,
               bottom: 20,
             ),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               gradient: AppColors.mainGradient,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black26,
+                  color: AppColors.primary.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -149,7 +156,43 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 48), // Balance the back button
+                // Delete all button
+                if (user != null)
+                  StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('notifications')
+                        .where('userId', isEqualTo: user!.uid)
+                        .limit(1)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      final hasNotifications = snapshot.hasData && 
+                          snapshot.data!.docs.isNotEmpty;
+                      if (!hasNotifications) {
+                        return const SizedBox(width: 48); // Balance the back button
+                      }
+                      return PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, color: Colors.white),
+                        onSelected: (value) async {
+                          if (value == 'delete_all') {
+                            await _showDeleteAllDialog(context);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                            value: 'delete_all',
+                            child: Row(
+                              children: [
+                                Icon(Icons.delete_outline, color: AppColors.error),
+                                SizedBox(width: 8),
+                                Text('Delete All'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                if (user == null) const SizedBox(width: 48), // Balance the back button
               ],
             ),
           ),
@@ -188,7 +231,7 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                 Icon(
                                   Icons.notifications_off_outlined,
                                   size: 64,
-                                  color: AppColors.textSecondary.withOpacity(0.5),
+                                  color: AppColors.primary.withOpacity(0.6),
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
@@ -224,6 +267,11 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
                                     foregroundColor: Colors.white,
+                                    elevation: 2,
+                                    shadowColor: AppColors.primary.withOpacity(0.4),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -248,7 +296,12 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                       }
 
                       if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.primary,
+                            strokeWidth: 3,
+                          ),
+                        );
                       }
 
                       if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -259,13 +312,22 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                               Container(
                                 padding: const EdgeInsets.all(24),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primary.withOpacity(0.1),
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      AppColors.primary.withOpacity(0.15),
+                                      AppColors.secondary.withOpacity(0.12),
+                                    ],
+                                  ),
                                   shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: AppColors.primary.withOpacity(0.3),
+                                    width: 2,
+                                  ),
                                 ),
                                 child: Icon(
                                   Icons.notifications_none,
                                   size: 64,
-                                  color: AppColors.bubble1, // #A80038
+                                  color: AppColors.primary,
                                 ),
                               ),
                               const SizedBox(height: 24),
@@ -309,6 +371,11 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.primary,
                                   foregroundColor: Colors.white,
+                                  elevation: 2,
+                                  shadowColor: AppColors.primary.withOpacity(0.4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -453,6 +520,9 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                       .doc(docId)
                                       .update({'read': true});
                                 },
+                                onDelete: (docId) async {
+                                  await _deleteNotification(docId);
+                                },
                               );
                             }
                             currentIndex += todayNotifications.length;
@@ -475,6 +545,9 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                       .collection('notifications')
                                       .doc(docId)
                                       .update({'read': true});
+                                },
+                                onDelete: (docId) async {
+                                  await _deleteNotification(docId);
                                 },
                               );
                             }
@@ -499,6 +572,9 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                       .doc(docId)
                                       .update({'read': true});
                                 },
+                                onDelete: (docId) async {
+                                  await _deleteNotification(docId);
+                                },
                               );
                             }
                             currentIndex += thisWeekNotifications.length;
@@ -521,6 +597,9 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                                       .collection('notifications')
                                       .doc(docId)
                                       .update({'read': true});
+                                },
+                                onDelete: (docId) async {
+                                  await _deleteNotification(docId);
                                 },
                               );
                             }
@@ -554,14 +633,111 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12, left: 4),
-      child: Text(title, style: AppTextStyles.heading3()),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              gradient: AppColors.buttonGradient,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: AppTextStyles.heading3().copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _deleteNotification(String notificationId) async {
+    try {
+      await _notificationService.deleteNotification(notificationId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Notification deleted'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete notification: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _showDeleteAllDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete All Notifications'),
+        content: const Text(
+          'Are you sure you want to delete all your notifications? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && user != null) {
+      try {
+        await _notificationService.deleteAllNotifications(user!.uid);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('All notifications deleted'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete notifications: $e'),
+              backgroundColor: AppColors.error,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    }
   }
 
   Widget _buildNotificationItem(
     BuildContext context,
     QueryDocumentSnapshot notificationDoc, {
     required Future<void> Function(String) onSwipeToMarkRead,
+    required Future<void> Function(String) onDelete,
   }) {
     final notification = notificationDoc.data() as Map<String, dynamic>;
     final title = notification['title'] as String? ?? '';
@@ -656,20 +832,79 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
 
     return Dismissible(
       key: Key(notificationDoc.id),
-      direction: DismissDirection.endToStart,
+      direction: DismissDirection.horizontal,
       background: Container(
+        alignment: Alignment.centerLeft,
+        padding: const EdgeInsets.only(left: 20),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.error,
+              AppColors.error.withOpacity(0.8),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      secondaryBackground: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          color: AppColors.primary,
+          gradient: read
+              ? LinearGradient(
+                  colors: [
+                    AppColors.primary,
+                    AppColors.secondary,
+                  ],
+                )
+              : AppColors.buttonGradient,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: const Icon(Icons.check, color: Colors.white, size: 28),
+        child: Icon(
+          read ? Icons.delete : Icons.check,
+          color: Colors.white,
+          size: 28,
+        ),
       ),
-      onDismissed: (direction) async {
-        if (!read) {
-          await onSwipeToMarkRead(notificationDoc.id);
+      confirmDismiss: (direction) async {
+        if (direction == DismissDirection.startToEnd) {
+          // Swipe left to delete
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Delete Notification'),
+              content: const Text('Are you sure you want to delete this notification?'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await onDelete(notificationDoc.id);
+          }
+          return confirmed;
+        } else {
+          // Swipe right to mark as read
+          if (!read) {
+            await onSwipeToMarkRead(notificationDoc.id);
+          }
+          return false; // Don't dismiss, just mark as read
         }
+      },
+      onDismissed: (direction) {
+        // Handled in confirmDismiss
       },
       child: GestureDetector(
         onTap: () async {
@@ -694,19 +929,30 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: read ? AppColors.white : AppColors.primary.withOpacity(0.05),
+            color: read ? AppColors.white : AppColors.primary.withOpacity(0.08),
             borderRadius: BorderRadius.circular(16),
             border: read
-                ? Border.all(color: AppColors.border, width: 1)
+                ? Border.all(
+                    color: AppColors.primary.withOpacity(0.15),
+                    width: 1.5,
+                  )
                 : Border.all(
-                    color: AppColors.primary.withOpacity(0.2),
-                    width: 1,
+                    color: AppColors.primary.withOpacity(0.3),
+                    width: 2,
                   ),
             boxShadow: [
+              if (!read)
+                BoxShadow(
+                  color: AppColors.primary.withOpacity(0.15),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                  spreadRadius: 0,
+                ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withOpacity(0.06),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
+                spreadRadius: 0,
               ),
             ],
           ),
@@ -718,8 +964,19 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  gradient: LinearGradient(
+                    colors: [
+                      iconColor.withOpacity(0.15),
+                      iconColor.withOpacity(0.08),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: iconColor.withOpacity(0.2),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(iconData, color: iconColor, size: 24),
               ),
@@ -746,11 +1003,18 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
                         ),
                         if (!read)
                           Container(
-                            width: 8,
-                            height: 8,
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
-                              color: AppColors.primary,
+                              gradient: AppColors.buttonGradient,
                               shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: AppColors.primary.withOpacity(0.5),
+                                  blurRadius: 4,
+                                  spreadRadius: 0,
+                                ),
+                              ],
                             ),
                           ),
                       ],

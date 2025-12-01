@@ -35,10 +35,58 @@
   <!-- Firebase Phone Auth reCAPTCHA -->
   <script src="https://www.gstatic.com/firebasejs/ui/6.0.0/firebase-ui-auth.js"></script>
   <link type="text/css" rel="stylesheet" href="https://www.gstatic.com/firebasejs/ui/6.0.0/firebase-ui-auth.css" />
+  
+  <style>
+    /* Ensure reCAPTCHA container is properly initialized */
+    #recaptcha-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 9999;
+      pointer-events: none;
+      visibility: hidden;
+    }
+    
+    /* Show container when reCAPTCHA is active */
+    #recaptcha-container.visible {
+      visibility: visible;
+      pointer-events: auto;
+    }
+    
+    /* Ensure body has proper styling */
+    body {
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+  </style>
 </head>
 <body>
   <!-- reCAPTCHA container for phone authentication -->
   <div id="recaptcha-container"></div>
   <script src="flutter_bootstrap.js" async></script>
+  
+  <script>
+    // Initialize reCAPTCHA container when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+      const recaptchaContainer = document.getElementById('recaptcha-container');
+      if (recaptchaContainer) {
+        // Ensure container exists and is accessible
+        recaptchaContainer.style.display = 'block';
+        console.log('reCAPTCHA container initialized');
+      }
+    });
+    
+    // Fallback: Initialize after a short delay if DOMContentLoaded already fired
+    setTimeout(function() {
+      const recaptchaContainer = document.getElementById('recaptcha-container');
+      if (recaptchaContainer && !recaptchaContainer.style.display) {
+        recaptchaContainer.style.display = 'block';
+        console.log('reCAPTCHA container initialized (fallback)');
+      }
+    }, 100);
+  </script>
 </body>
 </html>

@@ -253,16 +253,9 @@ class OrderService {
       query = query.where('status', isEqualTo: status);
     }
 
-    // Order by creation date (descending - newest first)
-    try {
-      return query.orderBy('createdAt', descending: true).snapshots();
-    } catch (e) {
-      // Fallback if orderBy fails (e.g., missing index)
-      if (kDebugMode) {
-        print('⚠️ OrderBy failed, using simple query: $e');
-      }
-      return query.snapshots();
-    }
+    // Note: Sorting by createdAt should be done in memory to avoid composite index requirements
+    // when combining where('customerId') with orderBy('createdAt')
+    return query.snapshots();
   }
 
   /// Get customer orders as a one-time fetch (non-streaming)
@@ -285,27 +278,20 @@ class OrderService {
         query = query.where('status', isEqualTo: status);
       }
 
-      try {
-        final snapshot = await query.orderBy('createdAt', descending: true).get();
-        return snapshot.docs;
-      } catch (e) {
-        // Fallback if orderBy fails
-        if (kDebugMode) {
-          print('⚠️ OrderBy failed, using simple query: $e');
-        }
-        final snapshot = await query.get();
-        final docs = snapshot.docs;
-        // Sort manually by createdAt
-        docs.sort((a, b) {
-          final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-          final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-          if (aTime == null && bTime == null) return 0;
-          if (aTime == null) return 1;
-          if (bTime == null) return -1;
-          return bTime.compareTo(aTime); // Descending
-        });
-        return docs;
-      }
+      // Query without orderBy to avoid composite index requirements
+      // Sort in memory instead
+      final snapshot = await query.get();
+      final docs = List<QueryDocumentSnapshot>.from(snapshot.docs);
+      // Sort manually by createdAt (descending - newest first)
+      docs.sort((a, b) {
+        final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+        if (aTime == null && bTime == null) return 0;
+        if (aTime == null) return 1;
+        if (bTime == null) return -1;
+        return bTime.compareTo(aTime); // Descending
+      });
+      return docs;
     } catch (e) {
       if (kDebugMode) {
         print('❌ Error fetching customer orders: $e');

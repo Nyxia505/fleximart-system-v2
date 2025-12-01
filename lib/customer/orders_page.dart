@@ -209,7 +209,21 @@ class _OrdersList extends StatelessWidget {
 
         // Filter orders by status in memory (to avoid composite index requirements)
         final allDocs = snapshot.data!.docs;
-        final docs = _filterOrders(allDocs, filterKey);
+        final filteredDocs = _filterOrders(allDocs, filterKey);
+        
+        // Sort by createdAt in memory (descending - newest first)
+        final docs = List<QueryDocumentSnapshot>.from(filteredDocs);
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreated = aData['createdAt'] as Timestamp?;
+          final bCreated = bData['createdAt'] as Timestamp?;
+          
+          if (aCreated == null && bCreated == null) return 0;
+          if (aCreated == null) return 1;
+          if (bCreated == null) return -1;
+          return bCreated.compareTo(aCreated); // Descending
+        });
         
         if (docs.isEmpty) {
           return SafeArea(
@@ -301,6 +315,14 @@ class _OrdersList extends StatelessWidget {
                     final total = totalPrice ?? computedTotal;
                     final createdAt = data['createdAt'];
                     final deliveryDate = data['deliveryDate'] ?? data['deliveryDateTime'];
+                    // Get rating data
+                    final rating = (data['rating'] as num?)?.toInt() ?? 0;
+                    final review = data['review'] as String? ?? '';
+                    final ratingImageUrl =
+                        (data['ratingImageUrl'] as String?) ??
+                        (data['rating_image_url'] as String?) ??
+                        (data['imageUrl'] as String?) ??
+                        (data['image_url'] as String?);
                     
                     // Get order quantity - sum all item quantities
                     int totalQuantity = 0;
@@ -659,6 +681,124 @@ class _OrdersList extends StatelessWidget {
                               ),
                             ],
                             
+                            // Rating Section (if rating exists)
+                            if (rating > 0) ...[
+                              Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withOpacity(0.03),
+                                  border: Border(
+                                    top: BorderSide(color: Colors.grey[200]!),
+                                  ),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.star,
+                                          color: AppColors.primary,
+                                          size: 20,
+                                        ),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Your Rating',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: AppColors.textPrimary,
+                                          ),
+                                        ),
+                                        const Spacer(),
+                                        // Star rating display
+                                        Row(
+                                          children: List.generate(5, (index) {
+                                            return Icon(
+                                              index < rating
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              color: AppColors.primary,
+                                              size: 16,
+                                            );
+                                          }),
+                                        ),
+                                      ],
+                                    ),
+                                    if (review.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primary.withOpacity(0.05),
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(
+                                            color: AppColors.primary.withOpacity(0.2),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Icon(
+                                              Icons.format_quote,
+                                              color: AppColors.primary,
+                                              size: 18,
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                review,
+                                                style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: AppColors.textPrimary,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          ratingImageUrl,
+                                          width: double.infinity,
+                                          height: 150,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) {
+                                            return Container(
+                                              height: 150,
+                                              color: Colors.grey[200],
+                                              child: const Center(
+                                                child: Icon(Icons.broken_image, size: 32),
+                                              ),
+                                            );
+                                          },
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return Container(
+                                              height: 150,
+                                              color: Colors.grey[200],
+                                              child: Center(
+                                                child: CircularProgressIndicator(
+                                                  value: loadingProgress.expectedTotalBytes != null
+                                                      ? loadingProgress.cumulativeBytesLoaded /
+                                                          loadingProgress.expectedTotalBytes!
+                                                      : null,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                            
                             // Order Info and Actions
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -776,17 +916,8 @@ class _OrdersList extends StatelessWidget {
 
   static Query _buildOrdersQuery(String uid, String key) {
     final col = FirebaseFirestore.instance.collection('orders');
-    // Always query by customerId and orderBy createdAt
-    // Filter by status in memory to avoid composite index requirements
-    try {
-      return col
-          .where('customerId', isEqualTo: uid)
-          .orderBy('createdAt', descending: true);
-    } catch (e) {
-      // Fallback if orderBy fails (e.g., missing index)
-      debugPrint('⚠️ OrderBy createdAt failed, using simple query: $e');
-      return col.where('customerId', isEqualTo: uid);
-    }
+    // Query by customerId only - sort in memory to avoid composite index requirements
+    return col.where('customerId', isEqualTo: uid);
   }
   
   static List<QueryDocumentSnapshot> _filterOrders(

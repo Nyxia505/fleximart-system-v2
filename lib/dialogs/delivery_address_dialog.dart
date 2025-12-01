@@ -101,17 +101,50 @@ class _DeliveryAddressDialogState extends State<DeliveryAddressDialog> {
 
   Future<void> _submit() async {
     if (_formKey.currentState!.validate()) {
-      // Show phone verification and wait for result
+      final phoneNumber = _phoneNumberController.text.trim();
+      
+      // Check if phone is already verified BEFORE showing verification dialog
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final isVerified = await PhoneVerificationService.isPhoneVerified(user.uid);
+        final verifiedPhone = await PhoneVerificationService.getVerifiedPhone(user.uid);
+        
+        // Format phone number for comparison
+        String formattedPhone = phoneNumber.trim();
+        if (!formattedPhone.startsWith('+')) {
+          if (formattedPhone.startsWith('0')) {
+            formattedPhone = '+63${formattedPhone.substring(1)}';
+          } else {
+            formattedPhone = '+63$formattedPhone';
+          }
+        }
+        
+        // Skip verification dialog if phone is already verified and matches
+        if (isVerified && verifiedPhone != null && verifiedPhone == formattedPhone) {
+          // Phone is already verified, skip verification dialog
+          if (mounted) {
+            Navigator.pop(context, {
+              'fullName': _fullNameController.text.trim(),
+              'phoneNumber': phoneNumber,
+              'completeAddress': _completeAddressController.text.trim(),
+              'landmark': _landmarkController.text.trim(),
+            });
+          }
+          return;
+        }
+      }
+      
+      // Show phone verification only if not verified
       final verified = await showPhoneVerification(
         context,
-        _phoneNumberController.text.trim(),
+        phoneNumber,
       );
 
       // If phone is verified, return the delivery address data
       if (verified && mounted) {
         Navigator.pop(context, {
           'fullName': _fullNameController.text.trim(),
-          'phoneNumber': _phoneNumberController.text.trim(),
+          'phoneNumber': phoneNumber,
           'completeAddress': _completeAddressController.text.trim(),
           'landmark': _landmarkController.text.trim(),
         });
@@ -301,6 +334,8 @@ class _PhoneVerificationModalWithCompleterState
   final _phoneVerificationService = PhoneVerificationService();
   bool _isSendingOtp = false;
   String? _errorMessage;
+  bool _isBlocked = false; // Track if user is blocked
+  bool _isWaitingForRecaptcha = false; // Track if waiting for reCAPTCHA completion
 
   @override
   void dispose() {
@@ -314,6 +349,7 @@ class _PhoneVerificationModalWithCompleterState
     setState(() {
       _isSendingOtp = true;
       _errorMessage = null;
+      _isWaitingForRecaptcha = false;
     });
 
     try {
@@ -324,6 +360,7 @@ class _PhoneVerificationModalWithCompleterState
           if (mounted) {
             setState(() {
               _isSendingOtp = false;
+              _isWaitingForRecaptcha = false;
             });
             // Close the modal first, then navigate to OTP page
             Navigator.pop(context);
@@ -347,54 +384,77 @@ class _PhoneVerificationModalWithCompleterState
           }
         },
         onError: (error) {
-          setState(() {
-            // Check for blocked/rate limit errors first
+          // Check for reCAPTCHA errors first - don't reset flag or show error
+          if (error.contains('reCAPTCHA') ||
+              error.contains('application verifier') ||
+              error.contains('reCAPTCHA token') ||
+              error.contains('Security verification')) {
+            // Check if it's actually a block error disguised as reCAPTCHA
             if (error.contains('blocked') ||
-                error.contains('unusual activity') ||
-                error.contains('Try again later') ||
-                error.contains('too-many-requests') ||
-                error.contains('TOO_MANY_REQUESTS')) {
-              _errorMessage =
-                  'Too many verification attempts.\n\n'
-                  'Your device has been temporarily blocked due to unusual activity.\n'
-                  'Please wait 15-30 minutes before trying again.';
-            } else if (error.contains('operation-not-allowed') ||
-                error.contains('OPERATION_NOT_ALLOWED')) {
-              _errorMessage =
-                  'Phone sign-in is disabled. Please contact support.';
-            } else if (error.contains('invalid-phone-number') ||
-                error.contains('INVALID_PHONE_NUMBER')) {
-              _errorMessage =
-                  'Invalid phone number format. Please check and try again.';
-            } else if (error.contains('quota-exceeded') ||
-                error.contains('QUOTA_EXCEEDED')) {
-              _errorMessage = 'SMS quota exceeded. Please try again later.';
-            } else if (error.contains('reCAPTCHA') ||
-                error.contains('application verifier') ||
-                error.contains('reCAPTCHA token')) {
-              // Check if it's actually a block error
-              if (error.contains('blocked') ||
-                  error.contains('unusual activity')) {
+                error.contains('unusual activity')) {
+              // This is a real block error, not reCAPTCHA
+              setState(() {
+                _isSendingOtp = false;
+                _isBlocked = true;
+                _isWaitingForRecaptcha = false;
                 _errorMessage =
                     'Too many verification attempts.\n\n'
+                    'Your device has been temporarily blocked due to unusual activity.\n'
                     'Please wait 15-30 minutes before trying again.';
-              } else {
-                _errorMessage =
-                    'Security verification required.\n\n'
-                    'A browser window may open for security verification.\n'
-                    'Please complete the verification and return to the app.';
-              }
+              });
             } else {
-              _errorMessage = error;
+              // This is reCAPTCHA - keep loading state and wait for codeSent
+              // Don't reset _isSendingOtp flag - keep dialog open
+              setState(() {
+                _isWaitingForRecaptcha = true;
+                _errorMessage = null; // Don't show error for reCAPTCHA
+              });
+              // Flag stays true, dialog stays open, waiting for codeSent callback
+              return;
             }
-            _isSendingOtp = false;
-          });
+          } else {
+            // Real error occurred - reset flag and show error
+            setState(() {
+              _isSendingOtp = false;
+              _isBlocked = false;
+              _isWaitingForRecaptcha = false;
+              
+              // Check for blocked/rate limit errors first
+              if (error.contains('blocked') ||
+                  error.contains('unusual activity') ||
+                  error.contains('Try again later') ||
+                  error.contains('too-many-requests') ||
+                  error.contains('TOO_MANY_REQUESTS')) {
+                _isBlocked = true;
+                _errorMessage =
+                    'Too many verification attempts.\n\n'
+                    'Your device has been temporarily blocked due to unusual activity.\n'
+                    'Please wait 15-30 minutes before trying again.';
+              } else if (error.contains('operation-not-allowed') ||
+                  error.contains('OPERATION_NOT_ALLOWED')) {
+                _errorMessage =
+                    'Phone sign-in is disabled. Please contact support.';
+              } else if (error.contains('invalid-phone-number') ||
+                  error.contains('INVALID_PHONE_NUMBER')) {
+                _errorMessage =
+                    'Invalid phone number format. Please check and try again.';
+              } else if (error.contains('quota-exceeded') ||
+                  error.contains('QUOTA_EXCEEDED')) {
+                _errorMessage = 'SMS quota exceeded. Please try again later.';
+              } else if (error.isNotEmpty) {
+                _errorMessage = error;
+              } else {
+                _errorMessage = null;
+              }
+            });
+          }
         },
       );
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
         _isSendingOtp = false;
+        _isWaitingForRecaptcha = false;
       });
     }
   }
@@ -472,35 +532,90 @@ class _PhoneVerificationModalWithCompleterState
             ),
             const SizedBox(height: 24),
 
-            // Error Message
-            if (_errorMessage != null)
+            // Loading message - shows whenever OTP is being sent
+            if (_isSendingOtp)
               Container(
                 padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
+                  color: AppColors.primary.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.primary.withOpacity(0.3),
+                    width: 1,
+                  ),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.error_outline, color: AppColors.error, size: 20),
+                    const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        _errorMessage!,
-                        style: TextStyle(fontSize: 13, color: AppColors.error),
+                        'Completing security verification...\nIf browser opens, complete verification and return.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.primary,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
 
-            if (_errorMessage != null) const SizedBox(height: 16),
+            // Error Message
+            if (_errorMessage != null)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: _isBlocked 
+                      ? Colors.red.shade50 
+                      : AppColors.error.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: _isBlocked 
+                        ? Colors.red.shade200 
+                        : AppColors.error.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      _isBlocked ? Icons.block : Icons.error_outline,
+                      color: _isBlocked ? Colors.red.shade700 : AppColors.error,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _errorMessage!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: _isBlocked ? Colors.red.shade700 : AppColors.error,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
             // Send OTP Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isSendingOtp ? null : _sendOtp,
+                onPressed: (_isSendingOtp || _isBlocked || _isWaitingForRecaptcha) ? null : _sendOtp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,

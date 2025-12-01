@@ -22,6 +22,7 @@ import 'screen/proceed_to_buy_page.dart';
 import 'customer/shop_dashboard.dart';
 import 'pages/product_listing_page.dart';
 import 'customer/customer_quotation_details_page.dart';
+import 'pages/cart_page.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -224,6 +225,7 @@ class MyApp extends StatelessWidget {
           '/request-quotation': (context) => const RequestQuotationScreen(),
           '/proceed-buy': (context) => const ProceedToBuyPage(),
           '/products': (context) => const ProductListingPage(),
+          '/cart': (context) => const CartPage(),
           '/quotation-details': (context) {
             final args = ModalRoute.of(context)?.settings.arguments;
             if (args is Map && args['quotationId'] != null) {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -33,12 +34,17 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
   bool _resending = false;
   String? _errorMessage;
   late String _currentVerificationId; // Store the current verification ID
+  Timer? _resendCooldownTimer; // Timer for resend cooldown
+  int _resendCooldownSeconds = 0; // Remaining cooldown seconds
+  static const int _cooldownDuration = 60; // 60-second cooldown
 
   @override
   void initState() {
     super.initState();
     // Store the initial verification ID
     _currentVerificationId = widget.verificationId;
+    // Start cooldown timer when page loads
+    _startResendCooldown();
     // Auto-focus the first field
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNodes[0].requestFocus();
@@ -47,6 +53,7 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
 
   @override
   void dispose() {
+    _resendCooldownTimer?.cancel();
     for (var controller in _controllers) {
       controller.dispose();
     }
@@ -54,6 +61,24 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
       focusNode.dispose();
     }
     super.dispose();
+  }
+
+  void _startResendCooldown() {
+    _resendCooldownSeconds = _cooldownDuration;
+    _resendCooldownTimer?.cancel();
+    _resendCooldownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_resendCooldownSeconds > 0) {
+            _resendCooldownSeconds--;
+          } else {
+            timer.cancel();
+          }
+        });
+      } else {
+        timer.cancel();
+      }
+    });
   }
 
   void _onCodeChanged(int index, String value) {
@@ -133,21 +158,35 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
         _loading = false;
       });
 
-      // Step 5: Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Phone number verified successfully!'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
+      // Step 5: Verify the save was successful before navigating
+      // Wait a moment to ensure Firestore has updated
+      await Future.delayed(const Duration(milliseconds: 500));
+      
+      // Double-check verification status
+      final isVerified = await PhoneVerificationService.isPhoneVerified(uid);
+      if (!isVerified) {
+        throw Exception('Verification saved but status check failed. Please try again.');
+      }
 
-      // Step 6: Navigate to next screen
-      // If user was signed in, go back; if new sign-in, navigate to dashboard
+      // Step 6: Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Phone number verified successfully!'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+
+      // Step 7: Navigate to next screen
+      // If user was signed in, go back with success flag; if new sign-in, navigate to dashboard
+      if (!mounted) return;
+      
       if (currentUser == null) {
         // New phone sign-in - navigate to dashboard
         Navigator.pushNamedAndRemoveUntil(
@@ -156,7 +195,8 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
           (route) => false,
         );
       } else {
-        // Phone verification for existing user - go back
+        // Phone verification for existing user - go back with success flag
+        // This allows the calling screen to know verification completed
         Navigator.pop(context, true);
       }
     } on FirebaseAuthException catch (e) {
@@ -207,7 +247,7 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
   }
 
   Future<void> _resendOtp() async {
-    if (_resending) return;
+    if (_resending || _resendCooldownSeconds > 0) return;
 
     setState(() {
       _resending = true;
@@ -226,6 +266,8 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
             _resending = false;
             _currentVerificationId = verificationId;
           });
+          // Reset cooldown when new OTP is sent
+          _startResendCooldown();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: const Text('New OTP sent successfully!'),
@@ -304,13 +346,21 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              // OTP Input Fields
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(6, (index) {
-                  return SizedBox(
-                    width: 45,
-                    height: 55,
+              // OTP Input Fields - Responsive layout
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  // Calculate field width based on available space
+                  final availableWidth = constraints.maxWidth;
+                  final spacing = 8.0;
+                  final totalSpacing = spacing * 5; // 5 gaps between 6 fields
+                  final fieldWidth = ((availableWidth - totalSpacing) / 6).clamp(40.0, 50.0);
+                  
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: List.generate(6, (index) {
+                      return SizedBox(
+                        width: fieldWidth,
+                        height: 55,
                     child: TextField(
                       controller: _controllers[index],
                       focusNode: _focusNodes[index],
@@ -356,7 +406,9 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
                       onChanged: (value) => _onCodeChanged(index, value),
                     ),
                   );
-                }),
+                    }),
+                  );
+                },
               ),
               if (_errorMessage != null) ...[
                 const SizedBox(height: 16),
@@ -419,18 +471,23 @@ class _PhoneVerificationOtpPageState extends State<PhoneVerificationOtpPage> {
               const SizedBox(height: 16),
               // Resend OTP
               TextButton(
-                onPressed: _resending ? null : _resendOtp,
+                onPressed: (_resending || _resendCooldownSeconds > 0) ? null : _resendOtp,
                 child: _resending
                     ? const SizedBox(
                         height: 16,
                         width: 16,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        'Resend OTP',
+                    : Text(
+                        _resendCooldownSeconds > 0
+                            ? 'Resend OTP (${_resendCooldownSeconds}s)'
+                            : 'Resend OTP',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
+                          color: _resendCooldownSeconds > 0
+                              ? AppColors.textSecondary
+                              : AppColors.primary,
                         ),
                       ),
               ),

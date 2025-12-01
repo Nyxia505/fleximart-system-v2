@@ -685,17 +685,7 @@ class QuotationsPage extends StatelessWidget {
               stream: FirebaseFirestore.instance
                   .collection('quotations')
                   .where('customerId', isEqualTo: user.uid)
-                  .orderBy('createdAt', descending: true)
-                  .snapshots()
-                  .handleError((error) {
-                    if (kDebugMode) {
-                      print('⚠️ OrderBy failed, using simple query: $error');
-                    }
-                    return FirebaseFirestore.instance
-                        .collection('quotations')
-                        .where('customerId', isEqualTo: user.uid)
-                        .snapshots();
-                  }),
+                  .snapshots(),
               builder: (context, snapshot) {
                 // 1. Check for errors first
                 if (snapshot.hasError) {
@@ -730,42 +720,49 @@ class QuotationsPage extends StatelessWidget {
                   );
                 }
 
-                // 2. Check if data is not available yet (loading state)
-                if (!snapshot.hasData) {
+                // 2. Check connection state - only show loading when actively waiting
+                if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(
                     child: CircularProgressIndicator(color: AppColors.primary),
                   );
                 }
 
-                // 3. Check if documents are empty
-                if (snapshot.data!.docs.isEmpty) {
+                // 3. Check if documents are empty (after data is loaded)
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.description_outlined,
-                          size: 64,
-                          color: AppColors.textSecondary.withOpacity(0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No quotations yet',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.history_outlined,
+                            size: 64,
+                            color: AppColors.textSecondary.withOpacity(0.5),
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Your quotations will appear here',
-                          style: TextStyle(
-                            color: AppColors.textSecondary,
-                            fontSize: 14,
+                          const SizedBox(height: 16),
+                          Text(
+                            'No quotations yet',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 8),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                            child: Text(
+                              'Your quotations will appear here after you request a quotation.',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 }

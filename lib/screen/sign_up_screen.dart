@@ -19,6 +19,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
   bool obscureConfirmPassword = true;
   bool loading = false;
 
+  // Password strength tracking
+  bool hasMinLength = false;
+  bool hasUppercase = false;
+  bool hasLowercase = false;
+  bool hasNumber = false;
+  bool hasSpecialChar = false;
+
   // New theme colors
   static const Color deepRed = Color(0xFFCD5656);
   static const Color magenta = Color(0xFFAF3E3E);
@@ -56,24 +63,35 @@ class _SignUpScreenState extends State<SignUpScreen> {
           _buildBubbleOverlay(),
           // Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 40,
-                bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 20),
-                  // Title and Subtitle
-                  _buildTitleSection(),
-                  const SizedBox(height: 40),
-                  // Form Container with White Border
-                  _buildFormContainer(),
-                ],
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 20,
+                    bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight:
+                          constraints.maxHeight -
+                          (keyboardHeight > 0 ? keyboardHeight + 40 : 60),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 8),
+                        // Title and Subtitle
+                        _buildTitleSection(),
+                        const SizedBox(height: 20),
+                        // Form Container with White Border
+                        _buildFormContainer(),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -86,30 +104,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
   }
 
   Widget _buildTitleSection() {
-    return Column(
-      children: [
-        const Text(
-          'Create Your',
-          style: TextStyle(
-            fontSize: 42,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // White text for better contrast on red background
-            letterSpacing: 0.5,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Account',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: Colors.white, // White text for better contrast on red background
-            letterSpacing: 0.3,
-            height: 1.2,
-          ),
-        ),
-      ],
+    return const Text(
+      '"Create your account"',
+      style: TextStyle(
+        fontSize: 30,
+        fontWeight: FontWeight.bold,
+        color: Colors.white, // White text for better contrast on red background
+        letterSpacing: 0.5,
+        height: 1.2,
+      ),
     );
   }
 
@@ -118,9 +121,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.transparent,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+        border: Border.all(color: Colors.black, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -143,21 +153,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           ),
           const SizedBox(height: 24),
           // Password Field
-          _buildTextField(
-            controller: passwordController,
-            label: 'Password',
-            hintText: 'Enter your password',
-            icon: Icons.lock_outline,
-            obscureText: obscure,
-            suffixIcon: IconButton(
-              icon: Icon(
-                obscure ? Icons.visibility_off : Icons.visibility,
-                color: Colors.black87,
-                size: 22,
-              ),
-              onPressed: () => setState(() => obscure = !obscure),
-            ),
-          ),
+          _buildPasswordField(),
           const SizedBox(height: 24),
           // Confirm Password Field
           _buildTextField(
@@ -208,7 +204,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: Colors.black87,
             letterSpacing: 0.2,
           ),
         ),
@@ -237,24 +233,15 @@ class _SignUpScreenState extends State<SignUpScreen> {
               suffixIcon: suffixIcon,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.transparent,
-                  width: 1,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.transparent,
-                  width: 1,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.pinkAccent,
-                  width: 1.5,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -328,7 +315,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
         text: const TextSpan(
           style: TextStyle(
             fontSize: 15,
-            color: Colors.white, // White text for better contrast
+            color: Colors.black87, // Dark text for better contrast on white
             fontWeight: FontWeight.w500,
           ),
           children: [
@@ -336,10 +323,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
             TextSpan(
               text: 'Sign In',
               style: TextStyle(
-                color: Colors.white, // White text for better contrast
+                color: Color(0xFFCD5656), // Red color for link
                 fontWeight: FontWeight.bold,
                 decoration: TextDecoration.underline,
-                decorationColor: Colors.white,
+                decorationColor: Color(0xFFCD5656),
               ),
             ),
           ],
@@ -368,8 +355,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
       return;
     }
 
-    if (password.length < 6) {
-      _showError('Password must be at least 6 characters');
+    // Strong password validation
+    final passwordValidation = _validateStrongPassword(password);
+    if (!passwordValidation['isValid']) {
+      _showError(passwordValidation['message'] as String);
       return;
     }
 
@@ -436,6 +425,195 @@ class _SignUpScreenState extends State<SignUpScreen> {
     return emailRegex.hasMatch(email);
   }
 
+  void _checkPasswordStrength(String password) {
+    setState(() {
+      hasMinLength = password.length >= 8;
+      hasUppercase = password.contains(RegExp(r'[A-Z]'));
+      hasLowercase = password.contains(RegExp(r'[a-z]'));
+      hasNumber = password.contains(RegExp(r'[0-9]'));
+      hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    });
+  }
+
+  Map<String, dynamic> _validateStrongPassword(String password) {
+    if (password.length < 8) {
+      return {
+        'isValid': false,
+        'message': 'Password must be at least 8 characters long',
+      };
+    }
+
+    if (!password.contains(RegExp(r'[A-Z]'))) {
+      return {
+        'isValid': false,
+        'message': 'Password must contain at least one uppercase letter',
+      };
+    }
+
+    if (!password.contains(RegExp(r'[a-z]'))) {
+      return {
+        'isValid': false,
+        'message': 'Password must contain at least one lowercase letter',
+      };
+    }
+
+    if (!password.contains(RegExp(r'[0-9]'))) {
+      return {
+        'isValid': false,
+        'message': 'Password must contain at least one number',
+      };
+    }
+
+    if (!password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'))) {
+      return {
+        'isValid': false,
+        'message':
+            'Password must contain at least one special character (!@#\$%^&*(),.?":{}|<>)',
+      };
+    }
+
+    return {'isValid': true, 'message': ''};
+  }
+
+  Widget _buildPasswordField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 12),
+        const Text(
+          'Password',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            letterSpacing: 0.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: TextFormField(
+            controller: passwordController,
+            obscureText: obscure,
+            onChanged: (value) {
+              _checkPasswordStrength(value);
+            },
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.black,
+              fontWeight: FontWeight.w500,
+            ),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: Colors.white,
+              hintText: 'Enter your password',
+              hintStyle: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+              ),
+              prefixIcon: const Icon(
+                Icons.lock_outline,
+                color: Colors.black87,
+                size: 22,
+              ),
+              suffixIcon: IconButton(
+                icon: Icon(
+                  obscure ? Icons.visibility_off : Icons.visibility,
+                  color: Colors.black87,
+                  size: 22,
+                ),
+                onPressed: () => setState(() => obscure = !obscure),
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
+              ),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 14,
+              ),
+            ),
+          ),
+        ),
+        // Password Requirements
+        if (passwordController.text.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey[50],
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Password must contain:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                _buildRequirementItem('At least 8 characters', hasMinLength),
+                _buildRequirementItem(
+                  'One uppercase letter (A-Z)',
+                  hasUppercase,
+                ),
+                _buildRequirementItem(
+                  'One lowercase letter (a-z)',
+                  hasLowercase,
+                ),
+                _buildRequirementItem('One number (0-9)', hasNumber),
+                _buildRequirementItem(
+                  'One special character (!@#\$%...)',
+                  hasSpecialChar,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRequirementItem(String text, bool isValid) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            isValid ? Icons.check_circle : Icons.circle_outlined,
+            size: 16,
+            color: isValid ? Colors.green : Colors.grey[400],
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 12,
+                color: isValid ? Colors.green[700] : Colors.grey[600],
+                fontWeight: isValid ? FontWeight.w500 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showError(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -454,7 +632,7 @@ class BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
-    
+
     // Red bubble colors
     final bubbleColors = [
       const Color(0xFFCD5656).withOpacity(0.3),
@@ -467,7 +645,7 @@ class BubblePainter extends CustomPainter {
       final x = size.width * (0.1 + random.nextDouble() * 0.8);
       final y = size.height * (0.1 + random.nextDouble() * 0.8);
       final radius = 50 + random.nextDouble() * 100;
-      
+
       final paint = Paint()
         ..color = bubbleColors[i % bubbleColors.length]
         ..style = PaintingStyle.fill;

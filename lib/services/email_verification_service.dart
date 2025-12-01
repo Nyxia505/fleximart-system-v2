@@ -27,13 +27,13 @@ class EmailVerificationService {
 
   /// Request a verification code to be sent to [email]. Returns the OTP for debug/testing only.
   /// - [displayName] is optional and used in the email template if provided.
-  /// - [ttlMinutes] sets how long the OTP is valid for.
+  /// - [ttlMinutes] sets how long the OTP is valid for (default: 5 minutes to match email template).
   /// - [resendCooldownSeconds] prevents rapid re-sends.
   static Future<String> requestEmailVerification({
     required String email,
     String? displayName,
     int length = 6,
-    int ttlMinutes = 10,
+    int ttlMinutes = 5,
     int resendCooldownSeconds = 45,
   }) async {
     final prefs = await SharedPreferences.getInstance();

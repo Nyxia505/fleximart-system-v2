@@ -15,6 +15,7 @@ exports.onQuotationCreated = functions.firestore
     const quotationData = snap.data();
     const quotationId = context.params.quotationId;
     const customerName = quotationData.customerName || 'Customer';
+    const productName = quotationData.productName || 'product';
 
     try {
       // Get all admin users
@@ -29,8 +30,11 @@ exports.onQuotationCreated = functions.firestore
         .where('role', '==', 'staff')
         .get();
 
-      // Create batch for notifications
+      // Create batch for Firestore notifications
       const batch = admin.firestore().batch();
+
+      // Collect FCM tokens for push notifications
+      const tokens = [];
 
       // Create notification for each admin
       adminSnapshot.forEach((adminDoc) => {
@@ -47,6 +51,12 @@ exports.onQuotationCreated = functions.firestore
           read: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // Collect FCM token
+        const adminData = adminDoc.data() || {};
+        if (adminData.fcmToken) {
+          tokens.push(adminData.fcmToken);
+        }
       });
 
       // Create notification for each staff
@@ -64,10 +74,36 @@ exports.onQuotationCreated = functions.firestore
           read: false,
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         });
+
+        // Collect FCM token
+        const staffData = staffDoc.data() || {};
+        if (staffData.fcmToken) {
+          tokens.push(staffData.fcmToken);
+        }
       });
 
-      // Commit all notifications
+      // Commit all Firestore notifications
       await batch.commit();
+
+      // Send push notifications
+      if (tokens.length > 0) {
+        const title = 'New Quotation Request';
+        const body = `New quotation request from ${customerName} for ${productName}`;
+
+        const payload = {
+          notification: {
+            title,
+            body,
+          },
+          data: {
+            type: 'new_quotation',
+            quotationId,
+          },
+        };
+
+        await admin.messaging().sendToDevice(tokens, payload);
+        console.log(`✅ Push notifications sent to ${tokens.length} admin/staff tokens for quotation ${quotationId}`);
+      }
 
       console.log(`✅ Created notifications for ${adminSnapshot.size} admins and ${staffSnapshot.size} staff members for quotation ${quotationId}`);
       
@@ -162,9 +198,11 @@ exports.sendOrderNotification = functions.firestore
         orderData.customerName ||
         orderData.fullName ||
         'New order';
+      const totalPrice = orderData.totalPrice || 0;
+      const orderShortId = orderId.substring(0, 8).toUpperCase();
 
       const title = 'New Order Placed';
-      const body = `Order from ${customerName}`;
+      const body = `Order #${orderShortId} from ${customerName} - ₱${totalPrice.toFixed(2)}`;
 
       const usersRef = admin.firestore().collection('users');
       const [adminsSnap, staffSnap] = await Promise.all([
@@ -193,7 +231,7 @@ exports.sendOrderNotification = functions.firestore
           body,
         },
         data: {
-          type: 'order',
+          type: 'new_order',
           orderId,
         },
       };
@@ -203,6 +241,177 @@ exports.sendOrderNotification = functions.firestore
       return null;
     } catch (error) {
       console.error('❌ Error sending order notification:', error);
+      return null;
+    }
+  });
+
+/**
+ * Order status update push notification:
+ * Triggered when an order status is updated under /orders/{orderId}
+ * Sends push notification to the customer.
+ */
+exports.sendOrderStatusUpdateNotification = functions.firestore
+  .document('orders/{orderId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const { orderId } = context.params;
+
+    const oldStatus = beforeData.status;
+    const newStatus = afterData.status;
+
+    // Only send notification if status actually changed
+    if (oldStatus === newStatus) {
+      return null;
+    }
+
+    try {
+      const customerId = afterData.customerId;
+      if (!customerId) {
+        console.log('⚠️ No customerId found in order, skipping push.');
+        return null;
+      }
+
+      // Get customer FCM token
+      const userSnap = await admin.firestore().collection('users').doc(customerId).get();
+      if (!userSnap.exists) {
+        console.log(`⚠️ Customer ${customerId} not found, skipping push.`);
+        return null;
+      }
+
+      const userData = userSnap.data() || {};
+      const token = userData.fcmToken;
+      if (!token) {
+        console.log(`⚠️ No fcmToken for customer ${customerId}, skipping push.`);
+        return null;
+      }
+
+      // Get product name
+      let productName = afterData.productName || 'order';
+      if (!productName && afterData.items && Array.isArray(afterData.items) && afterData.items.length > 0) {
+        productName = afterData.items[0].productName || 'order';
+      }
+
+      // Map status to notification details
+      let title, body;
+      switch (newStatus.toLowerCase()) {
+        case 'paid':
+        case 'pending_payment':
+          title = 'Payment Received';
+          body = `Your ${productName} payment has been received. We are preparing your order.`;
+          break;
+        case 'shipped':
+        case 'for_installation':
+          title = 'Order Shipped';
+          body = `Your ${productName} has been shipped. Track your delivery.`;
+          break;
+        case 'awaiting_installation':
+        case 'awaiting installation':
+        case 'to_receive':
+          title = 'Order Received';
+          body = `Your ${productName} has been received. Installation will be scheduled soon.`;
+          break;
+        case 'processing':
+          title = 'Order Status Updated';
+          body = `Your ${productName} is now processing.`;
+          break;
+        case 'completed':
+          title = 'Order Completed';
+          body = `Your ${productName} has been completed. Thank you for your purchase!`;
+          break;
+        case 'delivered':
+          title = 'Order Delivered';
+          body = `Your ${productName} has been delivered.`;
+          break;
+        default:
+          title = 'Order Status Updated';
+          body = `Your ${productName} is now ${newStatus}.`;
+      }
+
+      const payload = {
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          type: 'order_status_update',
+          orderId,
+          status: newStatus,
+        },
+      };
+
+      await admin.messaging().sendToDevice(token, payload);
+      console.log(`✅ Order status update notification sent to customer ${customerId} for order ${orderId}.`);
+      return null;
+    } catch (error) {
+      console.error('❌ Error sending order status update notification:', error);
+      return null;
+    }
+  });
+
+/**
+ * Quotation price update push notification:
+ * Triggered when a quotation price is updated under /quotations/{quotationId}
+ * Sends push notification to the customer.
+ */
+exports.sendQuotationPriceUpdateNotification = functions.firestore
+  .document('quotations/{quotationId}')
+  .onUpdate(async (change, context) => {
+    const beforeData = change.before.data();
+    const afterData = change.after.data();
+    const { quotationId } = context.params;
+
+    const oldPrice = beforeData.adminTotalPrice;
+    const newPrice = afterData.adminTotalPrice;
+
+    // Only send notification if price was set (was null/undefined before and now has value)
+    if (oldPrice === newPrice || !newPrice) {
+      return null;
+    }
+
+    try {
+      const customerId = afterData.customerId || afterData.userId;
+      if (!customerId) {
+        console.log('⚠️ No customerId found in quotation, skipping push.');
+        return null;
+      }
+
+      // Get customer FCM token
+      const userSnap = await admin.firestore().collection('users').doc(customerId).get();
+      if (!userSnap.exists) {
+        console.log(`⚠️ Customer ${customerId} not found, skipping push.`);
+        return null;
+      }
+
+      const userData = userSnap.data() || {};
+      const token = userData.fcmToken;
+      if (!token) {
+        console.log(`⚠️ No fcmToken for customer ${customerId}, skipping push.`);
+        return null;
+      }
+
+      const productName = afterData.productName || 'product';
+      const formattedPrice = `₱${newPrice.toFixed(2)}`;
+
+      const title = 'Quotation Ready';
+      const body = `Your quotation for ${productName} is ${formattedPrice}`;
+
+      const payload = {
+        notification: {
+          title,
+          body,
+        },
+        data: {
+          type: 'quotation_updated',
+          quotationId,
+        },
+      };
+
+      await admin.messaging().sendToDevice(token, payload);
+      console.log(`✅ Quotation price update notification sent to customer ${customerId} for quotation ${quotationId}.`);
+      return null;
+    } catch (error) {
+      console.error('❌ Error sending quotation price update notification:', error);
       return null;
     }
   });

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../pages/order_detail_page.dart';
@@ -181,20 +182,7 @@ class OrderHistoryPage extends StatelessWidget {
         stream: FirebaseFirestore.instance
             .collection('orders')
             .where('customerId', isEqualTo: user.uid)
-            .orderBy('createdAt', descending: true)
-            .snapshots()
-            .handleError((error) {
-              // Fallback: return orders without orderBy if createdAt fails
-              if (kDebugMode) {
-                debugPrint(
-                  '⚠️ OrderBy createdAt failed, using simple query: $error',
-                );
-              }
-              return FirebaseFirestore.instance
-                  .collection('orders')
-                  .where('customerId', isEqualTo: user.uid)
-                  .snapshots();
-            }),
+            .snapshots(),
         builder: (context, snapshot) {
           // Handle connection state
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -205,6 +193,9 @@ class OrderHistoryPage extends StatelessWidget {
 
           // Handle errors
           if (snapshot.hasError) {
+            if (kDebugMode) {
+              debugPrint('❌ Order History Error: ${snapshot.error}');
+            }
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -225,13 +216,29 @@ class OrderHistoryPage extends StatelessWidget {
                       ),
                       textAlign: TextAlign.center,
                     ),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Force rebuild by navigating away and back
+                        Navigator.of(context).pop();
+                        Future.delayed(const Duration(milliseconds: 100), () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (context) => const OrderHistoryPage(),
+                            ),
+                          );
+                        });
+                      },
+                      child: const Text('Retry'),
+                    ),
                   ],
                 ),
               ),
             );
           }
 
-          if (!snapshot.hasData) {
+          // Check if we have data
+          if (!snapshot.hasData || snapshot.data == null) {
             return const Center(
               child: CircularProgressIndicator(color: AppColors.primary),
             );
@@ -374,6 +381,29 @@ class OrderHistoryPage extends StatelessWidget {
                     orderData['customerName'] as String? ??
                     orderData['customer_name'] as String? ??
                     'Customer';
+                // Get rating data
+                final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
+                final review = orderData['review'] as String? ?? '';
+                String? ratingImageUrl =
+                    (orderData['ratingImageUrl'] as String?) ??
+                    (orderData['rating_image_url'] as String?) ??
+                    (orderData['imageUrl'] as String?) ??
+                    (orderData['image_url'] as String?);
+                
+                // Clean and validate the URL
+                if (ratingImageUrl != null) {
+                  ratingImageUrl = ratingImageUrl.trim();
+                  if (ratingImageUrl.isEmpty) {
+                    ratingImageUrl = null;
+                  } else if (!ratingImageUrl.startsWith('http://') && 
+                             !ratingImageUrl.startsWith('https://')) {
+                    // Invalid URL format
+                    if (kDebugMode) {
+                      debugPrint('⚠️ Invalid rating image URL format: $ratingImageUrl');
+                    }
+                    ratingImageUrl = null;
+                  }
+                }
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -457,62 +487,141 @@ class OrderHistoryPage extends StatelessWidget {
                       // Content
                       Padding(
                         padding: const EdgeInsets.all(16),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  'Total Amount',
-                                  style: AppTextStyles.caption(
-                                    color: AppColors.textSecondary,
-                                  ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Total Amount',
+                                      style: AppTextStyles.caption(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      PriceFormatter.formatPrice(totalPrice),
+                                      style: AppTextStyles.heading3(
+                                        color: AppColors.primary,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
+                                      style: AppTextStyles.caption(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  PriceFormatter.formatPrice(totalPrice),
-                                  style: AppTextStyles.heading3(
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
-                                  style: AppTextStyles.caption(
-                                    color: AppColors.textSecondary,
+                                ElevatedButton.icon(
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => OrderDetailPage(
+                                          orderId: orderId,
+                                          orderRef: FirebaseFirestore.instance
+                                              .collection('orders')
+                                              .doc(orderId),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.visibility, size: 18),
+                                  label: const Text('View Details'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppColors.primary,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => OrderDetailPage(
-                                      orderId: orderId,
-                                      orderRef: FirebaseFirestore.instance
-                                          .collection('orders')
-                                          .doc(orderId),
+                            // Rating Section
+                            if (rating > 0) ...[
+                              const SizedBox(height: 16),
+                              const Divider(),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.star,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Your Rating',
+                                    style: AppTextStyles.bodyMedium().copyWith(
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                );
-                              },
-                              icon: const Icon(Icons.visibility, size: 18),
-                              label: const Text('View Details'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
+                                  const Spacer(),
+                                  // Star rating display
+                                  Row(
+                                    children: List.generate(5, (index) {
+                                      return Icon(
+                                        index < rating
+                                            ? Icons.star
+                                            : Icons.star_border,
+                                        color: AppColors.primary,
+                                        size: 18,
+                                      );
+                                    }),
+                                  ),
+                                ],
                               ),
-                            ),
+                              if (review.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.primary.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: AppColors.primary.withOpacity(0.2),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        Icons.format_quote,
+                                        color: AppColors.primary,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          review,
+                                          style: AppTextStyles.bodyMedium(),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: _RatingImageWidget(
+                                    imageUrl: ratingImageUrl.trim(),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ],
                         ),
                       ),
@@ -524,6 +633,233 @@ class OrderHistoryPage extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+/// Widget to handle rating image loading with retry logic
+class _RatingImageWidget extends StatefulWidget {
+  final String imageUrl;
+  
+  const _RatingImageWidget({required this.imageUrl});
+  
+  @override
+  State<_RatingImageWidget> createState() => _RatingImageWidgetState();
+}
+
+class _RatingImageWidgetState extends State<_RatingImageWidget> {
+  int _retryCount = 0;
+  static const int _maxRetries = 2;
+  bool _hasError = false;
+  String? _currentImageUrl;
+  
+  @override
+  void initState() {
+    super.initState();
+    _currentImageUrl = null;
+  }
+  
+  Future<String?> _regenerateDownloadUrl(String oldUrl) async {
+    try {
+      // Extract storage path from URL
+      // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
+      final uri = Uri.parse(oldUrl);
+      final pathMatch = RegExp(r'/o/(.+)\?').firstMatch(uri.path);
+      if (pathMatch == null) {
+        debugPrint('❌ Could not extract path from URL: $oldUrl');
+        return null;
+      }
+      
+      final encodedPath = pathMatch.group(1)!;
+      final decodedPath = Uri.decodeComponent(encodedPath);
+      debugPrint('🔄 Extracted storage path: $decodedPath');
+      
+      // Get reference to the file
+      final storageRef = FirebaseStorage.instance.ref().child(decodedPath);
+      
+      // Regenerate download URL
+      final newUrl = await storageRef.getDownloadURL();
+      debugPrint('✅ Regenerated URL: $newUrl');
+      return newUrl;
+    } catch (e) {
+      debugPrint('❌ Failed to regenerate URL: $e');
+      return null;
+    }
+  }
+  
+  @override
+  Widget build(BuildContext context) {
+    if (_hasError && _retryCount >= _maxRetries) {
+      return Container(
+        height: 200,
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.broken_image,
+              size: 48,
+              color: Colors.grey[400],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Image unavailable',
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    return Image.network(
+      _currentImageUrl ?? widget.imageUrl,
+      width: double.infinity,
+      height: 200,
+      fit: BoxFit.cover,
+      headers: const {
+        'Cache-Control': 'no-cache',
+      },
+      errorBuilder: (context, error, stackTrace) {
+        if (kDebugMode) {
+          debugPrint('❌ Rating image load error (attempt ${_retryCount + 1}): $error');
+          debugPrint('❌ Image URL that failed: ${_currentImageUrl ?? widget.imageUrl}');
+        }
+        
+        // On first error, try to regenerate the URL
+        if (_retryCount == 0 && _currentImageUrl == null) {
+          _regenerateDownloadUrl(widget.imageUrl).then((newUrl) {
+            if (newUrl != null && mounted) {
+              // Extract orderId from path to update Firestore
+              final pathMatch = RegExp(r'order_ratings/([^/]+)/').firstMatch(widget.imageUrl);
+              if (pathMatch != null) {
+                final orderId = pathMatch.group(1);
+                if (orderId != null) {
+                  // Update Firestore with new URL
+                  FirebaseFirestore.instance
+                      .collection('orders')
+                      .doc(orderId)
+                      .update({'ratingImageUrl': newUrl})
+                      .then((_) {
+                    debugPrint('✅ Firestore updated with new URL');
+                  }).catchError((e) {
+                    debugPrint('⚠️ Failed to update Firestore: $e');
+                  });
+                }
+              }
+              
+              // Update state with new URL and retry
+              setState(() {
+                _currentImageUrl = newUrl;
+                _retryCount = 0; // Reset retry count
+                _hasError = false;
+              });
+              return;
+            }
+          });
+        }
+        
+        // Check error type
+        final errorString = error.toString().toLowerCase();
+        final isNotFound = errorString.contains('404') || 
+                           errorString.contains('not found');
+        final isPermissionDenied = errorString.contains('403') ||
+                                   errorString.contains('permission');
+        final isNetworkError = errorString.contains('statuscode: 0') ||
+                              errorString.contains('network') ||
+                              errorString.contains('failed');
+        
+        // Retry if we haven't exceeded max retries and it's not a permanent error
+        if (_retryCount < _maxRetries && !isNotFound && !isPermissionDenied) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Future.delayed(Duration(milliseconds: 500 * (_retryCount + 1)), () {
+              if (mounted) {
+                setState(() {
+                  _retryCount++;
+                  _hasError = false;
+                });
+              }
+            });
+          });
+        } else {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() {
+                _hasError = true;
+              });
+            }
+          });
+        }
+        
+        return Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (_retryCount < _maxRetries && !isNotFound && !isPermissionDenied) ...[
+                CircularProgressIndicator(
+                  color: AppColors.primary,
+                  strokeWidth: 2,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isNetworkError ? 'Regenerating URL...' : 'Retrying...',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ] else ...[
+                Icon(
+                  Icons.broken_image,
+                  size: 48,
+                  color: Colors.grey[400],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  isNotFound 
+                    ? 'Image file not found'
+                    : isPermissionDenied
+                      ? 'Image access denied'
+                      : 'Image unavailable',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          height: 200,
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              color: AppColors.primary,
+            ),
+          ),
+        );
+      },
     );
   }
 }

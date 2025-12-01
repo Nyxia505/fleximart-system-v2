@@ -20,6 +20,7 @@ import '../services/notification_service.dart';
 import '../utils/role_helper.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
+import '../widgets/rating_image_widget.dart';
 
 // Official theme colors - New Theme
 class AdminThemeColors {
@@ -166,7 +167,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
     }
 
-    final isMobile = MediaQuery.of(context).size.width < 768;
+    // Use a more stable breakpoint to prevent layout shifts when resizing
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobile =
+        screenWidth < 900; // Increased from 768 to prevent flickering
     final isWeb = !isMobile;
 
     return Scaffold(
@@ -214,6 +218,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
             Color(0xFFAF3E3E), // Secondary color end
           ],
         ),
+        border: Border(
+          right: BorderSide(color: Colors.white.withOpacity(0.3), width: 2),
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.2),
@@ -244,16 +251,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   if (!_sidebarCollapsed)
                     Expanded(
                       child: Text(
-                        'FlexiMart Admin Dashboard',
+                        'FlexiMart',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                           color: Colors.white.withOpacity(0.95),
                           letterSpacing: 0.5,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  const SizedBox(width: 4),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
@@ -263,6 +272,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       icon: Icon(
                         _sidebarCollapsed ? Icons.menu : Icons.menu_open,
                         color: Colors.white.withOpacity(0.9),
+                        size: 20,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
                       ),
                       onPressed: () {
                         setState(() {
@@ -280,7 +295,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               child: SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 4,
                     vertical: 12,
                   ),
                   child: Column(
@@ -413,11 +428,98 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildMobileProfileSection(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    return StreamBuilder<DocumentSnapshot>(
+      stream: user != null
+          ? FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        final userData = snapshot.hasData && snapshot.data!.exists
+            ? snapshot.data!.data() as Map<String, dynamic>?
+            : null;
+        final userName =
+            (userData?['name'] as String?) ??
+            (userData?['customerName'] as String?) ??
+            user?.email?.split('@')[0] ??
+            'Admin';
+        final userEmail = user?.email ?? '';
+
+        return Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AdminThemeColors.crimsonRed,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    userName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.95),
+                      letterSpacing: 0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    userEmail,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.8),
+                      letterSpacing: 0.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget? _buildMobileDrawer(BuildContext context) {
     return Drawer(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
@@ -425,187 +527,116 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Color(0xFFAF3E3E), // Secondary color
             ],
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(4, 0),
+              spreadRadius: 2,
+            ),
+          ],
         ),
-        child: Column(
-          children: [
-            // Top Header with FlexiMart Title and Close Button
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              // Enhanced Header with Title and Close Button
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
                   ),
-                ],
-              ),
-              child: SafeArea(
-                bottom: false,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'FlexiMart',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                    const Expanded(
+                      child: Text(
+                        'FlexiMart',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.menu_open, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Close',
+                    const SizedBox(width: 4),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.menu_open, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            // Navigation Items
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                itemCount: _navItems.length,
-                itemBuilder: (context, index) {
-                  final item = _navItems[index];
-                  final selected = _selectedIndex == index;
-                  return Container(
-                    margin: const EdgeInsets.symmetric(
+              // Navigation Items - Scrollable with Expanded
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 4,
-                      vertical: 3,
+                      vertical: 12,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white, // White container
-                      borderRadius: BorderRadius.circular(12),
-                      border: selected
-                          ? Border.all(
-                              color: AppColors.secondary,
-                              width: 2,
-                            ) // Red border for active
-                          : null,
+                    child: Column(
+                      children: List.generate(_navItems.length, (index) {
+                        final item = _navItems[index];
+                        final selected = _selectedIndex == index;
+                        return _NavTile(
+                          icon: item['icon'] as IconData,
+                          label: item['label'] as String,
+                          selected: selected,
+                          collapsed: false,
+                          onTap: () {
+                            if (mounted) {
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
+                        );
+                      }),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      leading: Icon(
-                        item['icon'] as IconData,
-                        color: selected
-                            ? AppColors
-                                  .secondary // Red for active
-                            : const Color(0xFF1D3B53), // Dark blue for inactive
-                        size: 24,
-                      ),
-                      title: Text(
-                        item['label'] as String,
-                        style: TextStyle(
-                          fontWeight: selected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontSize: 15,
-                          color: selected
-                              ? AppColors
-                                    .secondary // Red for active
-                              : const Color(
-                                  0xFF1D3B53,
-                                ), // Dark blue for inactive
-                        ),
-                      ),
-                      selected: selected,
-                      onTap: () {
-                        if (mounted) {
-                          setState(() {
-                            _selectedIndex = index;
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            // User Profile Section at Bottom
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1,
                   ),
                 ),
               ),
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseAuth.instance.currentUser != null
-                    ? FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser!.uid)
-                          .snapshots()
-                    : null,
-                builder: (context, snapshot) {
-                  final user = FirebaseAuth.instance.currentUser;
-                  final userData = snapshot.hasData && snapshot.data!.exists
-                      ? snapshot.data!.data() as Map<String, dynamic>?
-                      : null;
-                  final userName =
-                      (userData?['name'] as String?) ??
-                      (userData?['customerName'] as String?) ??
-                      user?.email?.split('@')[0] ??
-                      'Admin';
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: AdminThemeColors.crimsonRed,
-                        child: Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              user?.email ?? '',
-                              style: TextStyle(
-                                fontSize: 14, // Increased for clarity
-                                color: Colors.white.withOpacity(
-                                  0.95,
-                                ), // Brighter for better readability
-                                letterSpacing: 0.2,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              // Profile Section - Pinned at bottom with proper spacing
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: _buildMobileProfileSection(context),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -643,8 +674,8 @@ class _NavTileState extends State<_NavTile>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: widget.selected
               ? Colors.white.withOpacity(
@@ -656,9 +687,12 @@ class _NavTileState extends State<_NavTile>
                   0.05,
                 ), // Subtle background for inactive
           borderRadius: BorderRadius.circular(12),
-          border: widget.selected
-              ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
-              : null,
+          border: Border.all(
+            color: widget.selected
+                ? Colors.white.withOpacity(0.5)
+                : Colors.white.withOpacity(0.2),
+            width: widget.selected ? 2 : 1,
+          ),
           boxShadow: widget.selected
               ? [
                   BoxShadow(
@@ -685,7 +719,7 @@ class _NavTileState extends State<_NavTile>
                 size: 22,
               ),
               if (!widget.collapsed) ...[
-                const SizedBox(width: 14),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     widget.label,
@@ -699,9 +733,11 @@ class _NavTileState extends State<_NavTile>
                       fontWeight: widget.selected
                           ? FontWeight.w600
                           : FontWeight.w500,
-                      fontSize: 15,
-                      letterSpacing: 0.2,
+                      fontSize: 14,
+                      letterSpacing: 0.1,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -1188,6 +1224,12 @@ class _EnhancedKpiCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white, // White card background
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
+          border: Border.all(
+            color: const Color(
+              0xFFCD5656,
+            ).withOpacity(0.3), // Red border matching theme
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
@@ -1301,10 +1343,24 @@ class _EnhancedPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.white,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(
+              0xFFCD5656,
+            ).withOpacity(0.3), // Red border matching theme
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -1438,184 +1494,201 @@ class _RecentOrdersTable extends StatelessWidget {
   }
 
   Widget _buildOrdersTable(List<QueryDocumentSnapshot> orders) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: DataTable(
-        headingRowColor: MaterialStateProperty.all(
-          const Color(0xFFF5F5F5), // Light gray background for headers
-        ),
-        headingRowHeight: 48,
-        dataRowMinHeight: 48,
-        dataRowMaxHeight: 64,
-        columnSpacing: 24,
-        columns: const [
-          DataColumn(
-            label: Text(
-              'Date',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // Increased for clarity
-                color: Color(0xFF1D3B53), // Dark blue for better readability
-                letterSpacing: 0.2,
-              ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 240),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.vertical,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: DataTable(
+            headingRowColor: MaterialStateProperty.all(
+              const Color(0xFFF5F5F5), // Light gray background for headers
             ),
-          ),
-          DataColumn(
-            label: Text(
-              'Customer',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // Increased for clarity
-                color: Color(0xFF1D3B53), // Dark blue for better readability
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Items',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // Increased for clarity
-                color: Color(0xFF1D3B53), // Dark blue for better readability
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Total',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // Increased for clarity
-                color: Color(0xFF1D3B53), // Dark blue for better readability
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-          DataColumn(
-            label: Text(
-              'Status',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 14, // Increased for clarity
-                color: Color(0xFF1D3B53), // Dark blue for better readability
-                letterSpacing: 0.2,
-              ),
-            ),
-          ),
-        ],
-        rows: orders.map((orderDoc) {
-          final order = orderDoc.data() as Map<String, dynamic>;
-          final createdAt = order['createdAt'] as Timestamp?;
-          final date = createdAt != null
-              ? '${createdAt.toDate().month}/${createdAt.toDate().day}/${createdAt.toDate().year}'
-              : 'N/A';
-          final items = order['items'] as List<dynamic>? ?? [];
-          final itemCount = items.length;
-          // Read totalPrice with null safety: default to 0 if missing
-          double price = _DashboardOverviewPage._parsePrice(
-            order['totalPrice'],
-          );
-
-          // If totalPrice is 0 or missing, compute from items as fallback
-          if (price == 0.0 && items.isNotEmpty) {
-            for (var item in items) {
-              if (item is Map<String, dynamic>) {
-                final itemPrice = _DashboardOverviewPage._parsePrice(
-                  item['price'],
-                );
-                final quantity = _DashboardOverviewPage._parseInt(
-                  item['quantity'],
-                  defaultValue: 1,
-                );
-                price += itemPrice * quantity;
-              }
-            }
-          }
-
-          final total = price;
-          final status = (order['status'] as String?) ?? 'pending';
-          final customerName = (order['customerName'] as String?) ?? 'Unknown';
-
-          Color statusColor = const Color(0xFF757575);
-          switch (status.toLowerCase()) {
-            case 'completed':
-              statusColor = const Color(0xFF2E7D32); // Green
-              break;
-            case 'pending':
-              statusColor = const Color(0xFFF59E0B); // Orange
-              break;
-            case 'shipped':
-              statusColor = const Color(0xFF2196F3); // Blue
-              break;
-            case 'processing':
-              statusColor = const Color(0xFF6366F1); // Indigo
-              break;
-          }
-
-          return DataRow(
-            cells: [
-              DataCell(
-                Text(
-                  date,
-                  style: const TextStyle(
-                    fontSize: 14, // Increased for clarity
-                    color: Color(
-                      0xFF1D3B53,
-                    ), // Dark blue for better readability
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  customerName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14, // Increased for clarity
-                    color: Color(
-                      0xFF1D3B53,
-                    ), // Dark blue for better readability
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  itemCount.toString(),
-                  style: const TextStyle(
-                    fontSize: 14, // Increased for clarity
-                    color: Color(
-                      0xFF1D3B53,
-                    ), // Dark blue for better readability
-                    letterSpacing: 0.1,
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  PriceFormatter.formatPrice(total),
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF212121),
-                  ),
-                ),
-              ),
-              DataCell(
-                Text(
-                  status.toUpperCase(),
+            headingRowHeight: 48,
+            dataRowMinHeight: 48,
+            dataRowMaxHeight: 64,
+            columnSpacing: 24,
+            columns: const [
+              DataColumn(
+                label: Text(
+                  'Date',
                   style: TextStyle(
-                    color: statusColor,
                     fontWeight: FontWeight.bold,
-                    fontSize: 12,
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Customer',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Items',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Total',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ),
+              DataColumn(
+                label: Text(
+                  'Status',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14, // Increased for clarity
+                    color: Color(
+                      0xFF1D3B53,
+                    ), // Dark blue for better readability
+                    letterSpacing: 0.2,
                   ),
                 ),
               ),
             ],
-          );
-        }).toList(),
+            rows: orders.map((orderDoc) {
+              final order = orderDoc.data() as Map<String, dynamic>;
+              final createdAt = order['createdAt'] as Timestamp?;
+              final date = createdAt != null
+                  ? '${createdAt.toDate().month}/${createdAt.toDate().day}/${createdAt.toDate().year}'
+                  : 'N/A';
+              final items = order['items'] as List<dynamic>? ?? [];
+              final itemCount = items.length;
+              // Read totalPrice with null safety: default to 0 if missing
+              double price = _DashboardOverviewPage._parsePrice(
+                order['totalPrice'],
+              );
+
+              // If totalPrice is 0 or missing, compute from items as fallback
+              if (price == 0.0 && items.isNotEmpty) {
+                for (var item in items) {
+                  if (item is Map<String, dynamic>) {
+                    final itemPrice = _DashboardOverviewPage._parsePrice(
+                      item['price'],
+                    );
+                    final quantity = _DashboardOverviewPage._parseInt(
+                      item['quantity'],
+                      defaultValue: 1,
+                    );
+                    price += itemPrice * quantity;
+                  }
+                }
+              }
+
+              final total = price;
+              final status = (order['status'] as String?) ?? 'pending';
+              final customerName =
+                  (order['customerName'] as String?) ?? 'Unknown';
+
+              Color statusColor = const Color(0xFF757575);
+              switch (status.toLowerCase()) {
+                case 'completed':
+                  statusColor = const Color(0xFF2E7D32); // Green
+                  break;
+                case 'pending':
+                  statusColor = const Color(0xFFF59E0B); // Orange
+                  break;
+                case 'shipped':
+                  statusColor = const Color(0xFF2196F3); // Blue
+                  break;
+                case 'processing':
+                  statusColor = const Color(0xFF6366F1); // Indigo
+                  break;
+              }
+
+              return DataRow(
+                cells: [
+                  DataCell(
+                    Text(
+                      date,
+                      style: const TextStyle(
+                        fontSize: 14, // Increased for clarity
+                        color: Color(
+                          0xFF1D3B53,
+                        ), // Dark blue for better readability
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      customerName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14, // Increased for clarity
+                        color: Color(
+                          0xFF1D3B53,
+                        ), // Dark blue for better readability
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      itemCount.toString(),
+                      style: const TextStyle(
+                        fontSize: 14, // Increased for clarity
+                        color: Color(
+                          0xFF1D3B53,
+                        ), // Dark blue for better readability
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      PriceFormatter.formatPrice(total),
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF212121),
+                      ),
+                    ),
+                  ),
+                  DataCell(
+                    Text(
+                      status.toUpperCase(),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
       ),
     );
   }
@@ -1772,15 +1845,27 @@ class _TopCustomersList extends StatelessWidget {
           );
         }
 
-        // Calculate customer spending
+        // Calculate customer spending - aggregate by customerId
         final Map<String, double> customerSpending = {};
         final Map<String, int> customerOrderCount = {};
         final Map<String, String> customerNames = {};
+        final Set<String> customerIds = {};
 
         for (var orderDoc in ordersSnapshot.data!.docs) {
           final order = orderDoc.data() as Map<String, dynamic>;
-          final userId = order['userId'] as String?;
-          final customerName = order['customerName'] as String? ?? 'Unknown';
+          // Use customerId (the correct field name in orders collection)
+          final customerId = order['customerId'] as String?;
+
+          if (customerId == null || customerId.isEmpty) {
+            continue; // Skip orders without customerId
+          }
+
+          // Get customer name from order (fallback to customerName field)
+          final customerName =
+              order['customerName'] as String? ??
+              order['name'] as String? ??
+              'Unknown Customer';
+
           // Read totalPrice with null safety: default to 0 if missing
           final items = (order['items'] as List?) ?? [];
           double price = _DashboardOverviewPage._parsePrice(
@@ -1805,119 +1890,175 @@ class _TopCustomersList extends StatelessWidget {
 
           final total = price;
 
-          if (userId != null) {
-            customerSpending[userId] =
-                (customerSpending[userId] ?? 0.0) + total;
-            customerOrderCount[userId] = (customerOrderCount[userId] ?? 0) + 1;
-            customerNames[userId] = customerName;
-          }
+          // Aggregate spending and order count by customerId
+          customerSpending[customerId] =
+              (customerSpending[customerId] ?? 0.0) + total;
+          customerOrderCount[customerId] =
+              (customerOrderCount[customerId] ?? 0) + 1;
+          customerNames[customerId] = customerName;
+          customerIds.add(customerId);
         }
 
-        // Sort by spending
-        final sortedCustomers = customerSpending.entries.toList()
-          ..sort((a, b) => b.value.compareTo(a.value));
+        // Fetch customer names from users collection for better accuracy
+        return FutureBuilder<List<Map<String, dynamic>>>(
+          future: _fetchCustomerNames(customerIds),
+          builder: (context, customerNamesSnapshot) {
+            // Update customer names if available from users collection
+            if (customerNamesSnapshot.hasData) {
+              for (var customerData in customerNamesSnapshot.data!) {
+                final customerId = customerData['id'] as String;
+                final name = customerData['name'] as String?;
+                if (name != null && name.isNotEmpty) {
+                  customerNames[customerId] = name;
+                }
+              }
+            }
 
-        final topCustomers = sortedCustomers.take(5).toList();
+            // Sort by spending (highest first)
+            final sortedCustomers = customerSpending.entries.toList()
+              ..sort((a, b) => b.value.compareTo(a.value));
 
-        if (topCustomers.isEmpty) {
-          return Center(
-            child: Text(
-              'No customer data',
-              style: TextStyle(color: AppColors.textSecondary),
-            ),
-          );
-        }
+            final topCustomers = sortedCustomers.take(5).toList();
 
-        return ListView.builder(
-          shrinkWrap: true,
-          itemCount: topCustomers.length,
-          itemBuilder: (context, index) {
-            final entry = topCustomers[index];
-            final userId = entry.key;
-            final totalSpent = entry.value;
-            final orderCount = customerOrderCount[userId] ?? 0;
-            final name = customerNames[userId] ?? 'Unknown';
-
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: Colors.grey.withOpacity(0.1),
-                  width: 1,
+            if (topCustomers.isEmpty) {
+              return Center(
+                child: Text(
+                  'No customer data',
+                  style: TextStyle(color: AppColors.textSecondary),
                 ),
-              ),
-              child: ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                leading: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: const Color(0xFF2E7D32).withOpacity(0.1),
-                  child: Icon(
-                    Icons.person,
-                    color: const Color(0xFF2E7D32),
-                    size: 18,
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              itemCount: topCustomers.length,
+              itemBuilder: (context, index) {
+                final entry = topCustomers[index];
+                final customerId = entry.key;
+                final totalSpent = entry.value;
+                final orderCount = customerOrderCount[customerId] ?? 0;
+                final name = customerNames[customerId] ?? 'Unknown Customer';
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.grey.withOpacity(0.1),
+                      width: 1,
+                    ),
                   ),
-                ),
-                title: Text(
-                  name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: Color(0xFF212121),
-                  ),
-                ),
-                subtitle: Text(
-                  '$orderCount order${orderCount != 1 ? 's' : ''}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Color(0xFF757575),
-                  ),
-                ),
-                trailing: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      PriceFormatter.formatPrice(totalSpent),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF2E7D32).withOpacity(0.1),
+                      child: Icon(
+                        Icons.person,
+                        color: const Color(0xFF2E7D32),
+                        size: 18,
+                      ),
+                    ),
+                    title: Text(
+                      name,
                       style: const TextStyle(
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         fontSize: 14,
                         color: Color(0xFF212121),
                       ),
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    if (index == 0)
-                      Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF59E0B),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'TOP',
+                    subtitle: Text(
+                      '$orderCount order${orderCount != 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF757575),
+                      ),
+                    ),
+                    trailing: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          PriceFormatter.formatPrice(totalSpent),
                           style: const TextStyle(
-                            fontSize: 12, // Increased for clarity
                             fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: 0.3,
+                            fontSize: 14,
+                            color: Color(0xFF212121),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
+                        if (index == 0)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF59E0B),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'TOP',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
+  }
+
+  /// Fetch customer names from users collection
+  Future<List<Map<String, dynamic>>> _fetchCustomerNames(
+    Set<String> customerIds,
+  ) async {
+    if (customerIds.isEmpty) return [];
+
+    try {
+      final List<Map<String, dynamic>> customerData = [];
+
+      // Fetch customer data in batches (Firestore 'in' query limit is 10)
+      final customerIdsList = customerIds.toList();
+      for (int i = 0; i < customerIdsList.length; i += 10) {
+        final batch = customerIdsList.skip(i).take(10).toList();
+        final snapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
+
+        for (var doc in snapshot.docs) {
+          final data = doc.data();
+          final name =
+              data['name'] as String? ??
+              data['fullName'] as String? ??
+              data['customerName'] as String?;
+          if (name != null) {
+            customerData.add({'id': doc.id, 'name': name});
+          }
+        }
+      }
+
+      return customerData;
+    } catch (e) {
+      debugPrint('Error fetching customer names: $e');
+      return [];
+    }
   }
 }
 
@@ -2247,13 +2388,21 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(
+                        0xFFCD5656,
+                      ).withOpacity(0.3), // Red border matching theme
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -2721,9 +2870,24 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final imageUrl = (product['imageUrl'] as String?);
     final isLowStock = stock < minStock;
 
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(
+            0xFFCD5656,
+          ).withOpacity(0.3), // Red border matching theme
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4455,13 +4619,19 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
                   if (!isSameDay(_selectedDay, selectedDay)) {
                     setState(() {
                       _selectedDay = selectedDay;
-                      _focusedDay = focusedDay;
+                      // Set focusedDay to selectedDay to center the calendar on the selected date
+                      // This ensures the calendar navigates to the month containing the selected date
+                      _focusedDay = selectedDay;
                     });
                     _showSalesBottomSheet(context, selectedDay);
                   }
                 },
                 onPageChanged: (focusedDay) {
-                  _focusedDay = focusedDay;
+                  // Update focusedDay when user navigates the calendar
+                  // This allows the calendar to scroll through months/weeks
+                  setState(() {
+                    _focusedDay = focusedDay;
+                  });
                 },
                 calendarStyle: CalendarStyle(
                   outsideDaysVisible: false,
@@ -4601,23 +4771,35 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
               ),
             ),
             const Divider(height: 1),
-            // Sales Data
+            // Sales Data - Query orders collection instead of sales
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseAuth.instance.currentUser != null
                     ? FirebaseFirestore.instance
-                          .collection('sales')
+                          .collection('orders')
                           .where(
-                            'date',
+                            'createdAt',
                             isGreaterThanOrEqualTo: Timestamp.fromDate(
                               startOfDay,
                             ),
                           )
                           .where(
-                            'date',
+                            'createdAt',
                             isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
                           )
                           .snapshots()
+                          .handleError((error) {
+                            // Fallback: query without date filters if index is missing
+                            if (error.toString().contains('index') ||
+                                error.toString().contains(
+                                  'failed-precondition',
+                                )) {
+                              return FirebaseFirestore.instance
+                                  .collection('orders')
+                                  .snapshots();
+                            }
+                            throw error;
+                          })
                     : null,
                 builder: (context, snapshot) {
                   // Check authentication first
@@ -4721,7 +4903,35 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
                     );
                   }
 
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  // Filter orders by selected date and sort by date (descending)
+                  final allOrders = snapshot.data!.docs;
+                  final ordersForDate =
+                      allOrders.where((orderDoc) {
+                        final order = orderDoc.data() as Map<String, dynamic>;
+                        final createdAt = order['createdAt'] as Timestamp?;
+                        if (createdAt == null) return false;
+
+                        final orderDate = createdAt.toDate();
+                        return orderDate.isAfter(
+                              startOfDay.subtract(const Duration(seconds: 1)),
+                            ) &&
+                            orderDate.isBefore(
+                              endOfDay.add(const Duration(seconds: 1)),
+                            );
+                      }).toList()..sort((a, b) {
+                        final aData = a.data() as Map<String, dynamic>;
+                        final bData = b.data() as Map<String, dynamic>;
+                        final aTimestamp = aData['createdAt'] as Timestamp?;
+                        final bTimestamp = bData['createdAt'] as Timestamp?;
+                        if (aTimestamp == null && bTimestamp == null) return 0;
+                        if (aTimestamp == null) return 1;
+                        if (bTimestamp == null) return -1;
+                        return bTimestamp.compareTo(
+                          aTimestamp,
+                        ); // Descending order
+                      });
+
+                  if (ordersForDate.isEmpty) {
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -4750,28 +4960,17 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
                     );
                   }
 
-                  // Sort sales by date (descending) in memory since we removed orderBy
-                  final sales = snapshot.data!.docs.toList()
-                    ..sort((a, b) {
-                      final aDate = a.data() as Map<String, dynamic>;
-                      final bDate = b.data() as Map<String, dynamic>;
-                      final aTimestamp = aDate['date'] as Timestamp?;
-                      final bTimestamp = bDate['date'] as Timestamp?;
-                      if (aTimestamp == null && bTimestamp == null) return 0;
-                      if (aTimestamp == null) return 1;
-                      if (bTimestamp == null) return -1;
-                      return bTimestamp.compareTo(
-                        aTimestamp,
-                      ); // Descending order
-                    });
-
                   double totalSales = 0;
-                  int transactionCount = sales.length;
+                  int transactionCount = ordersForDate.length;
 
-                  // Calculate total sales
-                  for (var sale in sales) {
-                    final data = sale.data() as Map<String, dynamic>;
-                    final amount = data['amount'];
+                  // Calculate total sales from orders
+                  for (var order in ordersForDate) {
+                    final data = order.data() as Map<String, dynamic>;
+                    // Try totalPrice first, then totalAmount, then amount
+                    final amount =
+                        data['totalPrice'] ??
+                        data['totalAmount'] ??
+                        data['amount'];
                     if (amount != null) {
                       if (amount is num) {
                         totalSales += amount.toDouble();
@@ -4813,12 +5012,16 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
                       Expanded(
                         child: ListView.builder(
                           padding: const EdgeInsets.all(20),
-                          itemCount: sales.length,
+                          itemCount: ordersForDate.length,
                           itemBuilder: (context, index) {
-                            final sale = sales[index];
-                            final data = sale.data() as Map<String, dynamic>;
-                            final amount = data['amount'];
-                            final date = data['date'] as Timestamp?;
+                            final order = ordersForDate[index];
+                            final data = order.data() as Map<String, dynamic>;
+                            // Try totalPrice first, then totalAmount, then amount
+                            final amount =
+                                data['totalPrice'] ??
+                                data['totalAmount'] ??
+                                data['amount'];
+                            final createdAt = data['createdAt'] as Timestamp?;
 
                             double saleAmount = 0;
                             if (amount != null) {
@@ -4830,10 +5033,10 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
                             }
 
                             String timeString = '';
-                            if (date != null) {
+                            if (createdAt != null) {
                               timeString = DateFormat(
                                 'h:mm a',
-                              ).format(date.toDate());
+                              ).format(createdAt.toDate());
                             }
 
                             return Card(
@@ -5104,13 +5307,21 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(
+                        0xFFCD5656,
+                      ).withOpacity(0.3), // Red border matching theme
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -5486,10 +5697,25 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
     final statusIcon = _getStatusIcon(status);
     final statusLabel = _formatStatusLabel(status);
 
-    return Card(
+    return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(
+            0xFFCD5656,
+          ).withOpacity(0.3), // Red border matching theme
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -6159,13 +6385,21 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(
+                        0xFFCD5656,
+                      ).withOpacity(0.3), // Red border matching theme
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -6732,298 +6966,305 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
         child: Container(
           constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
           padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: validProfilePicUrl != null
-                        ? NetworkImage(validProfilePicUrl)
-                        : null,
-                    onBackgroundImageError: validProfilePicUrl != null
-                        ? (exception, stackTrace) {
-                            // Handle image loading errors gracefully
-                            debugPrint(
-                              'Error loading profile image: $exception',
-                            );
-                          }
-                        : null,
-                    child: validProfilePicUrl == null
-                        ? Icon(
-                            Icons.person,
-                            color: Colors.grey.shade600,
-                            size: 32,
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 32,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: validProfilePicUrl != null
+                          ? NetworkImage(validProfilePicUrl)
+                          : null,
+                      onBackgroundImageError: validProfilePicUrl != null
+                          ? (exception, stackTrace) {
+                              // Handle image loading errors gracefully
+                              debugPrint(
+                                'Error loading profile image: $exception',
+                              );
+                            }
+                          : null,
+                      child: validProfilePicUrl == null
+                          ? Icon(
+                              Icons.person,
+                              color: Colors.grey.shade600,
+                              size: 32,
+                            )
+                          : null,
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 20, color: AppColors.textSecondary),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Phone',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      phone,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  if (phoneVerified)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.success, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.verified,
-                            size: 14,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: 4),
                           Text(
-                            'Verified',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.success,
+                            name,
+                            style: const TextStyle(
+                              fontSize: 20,
                               fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
                             ),
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
-                    )
-                  else if (phone != 'No phone')
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            size: 14,
-                            color: Colors.orange,
-                          ),
-                          const SizedBox(width: 4),
+                          const SizedBox(height: 4),
                           Text(
-                            'Not Verified',
+                            email,
                             style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              if (phoneVerified && phoneVerifiedAt != null) ...[
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.only(left: 32),
-                  child: Text(
-                    'Verified on: ${phoneVerifiedAt.toDate().toString().substring(0, 16)}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textSecondary,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              _buildDetailRow(
-                Icons.person_outline,
-                'Customer ID',
-                userId.substring(0, 8),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Order History',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('customerId', isEqualTo: userId)
-                      .orderBy('createdAt', descending: true)
-                      .limit(10)
-                      .snapshots()
-                      .handleError((error) {
-                        if (kDebugMode) {
-                          debugPrint(
-                            '⚠️ OrderBy createdAt failed, using simple query: $error',
-                          );
-                        }
-                        // Fallback: return orders without orderBy
-                        return FirebaseFirestore.instance
-                            .collection('orders')
-                            .where('customerId', isEqualTo: userId)
-                            .limit(10)
-                            .snapshots();
-                      }),
-                  builder: (context, snapshot) {
-                    // Handle connection state
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    // Handle errors
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 48,
+                              fontSize: 14,
                               color: AppColors.textSecondary,
                             ),
-                            const SizedBox(height: 8),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Icon(Icons.phone, size: 20, color: AppColors.textSecondary),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Phone',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        phone,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    if (phoneVerified)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.success,
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.verified,
+                              size: 14,
+                              color: AppColors.success,
+                            ),
+                            const SizedBox(width: 4),
                             Text(
-                              'Error loading orders',
-                              style: TextStyle(color: AppColors.textSecondary),
+                              'Verified',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: AppColors.success,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    }
-
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No orders yet',
-                          style: TextStyle(color: AppColors.textSecondary),
+                      )
+                    else if (phone != 'No phone')
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
                         ),
-                      );
-                    }
-
-                    // Sort orders by createdAt in memory if orderBy failed
-                    final orders = List<QueryDocumentSnapshot>.from(
-                      snapshot.data!.docs,
-                    );
-                    orders.sort((a, b) {
-                      final aData = a.data() as Map<String, dynamic>;
-                      final bData = b.data() as Map<String, dynamic>;
-                      final aCreatedAt = aData['createdAt'] as Timestamp?;
-                      final bCreatedAt = bData['createdAt'] as Timestamp?;
-                      if (aCreatedAt == null && bCreatedAt == null) return 0;
-                      if (aCreatedAt == null) return 1;
-                      if (bCreatedAt == null) return -1;
-                      return bCreatedAt.compareTo(aCreatedAt);
-                    });
-
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: orders.length,
-                      itemBuilder: (context, index) {
-                        final order = orders[index];
-                        final data = order.data() as Map<String, dynamic>;
-                        // Use totalPrice field (correct Firestore field name)
-                        final total =
-                            (data['totalPrice'] as num?)?.toDouble() ??
-                            (data['price'] as num?)?.toDouble() ??
-                            0.0;
-                        final status = data['status'] as String? ?? 'pending';
-                        final createdAt = data['createdAt'] as Timestamp?;
-                        final orderDate = createdAt != null
-                            ? '${createdAt.toDate().toString().substring(0, 16)}'
-                            : 'Unknown date';
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
-                            child: Icon(
-                              Icons.shopping_bag,
-                              color: AppColors.primary,
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange, width: 1),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.warning_amber_rounded,
+                              size: 14,
+                              color: Colors.orange,
                             ),
-                          ),
-                          title: Text(PriceFormatter.formatPrice(total)),
-                          subtitle: Text(orderDate),
-                          trailing: Chip(
-                            label: Text(
-                              status.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 12, // Increased for clarity
-                                letterSpacing: 0.2,
+                            const SizedBox(width: 4),
+                            Text(
+                              'Not Verified',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.orange,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                            backgroundColor: AppColors.primary.withOpacity(0.1),
-                            labelStyle: TextStyle(color: AppColors.primary),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+                if (phoneVerified && phoneVerifiedAt != null) ...[
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 32),
+                    child: Text(
+                      'Verified on: ${phoneVerifiedAt.toDate().toString().substring(0, 16)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                _buildDetailRow(
+                  Icons.person_outline,
+                  'Customer ID',
+                  userId.substring(0, 8),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Order History',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  height: 300,
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('orders')
+                        .where('customerId', isEqualTo: userId)
+                        .limit(10)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      // Handle connection state
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      // Handle errors
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.error_outline,
+                                size: 48,
+                                color: AppColors.textSecondary,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Error loading orders',
+                                style: TextStyle(
+                                  color: AppColors.textSecondary,
+                                ),
+                              ),
+                            ],
                           ),
                         );
-                      },
-                    );
-                  },
+                      }
+
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return Center(
+                          child: Text(
+                            'No orders yet',
+                            style: TextStyle(color: AppColors.textSecondary),
+                          ),
+                        );
+                      }
+
+                      // Sort orders by createdAt in memory if orderBy failed
+                      final orders = List<QueryDocumentSnapshot>.from(
+                        snapshot.data!.docs,
+                      );
+                      orders.sort((a, b) {
+                        final aData = a.data() as Map<String, dynamic>;
+                        final bData = b.data() as Map<String, dynamic>;
+                        final aCreatedAt = aData['createdAt'] as Timestamp?;
+                        final bCreatedAt = bData['createdAt'] as Timestamp?;
+                        if (aCreatedAt == null && bCreatedAt == null) return 0;
+                        if (aCreatedAt == null) return 1;
+                        if (bCreatedAt == null) return -1;
+                        return bCreatedAt.compareTo(aCreatedAt);
+                      });
+
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: orders.length,
+                        itemBuilder: (context, index) {
+                          final order = orders[index];
+                          final data = order.data() as Map<String, dynamic>;
+                          // Use totalPrice field (correct Firestore field name)
+                          final total =
+                              (data['totalPrice'] as num?)?.toDouble() ??
+                              (data['price'] as num?)?.toDouble() ??
+                              0.0;
+                          final status = data['status'] as String? ?? 'pending';
+                          final createdAt = data['createdAt'] as Timestamp?;
+                          final orderDate = createdAt != null
+                              ? '${createdAt.toDate().toString().substring(0, 16)}'
+                              : 'Unknown date';
+
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppColors.primary.withOpacity(
+                                0.1,
+                              ),
+                              child: Icon(
+                                Icons.shopping_bag,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                            title: Text(
+                              PriceFormatter.formatPrice(total),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              orderDate,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            trailing: Chip(
+                              label: Text(
+                                status.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 12, // Increased for clarity
+                                  letterSpacing: 0.2,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              backgroundColor: AppColors.primary.withOpacity(
+                                0.1,
+                              ),
+                              labelStyle: TextStyle(color: AppColors.primary),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -7040,12 +7281,15 @@ class _CustomersManagementPageState extends State<_CustomersManagementPage> {
           style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
         ),
         const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
           ),
         ),
       ],
@@ -7082,13 +7326,21 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(
+                        0xFFCD5656,
+                      ).withOpacity(0.3), // Red border matching theme
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -7423,13 +7675,19 @@ class _FeedbackPage extends StatelessWidget {
           // Header
           Container(
             padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: Colors.white,
+              border: Border(
+                bottom: BorderSide(
+                  color: const Color(0xFFCD5656).withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black12,
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -7592,20 +7850,52 @@ class _FeedbackPage extends StatelessWidget {
 
                 final orders = ordersWithRatings;
 
-                return ListView.builder(
-                  padding: EdgeInsets.all(isMobile ? 12 : 16),
-                  itemCount: orders.length,
-                  itemBuilder: (context, index) {
-                    final orderDoc = orders[index];
-                    final orderData = orderDoc.data() as Map<String, dynamic>;
-                    return _buildFeedbackCard(
-                      context,
-                      orderDoc,
-                      orderData,
-                      isMobile,
-                    );
-                  },
-                );
+                // Use grid layout for web, list for mobile
+                if (isMobile) {
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(12),
+                    itemCount: orders.length,
+                    itemBuilder: (context, index) {
+                      final orderDoc = orders[index];
+                      final orderData = orderDoc.data() as Map<String, dynamic>;
+                      return _buildFeedbackCard(
+                        context,
+                        orderDoc,
+                        orderData,
+                        isMobile,
+                      );
+                    },
+                  );
+                } else {
+                  // Web: Use grid layout with max width constraint
+                  return Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1200),
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(24),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              crossAxisSpacing: 20,
+                              mainAxisSpacing: 20,
+                              childAspectRatio: 1.1,
+                            ),
+                        itemCount: orders.length,
+                        itemBuilder: (context, index) {
+                          final orderDoc = orders[index];
+                          final orderData =
+                              orderDoc.data() as Map<String, dynamic>;
+                          return _buildFeedbackCard(
+                            context,
+                            orderDoc,
+                            orderData,
+                            isMobile,
+                          );
+                        },
+                      ),
+                    ),
+                  );
+                }
               },
             ),
           ),
@@ -7623,24 +7913,44 @@ class _FeedbackPage extends StatelessWidget {
     final orderId = orderDoc.id;
     final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
     final review = orderData['review'] as String? ?? '';
-    final ratingImageUrl = orderData['ratingImageUrl'] as String?;
+    // Check multiple possible field names for image URL
+    final ratingImageUrl =
+        (orderData['ratingImageUrl'] as String?) ??
+        (orderData['rating_image_url'] as String?) ??
+        (orderData['imageUrl'] as String?) ??
+        (orderData['image_url'] as String?);
     final customerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
         'Unknown Customer';
     final createdAt = orderData['createdAt'] as Timestamp?;
     final orderDate = createdAt != null
-        ? '${createdAt.toDate().toString().substring(0, 16)}'
+        ? DateFormat('yyyy-MM-dd HH:mm').format(createdAt.toDate())
         : 'Unknown date';
     final totalPrice =
         (orderData['totalPrice'] as num?)?.toDouble() ??
         (orderData['price'] as num?)?.toDouble() ??
         0.0;
 
-    return Card(
-      margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return Container(
+      margin: EdgeInsets.only(bottom: isMobile ? 12 : 0),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF5F5), // Light pink background
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: const Color(
+            0xFFCD5656,
+          ).withOpacity(0.3), // Red border matching theme
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Padding(
         padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
@@ -7651,11 +7961,16 @@ class _FeedbackPage extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: isMobile ? 20 : 24,
-                  backgroundColor: AppColors.primary.withOpacity(0.1),
-                  child: Icon(
-                    Icons.person,
-                    size: isMobile ? 20 : 24,
-                    color: AppColors.primary,
+                  backgroundColor: AppColors.primary,
+                  child: Text(
+                    customerName.isNotEmpty
+                        ? customerName[0].toUpperCase()
+                        : 'U',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: isMobile ? 18 : 20,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -7700,8 +8015,12 @@ class _FeedbackPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.background,
+                  color: const Color(0xFFFFF5F5), // Light pink background
                   borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFFCD5656).withOpacity(0.2),
+                    width: 1,
+                  ),
                 ),
                 child: Text(
                   review,
@@ -7715,56 +8034,70 @@ class _FeedbackPage extends StatelessWidget {
               const SizedBox(height: 12),
             ],
             // Rating image
-            if (ratingImageUrl != null) ...[
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => Dialog(
-                      child: Image.network(
-                        ratingImageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text('Failed to load image'),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    ratingImageUrl,
-                    width: double.infinity,
-                    height: isMobile ? 150 : 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: isMobile ? 150 : 200,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.broken_image),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        height: isMobile ? 150 : 200,
-                        color: Colors.grey[200],
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                : null,
+            if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  // Create local non-nullable variable since we've already checked
+                  final imageUrl = ratingImageUrl!;
+                  return GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: RatingImageWidget(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.contain,
+                                  height: MediaQuery.of(context).size.height * 0.7,
+                                  width: MediaQuery.of(context).size.width * 0.9,
+                                  primaryColor: AppColors.primary,
+                                  orderId: orderId,
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () => Navigator.pop(context),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
                     },
-                  ),
-                ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: const Color(0xFFCD5656).withOpacity(0.2),
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: RatingImageWidget(
+                        imageUrl: imageUrl,
+                        width: double.infinity,
+                        height: isMobile ? 150 : 200,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(8),
+                        backgroundColor: const Color(0xFFFFF5F5),
+                        primaryColor: AppColors.primary,
+                        orderId: orderId,
+                      ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
             ],

@@ -41,9 +41,9 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
   bool _loading = false;
   bool _resending = false;
 
-  // Color scheme matching the design
-  static const Color _primaryBlue = Color(0xFF3366FF);
-  static const Color _inactiveBorder = Color(0xFFD9E0FF);
+  // Color scheme matching the design - Red theme
+  static const Color _primaryRed = Color(0xFFCD5656);
+  static const Color _inactiveBorder = Color(0xFFE8D0D0);
   static const Color _textColor = Color(0xFF333333);
 
   @override
@@ -328,14 +328,14 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
                 ),
                 child: Column(
                   children: [
-                    // Header text - Bold blue
+                    // Header text - Bold red
                     const Text(
                       'Enter 6-digit verification code',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w700,
-                        color: _primaryBlue,
+                        color: _primaryRed,
                         letterSpacing: 0.3,
                       ),
                     ),
@@ -359,14 +359,14 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
                       }),
                     ),
                     const SizedBox(height: 32),
-                    // Verify button - Large blue button
+                    // Verify button - Large red button
                     SizedBox(
                       width: double.infinity,
                       height: 56,
                       child: ElevatedButton(
                         onPressed: _loading ? null : _verify,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _primaryBlue,
+                          backgroundColor: _primaryRed,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
@@ -391,11 +391,11 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Resend code link - Blue text
+                    // Resend code link - Red text
                     TextButton(
                       onPressed: _resending ? null : _resend,
                       style: TextButton.styleFrom(
-                        foregroundColor: _primaryBlue,
+                        foregroundColor: _primaryRed,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 12,
@@ -407,7 +407,7 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
                               width: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: _primaryBlue,
+                                color: _primaryRed,
                               ),
                             )
                           : const Text(
@@ -440,7 +440,7 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
         focusNode: _focusNodes[index],
         textAlign: TextAlign.center,
         keyboardType: TextInputType.number,
-        cursorColor: _primaryBlue,
+        cursorColor: _primaryRed,
         inputFormatters: [
           FilteringTextInputFormatter.digitsOnly,
           LengthLimitingTextInputFormatter(1),
@@ -456,20 +456,20 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
-              color: isFocused || hasValue ? _primaryBlue : _inactiveBorder,
+              color: isFocused || hasValue ? _primaryRed : _inactiveBorder,
               width: isFocused ? 2 : 1.5,
             ),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(
-              color: hasValue ? _primaryBlue : _inactiveBorder,
+              color: hasValue ? _primaryRed : _inactiveBorder,
               width: hasValue ? 2 : 1.5,
             ),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: _primaryBlue, width: 2),
+            borderSide: const BorderSide(color: _primaryRed, width: 2),
           ),
           filled: true,
           fillColor: Colors.white,

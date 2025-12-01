@@ -51,14 +51,14 @@ class FilteredOrdersPage extends StatelessWidget {
 
   /// Build Firestore query with proper filtering
   Stream<QuerySnapshot> _buildQuery(String userId) {
-    // For "To Rate" (completed), we need to filter by status AND rating == null
+    // Query without orderBy to avoid composite index requirements
+    // Sort in memory instead
     if (status == 'completed') {
       // Query for completed orders, then filter in memory for rating == null
       return FirebaseFirestore.instance
           .collection('orders')
           .where('customerId', isEqualTo: userId)
           .where('status', isEqualTo: 'completed')
-          .orderBy('createdAt', descending: true)
           .snapshots();
     }
     
@@ -67,7 +67,6 @@ class FilteredOrdersPage extends StatelessWidget {
         .collection('orders')
         .where('customerId', isEqualTo: userId)
         .where('status', isEqualTo: status)
-        .orderBy('createdAt', descending: true)
         .snapshots();
   }
 
@@ -171,16 +170,30 @@ class FilteredOrdersPage extends StatelessWidget {
           }
 
           // Display orders list
-          var orders = snapshot.data!.docs;
+          var allOrders = snapshot.data!.docs;
 
           // For "To Rate" (completed), filter out orders that already have ratings
           if (status == 'completed') {
-            orders = orders.where((doc) {
+            allOrders = allOrders.where((doc) {
               final order = doc.data() as Map<String, dynamic>;
               final rating = order['rating'];
               return rating == null;
             }).toList();
           }
+          
+          // Sort by createdAt in memory (descending - newest first)
+          final orders = List<QueryDocumentSnapshot>.from(allOrders);
+          orders.sort((a, b) {
+            final aData = a.data() as Map<String, dynamic>;
+            final bData = b.data() as Map<String, dynamic>;
+            final aCreated = aData['createdAt'] as Timestamp?;
+            final bCreated = bData['createdAt'] as Timestamp?;
+            
+            if (aCreated == null && bCreated == null) return 0;
+            if (aCreated == null) return 1;
+            if (bCreated == null) return -1;
+            return bCreated.compareTo(aCreated); // Descending
+          });
 
           if (orders.isEmpty) {
             return Center(

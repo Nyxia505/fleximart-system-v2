@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../pages/product_details_page.dart';
 import '../widgets/product_base64_image.dart';
 import '../utils/price_formatter.dart';
+import '../services/cart_service.dart';
 
 class ShopDashboard extends StatefulWidget {
   const ShopDashboard({super.key});
@@ -84,7 +86,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                     children: [
                       const Text(
                         'Shop',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -92,6 +94,61 @@ class _ShopDashboardState extends State<ShopDashboard> {
                         ),
                       ),
                       const Spacer(),
+                      // Cart Icon with Badge
+                      StreamBuilder<int>(
+                        stream: CartService().getCartCountStream(),
+                        builder: (context, snapshot) {
+                          final cartCount = snapshot.data ?? 0;
+                          
+                          return GestureDetector(
+                            onTap: () {
+                              Navigator.pushNamed(context, '/cart');
+                            },
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.shopping_cart_outlined,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                if (cartCount > 0)
+                                  Positioned(
+                                    right: -4,
+                                    top: -4,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(4),
+                                      decoration: const BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        minWidth: 18,
+                                        minHeight: 18,
+                                      ),
+                                      child: Text(
+                                        cartCount > 99 ? '99+' : '$cartCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -100,10 +157,20 @@ class _ShopDashboardState extends State<ShopDashboard> {
                     controller: _searchController,
                     decoration: InputDecoration(
                       hintText: 'Search products...',
-                      prefixIcon: const Icon(Icons.search),
+                      hintStyle: TextStyle(
+                        color: Colors.white.withOpacity(0.7),
+                        fontSize: 14,
+                      ),
+                      prefixIcon: Icon(
+                        Icons.search,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
                       suffixIcon: _searchTerm.isNotEmpty
                           ? IconButton(
-                              icon: const Icon(Icons.clear),
+                              icon: Icon(
+                                Icons.clear,
+                                color: Colors.white.withOpacity(0.9),
+                              ),
                               onPressed: () {
                                 setState(() {
                                   _searchController.clear();
@@ -113,15 +180,36 @@ class _ShopDashboardState extends State<ShopDashboard> {
                             )
                           : null,
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: Colors.white.withOpacity(0.25),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                        borderSide: BorderSide(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.white.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(
+                          color: Colors.white.withOpacity(0.6),
+                          width: 2,
+                        ),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 12,
                       ),
+                    ),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
                     ),
                     onChanged: (value) {
                       setState(() {
@@ -139,7 +227,12 @@ class _ShopDashboardState extends State<ShopDashboard> {
                 stream: _getProductsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return Center(
+                      child: CircularProgressIndicator(
+                        color: AppColors.primary,
+                        strokeWidth: 3,
+                      ),
+                    );
                   }
 
                   if (snapshot.hasError) {
@@ -170,7 +263,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                                 'Please try again later',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: const Color(0xFF1D3B53),
+                                  color: AppColors.textSecondary,
                                   letterSpacing: 0.2,
                                 ),
                               ),
@@ -192,7 +285,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                               Icon(
                                 Icons.inventory_2_outlined,
                                 size: 64,
-                                color: const Color(0xFF1D3B53).withOpacity(0.8),
+                                color: AppColors.primary.withOpacity(0.6),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -236,7 +329,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                               Icon(
                                 Icons.search_off,
                                 size: 64,
-                                color: const Color(0xFF1D3B53).withOpacity(0.8),
+                                color: AppColors.primary.withOpacity(0.6),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -253,7 +346,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                                 'Try a different search term',
                                 style: TextStyle(
                                   fontSize: 14,
-                                  color: const Color(0xFF1D3B53),
+                                  color: AppColors.textSecondary,
                                   letterSpacing: 0.2,
                                 ),
                               ),
@@ -269,8 +362,8 @@ class _ShopDashboardState extends State<ShopDashboard> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
-                          mainAxisSpacing: 16,
-                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 18,
+                          crossAxisSpacing: 18,
                           childAspectRatio:
                               0.50, // Reduced further to prevent overflow
                         ),
@@ -417,17 +510,81 @@ class _ProductCard extends StatelessWidget {
     required this.onImageTap,
   });
 
+  Future<void> _addToCartAndNavigate(BuildContext context) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to add items to cart'),
+          backgroundColor: AppColors.primary,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final cartService = CartService();
+      final productId = productData['id']?.toString() ?? productData['productId']?.toString() ?? '';
+      final productName = productData['name']?.toString() ?? 'Product';
+      final productImage = productData['image']?.toString() ?? productData['imageUrl']?.toString();
+      final productLength = (productData['length'] as num?)?.toDouble();
+      final productWidth = (productData['width'] as num?)?.toDouble();
+
+      await cartService.addToCart(
+        productId: productId,
+        productName: productName,
+        price: price,
+        quantity: 1,
+        productImage: productImage,
+        length: productLength,
+        width: productWidth,
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Added to cart!'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        // Navigate to cart page
+        Navigator.pushNamed(context, '/cart');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add to cart: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.1),
+          width: 1,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: AppColors.primary.withOpacity(0.15),
+            blurRadius: 20,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -461,7 +618,7 @@ class _ProductCard extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -470,38 +627,66 @@ class _ProductCard extends StatelessWidget {
                   if (category.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
+                        horizontal: 6,
+                        vertical: 2,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.primary.withOpacity(0.15),
+                            AppColors.secondary.withOpacity(0.12),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.3),
+                          width: 0.5,
+                        ),
                       ),
                       child: Text(
                         category,
                         style: TextStyle(
                           fontSize: 9,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.primary,
+                          letterSpacing: 0.2,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   if (category.isNotEmpty) const SizedBox(height: 2),
-                  // Product Name - Always visible above price
+                  // Product Name with Cart Icon
                   Flexible(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
-                        color: AppColors.textPrimary,
-                        height: 1.15,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.left,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13,
+                              color: AppColors.textPrimary,
+                              height: 1.15,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.left,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () {
+                            // Add to cart and navigate
+                            _addToCartAndNavigate(context);
+                          },
+                          child: Icon(
+                            Icons.shopping_cart_outlined,
+                            size: 18,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -510,8 +695,9 @@ class _ProductCard extends StatelessWidget {
                     PriceFormatter.formatPrice(price),
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                      fontSize: 16,
                       color: AppColors.primary,
+                      letterSpacing: 0.3,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -520,7 +706,7 @@ class _ProductCard extends StatelessWidget {
                   // Request Quotation Button
                   SizedBox(
                     width: double.infinity,
-                    height: 26,
+                    height: 28,
                     child: OutlinedButton(
                       onPressed: () {
                         Navigator.pushNamed(
@@ -531,22 +717,23 @@ class _ProductCard extends StatelessWidget {
                       },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: AppColors.primary,
-                        side: const BorderSide(
+                        side: BorderSide(
                           color: AppColors.primary,
-                          width: 1,
+                          width: 1.5,
                         ),
                         padding: EdgeInsets.zero,
                         minimumSize: Size.zero,
+                        backgroundColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
+                          borderRadius: BorderRadius.circular(6),
                         ),
                       ),
                       child: const Text(
                         'Request Quotation',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 0.1,
+                          letterSpacing: 0.2,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -557,34 +744,48 @@ class _ProductCard extends StatelessWidget {
                   // Buy Now Button
                   SizedBox(
                     width: double.infinity,
-                    height: 26,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pushNamed(
-                          context,
-                          '/proceed-buy',
-                          arguments: productData,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(5),
-                        ),
+                    height: 28,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.buttonGradient,
+                        borderRadius: BorderRadius.circular(6),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primary.withOpacity(0.3),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'Buy Now',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.1,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pushNamed(
+                            context,
+                            '/proceed-buy',
+                            arguments: productData,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
+                          shadowColor: Colors.transparent,
+                          padding: EdgeInsets.zero,
+                          minimumSize: Size.zero,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(6),
+                          ),
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        child: const Text(
+                          'Buy Now',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ),
@@ -635,3 +836,4 @@ class _ProductCard extends StatelessWidget {
     }
   }
 }
+

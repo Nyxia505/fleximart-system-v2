@@ -13,20 +13,28 @@ import '../pages/chat_list_page.dart';
 import '../utils/price_formatter.dart';
 import '../services/notification_service.dart';
 import '../utils/role_helper.dart';
+import '../widgets/rating_image_widget.dart';
 
-// Official theme colors - New Theme
-// Staff uses same palette as admin
+// Official theme colors - Staff Theme (Bright Red)
+// Staff uses brighter, more vibrant red palette to differentiate from admin's deeper wine red
 class StaffThemeColors {
   StaffThemeColors._();
-  static const Color crimsonRed = Color(0xFFCD5656);
-  static const Color deepBerryRed = Color(0xFFAF3E3E);
-  static const Color darkWinePurple = Color(0xFF8B2E2E);
+  // Bright vibrant red palette (different from admin's wine red)
+  static const Color primaryRed = Color(0xFFE63946);      // Bright coral red
+  static const Color deepRed = Color(0xFFC1121F);         // Deep bright red
+  static const Color darkRed = Color(0xFF9D0208);         // Dark vibrant red
 
   // Navigation colors
-  static const Color navActive = Color(0xFFCD5656);
-  static const Color navActiveBg = Color(
-    0x42AF3E3E,
-  ); // Secondary red with opacity
+  static const Color navActive = Color(0xFFE63946);
+  static const Color navActiveBg = Color(0x42C1121F); // Bright red with opacity
+  
+  // Legacy names for compatibility
+  static const Color crimsonRed = Color(0xFFE63946);
+  static const Color deepBerryRed = Color(0xFFC1121F);
+  static const Color darkWinePurple = Color(0xFF9D0208);
+  
+  // Alias for primary
+  static const Color primaryBlue = Color(0xFFE63946); // Keep for compatibility
 }
 
 class StaffDashboard extends StatefulWidget {
@@ -156,18 +164,20 @@ class _StaffDashboardState extends State<StaffDashboard> {
       );
     }
 
-    final isMobile = MediaQuery.of(context).size.width < 768;
-    final isWeb = !isMobile;
+    // Use a more stable breakpoint to prevent layout shifts when resizing
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isMobileLayout = screenWidth < 900; // Increased from 768 to prevent flickering
+    final isWebLayout = !isMobileLayout;
 
     return Scaffold(
       backgroundColor: AppColors.dashboardBackground,
-      appBar: isMobile ? _buildMobileAppBar(context) : null,
-      drawer: isMobile ? _buildMobileDrawer(context) : null,
-      body: isWeb
+      appBar: isMobileLayout ? _buildMobileAppBar(context) : null,
+      drawer: isMobileLayout ? _buildMobileDrawer(context) : null,
+      body: isWebLayout
           ? SafeArea(
               child: Row(
                 children: [
-                  _buildSidebar(context, isWeb),
+                  _buildSidebar(context, isWebLayout),
                   Expanded(child: _pages[_selectedIndex]),
                 ],
               ),
@@ -192,9 +202,9 @@ class _StaffDashboardState extends State<StaffDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              StaffThemeColors.crimsonRed,
-              StaffThemeColors.deepBerryRed,
-              StaffThemeColors.darkWinePurple,
+              Color(0xFFE63946), // Bright coral red
+              Color(0xFFC1121F), // Deep bright red
+              Color(0xFF9D0208), // Dark vibrant red
             ],
             stops: [0.0, 0.5, 1.0],
           ),
@@ -214,7 +224,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
               child: Text(
                 user.email?.substring(0, 1).toUpperCase() ?? 'S',
                 style: const TextStyle(
-                  color: StaffThemeColors.crimsonRed,
+                  color: StaffThemeColors.primaryRed,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -241,9 +251,15 @@ class _StaffDashboardState extends State<StaffDashboard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFCD5656), // Primary color start
-            AppColors.secondary, // Secondary color end
+            Color(0xFFE63946), // Bright coral red start
+            Color(0xFFC1121F), // Deep bright red end
           ],
+        ),
+        border: Border(
+          right: BorderSide(
+            color: Colors.white.withOpacity(0.3),
+            width: 2,
+          ),
         ),
         boxShadow: [
           BoxShadow(
@@ -274,18 +290,18 @@ class _StaffDashboardState extends State<StaffDashboard> {
                   if (!_sidebarCollapsed)
                     Expanded(
                       child: Text(
-                        'FlexiMart Staff',
+                        'FlexiMart',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
-                          color: Colors.white.withOpacity(
-                            0.95,
-                          ), // Lighter red/pink text
+                          color: Colors.white.withOpacity(0.95),
                           letterSpacing: 0.5,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                  const SizedBox(width: 4),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.1),
@@ -294,9 +310,13 @@ class _StaffDashboardState extends State<StaffDashboard> {
                     child: IconButton(
                       icon: Icon(
                         _sidebarCollapsed ? Icons.menu : Icons.menu_open,
-                        color: Colors.white.withOpacity(
-                          0.9,
-                        ), // Lighter red/pink icon
+                        color: Colors.white.withOpacity(0.9),
+                        size: 20,
+                      ),
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
                       ),
                       onPressed: () {
                         setState(() {
@@ -309,35 +329,49 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 ],
               ),
             ),
-            // Navigation Items
+            // Navigation Items - Scrollable with Expanded
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 12,
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    children: List.generate(_navItems.length, (index) {
+                      final item = _navItems[index];
+                      final selected = _selectedIndex == index;
+                      return _NavTile(
+                        icon: item['icon'] as IconData,
+                        label: item['label'] as String,
+                        selected: selected,
+                        collapsed: _sidebarCollapsed,
+                        onTap: () {
+                          if (mounted) {
+                            setState(() {
+                              _selectedIndex = index;
+                            });
+                          }
+                        },
+                      );
+                    }),
+                  ),
                 ),
-                itemCount: _navItems.length,
-                itemBuilder: (context, index) {
-                  final item = _navItems[index];
-                  final selected = _selectedIndex == index;
-                  return _NavTile(
-                    icon: item['icon'] as IconData,
-                    label: item['label'] as String,
-                    selected: selected,
-                    collapsed: _sidebarCollapsed,
-                    onTap: () {
-                      if (mounted) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                      }
-                    },
-                  );
-                },
               ),
             ),
-            // Profile Section
-            _buildProfileSection(context),
+            // Profile Section - Pinned at bottom with proper spacing
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: Colors.white.withOpacity(0.1),
+                    width: 1,
+                  ),
+                ),
+              ),
+              child: _buildProfileSection(context),
+            ),
           ],
         ),
       ),
@@ -359,86 +393,76 @@ class _StaffDashboardState extends State<StaffDashboard> {
             : null;
         final userName =
             (userData?['fullName'] as String?) ??
+            (userData?['name'] as String?) ??
+            (userData?['customerName'] as String?) ??
             user?.email?.split('@')[0] ??
             'Staff';
         final userEmail = user?.email ?? '';
 
-        return Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            border: Border(
-              top: BorderSide(color: Colors.white.withOpacity(0.1), width: 1),
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
+        return Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: _sidebarCollapsed ? 18 : 24,
+                backgroundColor: Colors.white,
                 child: CircleAvatar(
-                  radius: _sidebarCollapsed ? 18 : 24,
-                  backgroundColor: Colors.white,
-                  child: CircleAvatar(
-                    radius: _sidebarCollapsed ? 16 : 22,
-                    backgroundColor: StaffThemeColors.crimsonRed,
-                    child: Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: _sidebarCollapsed ? 16 : 20,
-                      ),
+                  radius: _sidebarCollapsed ? 16 : 22,
+                  backgroundColor: StaffThemeColors.primaryRed,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: _sidebarCollapsed ? 16 : 20,
                     ),
                   ),
                 ),
               ),
-              if (!_sidebarCollapsed) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        userName,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white.withOpacity(
-                            0.95,
-                          ), // Lighter red/pink text
-                          letterSpacing: 0.2,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+            ),
+            if (!_sidebarCollapsed) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white.withOpacity(0.95),
+                        letterSpacing: 0.2,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        userEmail,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withOpacity(
-                            0.8,
-                          ), // Lighter red/pink text
-                          letterSpacing: 0.1,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      userEmail,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                        letterSpacing: 0.1,
                       ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         );
       },
     );
@@ -447,194 +471,215 @@ class _StaffDashboardState extends State<StaffDashboard> {
   Widget? _buildMobileDrawer(BuildContext context) {
     return Drawer(
       child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFCD5656), // Primary color start
-              AppColors.secondary, // Secondary color end
+              Color(0xFFE63946), // Bright coral red start
+              Color(0xFFC1121F), // Deep bright red end
             ],
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 12,
+              offset: const Offset(4, 0),
+              spreadRadius: 2,
+            ),
+          ],
         ),
-        child: Column(
-          children: [
-            // Top Header with FlexiMart Title and Close Button
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 48, 16, 16),
-              decoration: BoxDecoration(
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, 2),
+        child: SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              // Enhanced Header with Title and Close Button
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 20,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
                   ),
-                ],
-              ),
-              child: SafeArea(
-                bottom: false,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'FlexiMart',
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
+                    const Expanded(
+                      child: Text(
+                        'FlexiMart',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.menu_open, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Close',
+                    const SizedBox(width: 4),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: IconButton(
+                        icon: const Icon(Icons.menu_open, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
+                        padding: const EdgeInsets.all(8),
+                        constraints: const BoxConstraints(
+                          minWidth: 36,
+                          minHeight: 36,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-            ),
-            // Navigation Items
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-                itemCount: _navItems.length,
-                itemBuilder: (context, index) {
-                  final item = _navItems[index];
-                  final selected = _selectedIndex == index;
-                  return Container(
-                    margin: const EdgeInsets.symmetric(
+              // Navigation Items - Scrollable with Expanded
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
                       horizontal: 4,
-                      vertical: 3,
+                      vertical: 12,
                     ),
-                    decoration: BoxDecoration(
-                      color: Colors.white, // White container
-                      borderRadius: BorderRadius.circular(12),
-                      border: selected
-                          ? Border.all(
-                              color: AppColors.secondary,
-                              width: 2,
-                            ) // Red border for active
-                          : null,
+                    child: Column(
+                      children: List.generate(_navItems.length, (index) {
+                        final item = _navItems[index];
+                        final selected = _selectedIndex == index;
+                        return _NavTile(
+                          icon: item['icon'] as IconData,
+                          label: item['label'] as String,
+                          selected: selected,
+                          collapsed: false,
+                          onTap: () {
+                            if (mounted) {
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
+                        );
+                      }),
                     ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      leading: Icon(
-                        item['icon'] as IconData,
-                        color: selected
-                            ? AppColors
-                                  .secondary // Red for active
-                            : const Color(0xFF1D3B53), // Dark blue for inactive
-                        size: 24,
-                      ),
-                      title: Text(
-                        item['label'] as String,
-                        style: TextStyle(
-                          fontWeight: selected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontSize: 15,
-                          color: selected
-                              ? AppColors
-                                    .secondary // Red for active
-                              : const Color(
-                                  0xFF1D3B53,
-                                ), // Dark blue for inactive
-                        ),
-                      ),
-                      selected: selected,
-                      onTap: () {
-                        if (mounted) {
-                          setState(() {
-                            _selectedIndex = index;
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
-                    ),
-                  );
-                },
-              ),
-            ),
-            // User Profile Section at Bottom
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                border: Border(
-                  top: BorderSide(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1,
                   ),
                 ),
               ),
-              child: StreamBuilder<DocumentSnapshot>(
-                stream: FirebaseAuth.instance.currentUser != null
-                    ? FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(FirebaseAuth.instance.currentUser!.uid)
-                          .snapshots()
-                    : null,
-                builder: (context, snapshot) {
-                  final user = FirebaseAuth.instance.currentUser;
-                  final userData = snapshot.hasData && snapshot.data!.exists
-                      ? snapshot.data!.data() as Map<String, dynamic>?
-                      : null;
-                  final userName =
-                      (userData?['fullName'] as String?) ??
-                      user?.email?.split('@')[0] ??
-                      'Staff';
-                  return Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 24,
-                        backgroundColor: StaffThemeColors.crimsonRed,
-                        child: Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              userName,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              user?.email ?? '',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.white.withOpacity(0.8),
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              // Profile Section - Pinned at bottom with proper spacing
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
+                      color: Colors.white.withOpacity(0.1),
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: _buildMobileProfileSection(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileProfileSection(BuildContext context) {
+    final user = FirebaseAuth.instance.currentUser;
+    return StreamBuilder<DocumentSnapshot>(
+      stream: user != null
+          ? FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        final userData = snapshot.hasData && snapshot.data!.exists
+            ? snapshot.data!.data() as Map<String, dynamic>?
+            : null;
+        final userName =
+            (userData?['fullName'] as String?) ??
+            (userData?['name'] as String?) ??
+            (userData?['customerName'] as String?) ??
+            user?.email?.split('@')[0] ??
+            'Staff';
+        final userEmail = user?.email ?? '';
+
+        return Row(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: 24,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: 22,
+                  backgroundColor: StaffThemeColors.primaryRed,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    userName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white.withOpacity(0.95),
+                      letterSpacing: 0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    userEmail,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.8),
+                      letterSpacing: 0.1,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
               ),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -670,8 +715,8 @@ class _NavTileState extends State<_NavTile>
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         curve: Curves.easeInOut,
-        margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
           color: widget.selected
               ? Colors.white.withOpacity(
@@ -683,9 +728,12 @@ class _NavTileState extends State<_NavTile>
                   0.05,
                 ), // Subtle background for inactive
           borderRadius: BorderRadius.circular(12),
-          border: widget.selected
-              ? Border.all(color: Colors.white.withOpacity(0.3), width: 1)
-              : null,
+          border: Border.all(
+            color: widget.selected
+                ? Colors.white.withOpacity(0.5)
+                : Colors.white.withOpacity(0.2),
+            width: widget.selected ? 2 : 1,
+          ),
           boxShadow: widget.selected
               ? [
                   BoxShadow(
@@ -713,8 +761,8 @@ class _NavTileState extends State<_NavTile>
                 size: 22,
               ),
               if (!widget.collapsed) ...[
-                const SizedBox(width: 14),
-                Flexible(
+                const SizedBox(width: 12),
+                Expanded(
                   child: Text(
                     widget.label,
                     style: TextStyle(
@@ -727,11 +775,11 @@ class _NavTileState extends State<_NavTile>
                       fontWeight: widget.selected
                           ? FontWeight.w600
                           : FontWeight.w500,
-                      fontSize: 15,
-                      letterSpacing: 0.2,
+                      fontSize: 14,
+                      letterSpacing: 0.1,
                     ),
-                    overflow: TextOverflow.ellipsis,
                     maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
@@ -775,9 +823,9 @@ class _StaffDashboardPage extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      StaffThemeColors.crimsonRed,
-                      StaffThemeColors.deepBerryRed,
-                      StaffThemeColors.darkWinePurple,
+                      Color(0xFFE63946), // Bright coral red
+                      Color(0xFFC1121F), // Deep bright red
+                      Color(0xFF9D0208), // Dark vibrant red
                     ],
                     stops: [0.0, 0.5, 1.0],
                   ),
@@ -919,7 +967,7 @@ class _StaffDashboardPage extends StatelessWidget {
                             value: pendingOrders.toString(),
                             subtitle: 'Need attention',
                             icon: Icons.pending_actions_outlined,
-                            color: StaffThemeColors.crimsonRed,
+                            color: StaffThemeColors.primaryRed,
                             width: cardWidth,
                           ),
                           _StaffKpiCard(
@@ -998,6 +1046,10 @@ class _StaffKpiCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white, // White card background
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
+          border: Border.all(
+            color: const Color(0xFFE63946).withOpacity(0.3), // Bright red border matching theme
+            width: 2,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.08),
@@ -1026,10 +1078,10 @@ class _StaffKpiCard extends StatelessWidget {
                     Text(
                       title,
                       style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF3A0016), // Card title color
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.2,
+                        fontSize: 14,
+                        color: Color(0xFF1D3B53), // Dark blue for better readability
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -1038,18 +1090,21 @@ class _StaffKpiCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFCD5656), // Card value color (primary)
+                        color: Color(0xFFE63946), // Bright red color for staff
                         letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       subtitle,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8A8A8A), // Card subtext color
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: const Color(0xFF1D3B53).withOpacity(0.9), // Darker for better readability
                         fontWeight: FontWeight.w400,
+                        letterSpacing: 0.2,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -1079,10 +1134,22 @@ class _StaffPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox(
       width: width,
-      child: Card(
-        elevation: 2,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        color: Colors.white,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE63946).withOpacity(0.3), // Bright red border matching theme
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Column(
@@ -1093,12 +1160,12 @@ class _StaffPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      color: const Color(0xFFE63946).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       icon,
-                      color: const Color(0xFF2E7D32), // Green icon
+                      color: const Color(0xFFE63946), // Bright red icon for staff
                       size: 20,
                     ),
                   ),
@@ -1249,7 +1316,7 @@ class _RecentTasksList extends StatelessWidget {
             break;
           case 'shipped':
             icon = Icons.local_shipping;
-            color = StaffThemeColors.crimsonRed;
+            color = StaffThemeColors.primaryRed;
             text = 'Order #$orderId is shipped';
             break;
           case 'processing':
@@ -1493,13 +1560,19 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(0xFFE63946).withOpacity(0.3),
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -1956,14 +2029,14 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: StaffThemeColors.crimsonRed.withOpacity(0.1),
+                        color: StaffThemeColors.primaryBlue.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
                         category,
                         style: TextStyle(
                           fontSize: 12, // Increased for clarity
-                          color: StaffThemeColors.crimsonRed,
+                          color: StaffThemeColors.primaryRed,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -1979,7 +2052,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                       style: const TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: StaffThemeColors.crimsonRed,
+                        color: StaffThemeColors.primaryRed,
                       ),
                     ),
                     Container(
@@ -2212,7 +2285,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: StaffThemeColors.crimsonRed,
+                        backgroundColor: StaffThemeColors.primaryRed,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Add Product'),
@@ -2436,7 +2509,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                         }
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: StaffThemeColors.crimsonRed,
+                        backgroundColor: StaffThemeColors.primaryRed,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Update Product'),
@@ -2503,7 +2576,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: StaffThemeColors.crimsonRed,
+              backgroundColor: StaffThemeColors.primaryBlue,
               foregroundColor: Colors.white,
             ),
             child: const Text('Restock'),
@@ -2569,7 +2642,7 @@ class _StaffPosPage extends StatelessWidget {
                     icon: const Icon(Icons.refresh),
                     label: const Text('Retry'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: StaffThemeColors.crimsonRed,
+                      backgroundColor: StaffThemeColors.primaryBlue,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -2927,7 +3000,7 @@ class _StaffPosPage extends StatelessWidget {
       case 'pending':
         return AppColors.accent;
       case 'processing':
-        return StaffThemeColors.crimsonRed;
+        return StaffThemeColors.primaryRed;
       case 'completed':
         return AppColors.success;
       default:
@@ -3200,7 +3273,7 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                     icon: const Icon(Icons.refresh),
                     label: const Text('Retry'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: StaffThemeColors.crimsonRed,
+                      backgroundColor: StaffThemeColors.primaryBlue,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -3436,7 +3509,7 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                     icon: const Icon(Icons.edit, size: 18),
                     label: const Text('Update Status'),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: StaffThemeColors.crimsonRed,
+                      backgroundColor: StaffThemeColors.primaryBlue,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
@@ -3479,13 +3552,19 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
               final isMobile = constraints.maxWidth < 768;
               return Container(
                 padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   color: Colors.white,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(0xFFE63946).withOpacity(0.3),
+                      width: 2,
+                    ),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 4,
-                      offset: Offset(0, 2),
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
@@ -3800,7 +3879,7 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                         ? Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'C',
                             style: TextStyle(
-                              color: StaffThemeColors.crimsonRed,
+                              color: StaffThemeColors.primaryRed,
                               fontWeight: FontWeight.bold,
                             ),
                           )
@@ -3931,7 +4010,7 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: StaffThemeColors.crimsonRed,
+                          color: StaffThemeColors.primaryRed,
                         ),
                       ),
                     ],
@@ -4001,7 +4080,7 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                         ? Text(
                             name.isNotEmpty ? name[0].toUpperCase() : 'C',
                             style: TextStyle(
-                              color: StaffThemeColors.crimsonRed,
+                              color: StaffThemeColors.primaryRed,
                               fontWeight: FontWeight.bold,
                               fontSize: 24,
                             ),
@@ -4061,22 +4140,8 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                   stream: FirebaseFirestore.instance
                       .collection('orders')
                       .where('customerId', isEqualTo: userId)
-                      .orderBy('createdAt', descending: true)
                       .limit(10)
-                      .snapshots()
-                      .handleError((error) {
-                        if (kDebugMode) {
-                          debugPrint(
-                            '⚠️ OrderBy createdAt failed, using simple query: $error',
-                          );
-                        }
-                        // Fallback: return orders without orderBy
-                        return FirebaseFirestore.instance
-                            .collection('orders')
-                            .where('customerId', isEqualTo: userId)
-                            .limit(10)
-                            .snapshots();
-                      }),
+                      .snapshots(),
                   builder: (context, snapshot) {
                     // Handle connection state
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -4181,11 +4246,11 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
 
                         return ListTile(
                           leading: CircleAvatar(
-                            backgroundColor: StaffThemeColors.crimsonRed
+                            backgroundColor: StaffThemeColors.primaryBlue
                                 .withOpacity(0.1),
                             child: Icon(
                               Icons.shopping_bag,
-                              color: StaffThemeColors.crimsonRed,
+                              color: StaffThemeColors.primaryRed,
                             ),
                           ),
                           title: Text(PriceFormatter.formatPrice(total)),
@@ -4198,10 +4263,10 @@ class _CustomersViewPageState extends State<_CustomersViewPage> {
                                 letterSpacing: 0.2,
                               ),
                             ),
-                            backgroundColor: StaffThemeColors.crimsonRed
+                            backgroundColor: StaffThemeColors.primaryBlue
                                 .withOpacity(0.1),
                             labelStyle: TextStyle(
-                              color: StaffThemeColors.crimsonRed,
+                              color: StaffThemeColors.primaryRed,
                             ),
                           ),
                         );
@@ -4263,13 +4328,19 @@ class _FeedbackSupportPage extends StatelessWidget {
           // Header
           Container(
             padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: const BoxDecoration(
+            decoration: BoxDecoration(
               color: Colors.white,
+              border: Border(
+                bottom: BorderSide(
+                  color: const Color(0xFF3B82F6).withOpacity(0.3),
+                  width: 2,
+                ),
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black12,
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -4278,7 +4349,7 @@ class _FeedbackSupportPage extends StatelessWidget {
                 Icon(
                   Icons.feedback_outlined,
                   size: isMobile ? 28 : 32,
-                  color: StaffThemeColors.crimsonRed,
+                  color: StaffThemeColors.primaryRed,
                 ),
                 const SizedBox(width: 12),
                 Text(
@@ -4463,7 +4534,25 @@ class _FeedbackSupportPage extends StatelessWidget {
     final orderId = orderDoc.id;
     final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
     final review = orderData['review'] as String? ?? '';
-    final ratingImageUrl = orderData['ratingImageUrl'] as String?;
+    // Check multiple possible field names for image URL
+    String? ratingImageUrl =
+        (orderData['ratingImageUrl'] as String?) ??
+        (orderData['rating_image_url'] as String?) ??
+        (orderData['imageUrl'] as String?) ??
+        (orderData['image_url'] as String?);
+    
+    // Clean up the URL - remove any whitespace
+    if (ratingImageUrl != null) {
+      ratingImageUrl = ratingImageUrl.trim();
+      if (ratingImageUrl.isEmpty) {
+        ratingImageUrl = null;
+      }
+    }
+    
+    // Debug: Print image URL if available
+    if (kDebugMode && ratingImageUrl != null) {
+      debugPrint('📸 Feedback image URL for order $orderId: $ratingImageUrl');
+    }
     final customerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
@@ -4491,11 +4580,11 @@ class _FeedbackSupportPage extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: isMobile ? 20 : 24,
-                  backgroundColor: StaffThemeColors.crimsonRed.withOpacity(0.1),
+                  backgroundColor: StaffThemeColors.primaryBlue.withOpacity(0.1),
                   child: Icon(
                     Icons.person,
                     size: isMobile ? 20 : 24,
-                    color: StaffThemeColors.crimsonRed,
+                    color: StaffThemeColors.primaryRed,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -4527,7 +4616,7 @@ class _FeedbackSupportPage extends StatelessWidget {
                   children: List.generate(5, (index) {
                     return Icon(
                       index < rating ? Icons.star : Icons.star_border,
-                      color: StaffThemeColors.crimsonRed,
+                      color: StaffThemeColors.primaryRed,
                       size: isMobile ? 18 : 20,
                     );
                   }),
@@ -4555,58 +4644,71 @@ class _FeedbackSupportPage extends StatelessWidget {
               const SizedBox(height: 12),
             ],
             // Rating image
-            if (ratingImageUrl != null) ...[
-              GestureDetector(
-                onTap: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => Dialog(
-                      child: Image.network(
-                        ratingImageUrl,
-                        fit: BoxFit.contain,
-                        errorBuilder: (context, error, stackTrace) {
-                          return const Padding(
-                            padding: EdgeInsets.all(24.0),
-                            child: Text('Failed to load image'),
-                          );
-                        },
-                      ),
-                    ),
-                  );
-                },
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.network(
-                    ratingImageUrl,
-                    width: double.infinity,
-                    height: isMobile ? 150 : 200,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        height: isMobile ? 150 : 200,
-                        color: Colors.grey[200],
-                        child: const Icon(Icons.broken_image),
-                      );
-                    },
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        height: isMobile ? 150 : 200,
-                        color: Colors.grey[200],
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                : null,
+            if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Builder(
+                builder: (context) {
+                  // Create local non-nullable variable since we've already checked
+                  final imageUrl = ratingImageUrl!;
+                  return GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => Dialog(
+                          backgroundColor: Colors.transparent,
+                          child: Stack(
+                            children: [
+                              Center(
+                                child: RatingImageWidget(
+                                  imageUrl: imageUrl,
+                                  fit: BoxFit.contain,
+                                  height: MediaQuery.of(context).size.height * 0.7,
+                                  width: MediaQuery.of(context).size.width * 0.9,
+                                  primaryColor: StaffThemeColors.primaryRed,
+                                  orderId: orderId,
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: IconButton(
+                                  icon: const Icon(
+                                    Icons.close,
+                                    color: Colors.white,
+                                  ),
+                                  onPressed: () => Navigator.pop(context),
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: Colors.black54,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );
                     },
-                  ),
-                ),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: StaffThemeColors.primaryRed.withOpacity(0.2),
+                          width: 1,
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: RatingImageWidget(
+                        imageUrl: imageUrl,
+                        width: double.infinity,
+                        height: isMobile ? 150 : 200,
+                        fit: BoxFit.cover,
+                        borderRadius: BorderRadius.circular(8),
+                        backgroundColor: Colors.grey[200],
+                        primaryColor: StaffThemeColors.primaryRed,
+                        orderId: orderId,
+                      ),
+                    ),
+                  );
+                },
               ),
-              const SizedBox(height: 12),
             ],
             // Order info
             Row(
@@ -4624,7 +4726,7 @@ class _FeedbackSupportPage extends StatelessWidget {
                   style: TextStyle(
                     fontSize: isMobile ? 13 : 14,
                     fontWeight: FontWeight.bold,
-                    color: StaffThemeColors.crimsonRed,
+                    color: StaffThemeColors.primaryRed,
                   ),
                 ),
               ],
@@ -4650,8 +4752,8 @@ class _FeedbackSupportPage extends StatelessWidget {
                 icon: const Icon(Icons.visibility, size: 18),
                 label: const Text('View Order Details'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: StaffThemeColors.crimsonRed,
-                  side: const BorderSide(color: StaffThemeColors.crimsonRed),
+                  foregroundColor: StaffThemeColors.primaryBlue,
+                  side: const BorderSide(color: StaffThemeColors.primaryBlue),
                 ),
               ),
             ),
@@ -4678,7 +4780,7 @@ class _StaffProfilePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: StaffThemeColors.crimsonRed,
+                  color: StaffThemeColors.primaryRed,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
@@ -4991,7 +5093,7 @@ class _StaffProfilePage extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      leading: Icon(icon, color: StaffThemeColors.crimsonRed),
+      leading: Icon(icon, color: StaffThemeColors.primaryBlue),
       title: Text(
         title,
         style: const TextStyle(

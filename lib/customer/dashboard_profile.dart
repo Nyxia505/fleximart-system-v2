@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
+import 'dart:async';
 import '../providers/auth_provider.dart' as app_auth;
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
@@ -12,7 +13,6 @@ import '../pages/chat_list_page.dart';
 import '../screen/payment_methods_screen.dart';
 import '../utils/price_formatter.dart';
 import 'home_purchases_ui.dart';
-import '../services/profile_image_service.dart';
 
 class DashboardProfile extends StatefulWidget {
   const DashboardProfile({super.key});
@@ -22,30 +22,295 @@ class DashboardProfile extends StatefulWidget {
 }
 
 class _DashboardProfileState extends State<DashboardProfile> {
-  final ProfileImageService _profileImageService = ProfileImageService();
 
   Future<void> _pickProfileImage(String userId) async {
-    if (userId.isEmpty) return;
-
-    // Call shared cross-platform service (web + mobile)
-    final url = await _profileImageService.pickAndUploadProfileImage();
-
-    if (!mounted) return;
-    if (url != null) {
-      // Firestore stream will update automatically, but we trigger a rebuild too
-      setState(() {});
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Profile picture updated!'),
-          backgroundColor: AppColors.primary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+    debugPrint('📸 _pickProfileImage called with userId: $userId');
+    
+    if (userId.isEmpty) {
+      debugPrint('❌ User ID is empty');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User ID is missing'),
+            backgroundColor: AppColors.error,
           ),
-          margin: const EdgeInsets.all(16),
-        ),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) {
+      debugPrint('❌ Widget not mounted');
+      return;
+    }
+
+    debugPrint('✅ Showing image source dialog');
+    
+    try {
+      // Show dialog to choose image source - use Navigator.of to ensure proper context
+      final ImageSource? source = await showDialog<ImageSource>(
+        context: context,
+        barrierDismissible: true,
+        barrierColor: Colors.black54,
+        useRootNavigator: false,
+        builder: (dialogContext) {
+          debugPrint('🔨 Dialog builder called');
+          return Material(
+            type: MaterialType.transparency,
+            child: Center(
+              child: AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            title: Text(
+              'Select Image Source',
+              style: AppTextStyles.heading3(),
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                InkWell(
+                  onTap: () {
+                    debugPrint('📷 Gallery selected');
+                    Navigator.pop(dialogContext, ImageSource.gallery);
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.photo_library,
+                        color: AppColors.primary,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      'Gallery',
+                      style: AppTextStyles.bodyLarge(),
+                    ),
+                  ),
+                ),
+                const Divider(),
+                InkWell(
+                  onTap: () {
+                    debugPrint('📸 Camera selected');
+                    Navigator.pop(dialogContext, ImageSource.camera);
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: AppColors.primary,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      'Camera',
+                      style: AppTextStyles.bodyLarge(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+              ),
+            ),
+          );
+        },
       );
+      
+      debugPrint('📸 Dialog returned with source: $source');
+      
+      if (source == null) {
+        debugPrint('❌ No image source selected (user cancelled)');
+        return;
+      }
+
+      debugPrint('📸 Image source selected: $source');
+
+      // Show loading indicator
+      if (!mounted) {
+        debugPrint('❌ Widget not mounted before showing loading');
+        return;
+      }
+      
+      BuildContext? loadingDialogContext;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (loadingCtx) {
+          loadingDialogContext = loadingCtx;
+          debugPrint('⏳ Loading dialog shown');
+          return Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primary,
+              strokeWidth: 3,
+            ),
+          );
+        },
+      );
+
+      try {
+        debugPrint('📤 Starting image upload process');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user == null) {
+          throw Exception('User not logged in');
+        }
+
+        // Pick image
+        debugPrint('📷 Picking image from ${source == ImageSource.gallery ? "gallery" : "camera"}...');
+        final ImagePicker picker = ImagePicker();
+        
+        // Add a small delay to ensure dialog is fully closed
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        final XFile? image = await picker.pickImage(
+          source: source,
+          maxWidth: 512,
+          maxHeight: 512,
+          imageQuality: 85,
+        ).timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            debugPrint('❌ Image picker timeout');
+            throw Exception('Image picker timed out. Please try again.');
+          },
+        );
+
+        if (image == null) {
+          // User cancelled
+          debugPrint('❌ User cancelled image picker');
+          if (mounted && loadingDialogContext != null) {
+            Navigator.pop(loadingDialogContext!);
+          }
+          return;
+        }
+
+        debugPrint('✅ Image picked: ${image.path}');
+        // Read image as bytes
+        debugPrint('📖 Reading image bytes...');
+        final Uint8List imageBytes = await image.readAsBytes();
+        debugPrint('📖 Image bytes read: ${imageBytes.length} bytes');
+
+        if (imageBytes.isEmpty) {
+          throw Exception('Failed to read image data');
+        }
+
+        debugPrint('📤 Uploading to Firebase Storage...');
+        // Upload to Firebase Storage
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('profile_images')
+            .child('${user.uid}.jpg');
+
+        await storageRef
+            .putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'))
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                debugPrint('❌ Upload timeout');
+                throw Exception(
+                  'Upload timeout. Please check your internet connection.',
+                );
+              },
+            );
+        
+        debugPrint('✅ Upload completed, getting download URL...');
+        // Get download URL
+        final downloadUrl = await storageRef.getDownloadURL().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('❌ Get download URL timeout');
+            throw Exception('Failed to get download URL. Please try again.');
+          },
+        );
+
+        if (downloadUrl.isEmpty) {
+          throw Exception('Invalid download URL received');
+        }
+
+        debugPrint('✅ Download URL: $downloadUrl');
+        // Update Firestore - save to both profilePic (primary) and profileImageUrl (backward compatibility)
+        debugPrint('💾 Saving to Firestore...');
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({
+          'profilePic': downloadUrl,
+          'profileImageUrl': downloadUrl, // Keep for backward compatibility
+        });
+        debugPrint('✅ Firestore updated with image URL');
+        
+        // Verify the update was successful
+        final verifyDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        final verifyData = verifyDoc.data();
+        debugPrint('🔍 Verifying Firestore update:');
+        debugPrint('   profilePic: ${verifyData?['profilePic']}');
+        debugPrint('   profileImageUrl: ${verifyData?['profileImageUrl']}');
+        
+        // Force a rebuild by calling setState
+        if (mounted) {
+          setState(() {});
+          debugPrint('🔄 setState called to force rebuild');
+        }
+
+        // Close loading dialog
+        if (mounted && loadingDialogContext != null) {
+          Navigator.pop(loadingDialogContext!);
+          debugPrint('✅ Loading dialog closed');
+        }
+
+        if (!mounted) return;
+        debugPrint('✅ Profile picture updated successfully');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Profile picture updated!'),
+            backgroundColor: AppColors.primary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      } catch (e, stackTrace) {
+        debugPrint('❌ Error uploading image: $e');
+        debugPrint('❌ Stack trace: $stackTrace');
+        // Close loading dialog
+        if (mounted && loadingDialogContext != null) {
+          Navigator.pop(loadingDialogContext!);
+        }
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error showing dialog: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
     }
   }
 
@@ -67,8 +332,14 @@ class _DashboardProfileState extends State<DashboardProfile> {
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: CircularProgressIndicator(
+                color: AppColors.primary,
+                strokeWidth: 3,
+              ),
+            ),
           );
         }
 
@@ -85,6 +356,8 @@ class _DashboardProfileState extends State<DashboardProfile> {
       final profileImageUrl =
           (userData['profilePic'] as String?) ??
           (userData['profileImageUrl'] as String?);
+      
+      debugPrint('📸 Profile image URL from Firestore: $profileImageUrl');
 
         return _buildProfileContent(
           context,
@@ -107,7 +380,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
     String? profileImageUrl,
   ) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
         child: LayoutBuilder(
@@ -126,30 +399,44 @@ class _DashboardProfileState extends State<DashboardProfile> {
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       gradient: AppColors.mainGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 8,
-                          offset: Offset(0, 2),
+                          color: AppColors.primary.withOpacity(0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: Row(
                       children: [
                         GestureDetector(
-                          onTap: () => _pickProfileImage(userId),
+                          onTap: () {
+                            debugPrint('👆 Profile picture tapped, userId: $userId');
+                            _pickProfileImage(userId);
+                          },
                           child: Container(
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 2,
+                                color: Colors.white.withOpacity(0.5),
+                                width: 3,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.1),
+                                  color: AppColors.primary.withOpacity(0.3),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
@@ -157,35 +444,57 @@ class _DashboardProfileState extends State<DashboardProfile> {
                             ),
                             child: Stack(
                               children: [
-                                CircleAvatar(
-                                  radius: 32,
-                                  backgroundColor: Colors.white,
-                                  backgroundImage: (profileImageUrl != null &&
-                                          profileImageUrl.isNotEmpty)
-                                      ? NetworkImage(profileImageUrl)
-                                          as ImageProvider
-                                      : const AssetImage(
-                                          'assets/logo.png',
+                                ClipOval(
+                                  key: ValueKey('profile_avatar_${userId}_$profileImageUrl'),
+                                  child: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                                      ? _ProfileImageWidget(
+                                          imageUrl: profileImageUrl,
+                                          userId: userId,
+                                          width: 64,
+                                          height: 64,
+                                        )
+                                      : Container(
+                                          width: 64,
+                                          height: 64,
+                                          color: Colors.grey[300],
+                                          child: Icon(
+                                            Icons.person,
+                                            size: 32,
+                                            color: Colors.grey[400],
+                                          ),
                                         ),
                                 ),
                                 Positioned(
                                   bottom: 0,
                                   right: 0,
-                                  child: Container(
-                                    width: 24,
-                                    height: 24,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.primary,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      debugPrint('👆 Camera icon tapped');
+                                      _pickProfileImage(userId);
+                                    },
+                                    child: Container(
+                                      width: 26,
+                                      height: 26,
+                                      decoration: BoxDecoration(
+                                        gradient: AppColors.buttonGradient,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: Colors.white,
+                                          width: 2.5,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: AppColors.primary.withOpacity(0.4),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    child: const Icon(
-                                      Icons.camera_alt,
-                                      color: Colors.white,
-                                      size: 12,
+                                      child: const Icon(
+                                        Icons.camera_alt,
+                                        color: Colors.white,
+                                        size: 13,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -257,10 +566,21 @@ class _DashboardProfileState extends State<DashboardProfile> {
                           ),
                         ),
                         IconButton(
-                          icon: const Icon(
-                            Icons.settings,
-                            color: Colors.black, // Changed to black for clarity
-                            size: 28,
+                          icon: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.settings,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           ),
                           onPressed: () {
                             Navigator.push(
@@ -320,11 +640,22 @@ class SettingsScreen extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.white,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppColors.primary.withOpacity(0.1),
+                width: 1,
+              ),
               boxShadow: [
                 BoxShadow(
+                  color: AppColors.primary.withOpacity(0.12),
+                  blurRadius: 16,
+                  offset: const Offset(0, 6),
+                  spreadRadius: 0,
+                ),
+                BoxShadow(
                   color: Colors.black.withOpacity(0.05),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                  spreadRadius: 0,
                 ),
               ],
             ),
@@ -364,8 +695,17 @@ class SettingsScreen extends StatelessWidget {
                         width: 64,
                         height: 64,
                         decoration: BoxDecoration(
-                          color: Colors.pink[100],
+                          gradient: LinearGradient(
+                            colors: [
+                              AppColors.primary.withOpacity(0.15),
+                              AppColors.secondary.withOpacity(0.12),
+                            ],
+                          ),
                           shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.2),
+                            width: 1.5,
+                          ),
                         ),
                         child: profileImageUrl != null && profileImageUrl.isNotEmpty
                             ? ClipOval(
@@ -376,7 +716,7 @@ class SettingsScreen extends StatelessWidget {
                                     return Icon(
                                       Icons.person,
                                       size: 32,
-                                      color: Colors.pink[300],
+                                      color: AppColors.primary,
                                     );
                                   },
                                   loadingBuilder: (context, child, loadingProgress) {
@@ -388,7 +728,7 @@ class SettingsScreen extends StatelessWidget {
                                                 loadingProgress.expectedTotalBytes!
                                             : null,
                                         strokeWidth: 2,
-                                        color: Colors.pink[300],
+                                        color: AppColors.primary,
                                       ),
                                     );
                                   },
@@ -397,7 +737,7 @@ class SettingsScreen extends StatelessWidget {
                             : Icon(
                                 Icons.person,
                                 size: 32,
-                                color: Colors.pink[300],
+                                color: AppColors.primary,
                               ),
                       ),
                       const SizedBox(width: 16),
@@ -662,10 +1002,14 @@ class SettingsScreen extends StatelessWidget {
                   style: AppTextStyles.buttonMedium(color: AppColors.error),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: AppColors.error, width: 1.5),
+                  side: BorderSide(
+                    color: AppColors.error,
+                    width: 2,
+                  ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
             ),
@@ -679,9 +1023,26 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSectionHeader(String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
-      child: Text(
-        title,
-        style: AppTextStyles.heading3(),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 20,
+            decoration: BoxDecoration(
+              gradient: AppColors.buttonGradient,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: AppTextStyles.heading3().copyWith(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -692,11 +1053,22 @@ class SettingsScreen extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.1),
+          width: 1.5,
+        ),
         boxShadow: [
           BoxShadow(
+            color: AppColors.primary.withOpacity(0.12),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+            spreadRadius: 0,
+          ),
+          BoxShadow(
             color: Colors.black.withOpacity(0.05),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+            spreadRadius: 0,
           ),
         ],
       ),
@@ -716,11 +1088,22 @@ class SettingsScreen extends StatelessWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 42,
+        height: 42,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(10),
+          gradient: LinearGradient(
+            colors: [
+              color.withOpacity(0.15),
+              color.withOpacity(0.08),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withOpacity(0.2),
+            width: 1,
+          ),
         ),
         child: Icon(
           icon,
@@ -881,7 +1264,12 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
       barrierDismissible: false,
       builder: (dialogCtx) {
         dialogContext = dialogCtx;
-        return const Center(child: CircularProgressIndicator());
+        return Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 3,
+          ),
+        );
       },
     );
 
@@ -1271,19 +1659,38 @@ class PurchaseHistoryScreen extends StatelessWidget {
               stream: FirebaseFirestore.instance
                   .collection('orders')
                   .where('userId', isEqualTo: user.uid)
-                  .orderBy('createdAt', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 3,
+          ),
+        );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('No purchase history found'));
                 }
+                
+                // Sort by createdAt in memory (descending - newest first)
+                final docs = List<QueryDocumentSnapshot>.from(snapshot.data!.docs);
+                docs.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aCreated = aData['createdAt'] as Timestamp?;
+                  final bCreated = bData['createdAt'] as Timestamp?;
+                  
+                  if (aCreated == null && bCreated == null) return 0;
+                  if (aCreated == null) return 1;
+                  if (bCreated == null) return -1;
+                  return bCreated.compareTo(aCreated); // Descending
+                });
+                
                 return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
+                  itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final doc = snapshot.data!.docs[index];
+                    final doc = docs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -1373,7 +1780,12 @@ class OrdersFilterScreen extends StatelessWidget {
               stream: _buildOrdersQuery(user.uid).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 3,
+          ),
+        );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
@@ -1402,7 +1814,21 @@ class OrdersFilterScreen extends StatelessWidget {
                 final allDocs = snapshot.data!.docs;
                 final filteredDocs = _filterOrdersByStatus(allDocs);
                 
-                if (filteredDocs.isEmpty) {
+                // Sort by createdAt in memory (descending - newest first)
+                final sortedDocs = List<QueryDocumentSnapshot>.from(filteredDocs);
+                sortedDocs.sort((a, b) {
+                  final aData = a.data() as Map<String, dynamic>;
+                  final bData = b.data() as Map<String, dynamic>;
+                  final aCreated = aData['createdAt'] as Timestamp?;
+                  final bCreated = bData['createdAt'] as Timestamp?;
+                  
+                  if (aCreated == null && bCreated == null) return 0;
+                  if (aCreated == null) return 1;
+                  if (bCreated == null) return -1;
+                  return bCreated.compareTo(aCreated); // Descending
+                });
+                
+                if (sortedDocs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1426,9 +1852,9 @@ class OrdersFilterScreen extends StatelessWidget {
                 }
                 
                 return ListView.builder(
-                  itemCount: filteredDocs.length,
+                  itemCount: sortedDocs.length,
                   itemBuilder: (context, index) {
-                    final doc = filteredDocs[index];
+                    final doc = sortedDocs[index];
                     final data = doc.data() as Map<String, dynamic>;
                     return Card(
                       margin: const EdgeInsets.symmetric(
@@ -1570,36 +1996,17 @@ class OrdersFilterScreen extends StatelessWidget {
 extension on OrdersFilterScreen {
   Query _buildOrdersQuery(String userId) {
     final col = FirebaseFirestore.instance.collection('orders');
-    // Try customerId first (new format), fallback to userId (old format)
+    // Query by customerId only - sort in memory to avoid composite index requirements
     switch (filterKey) {
       case 'to_pay':
-        // Unpaid orders or pending orders
-        return col
-            .where('customerId', isEqualTo: userId)
-            .where('status', isEqualTo: 'Pending')
-            .orderBy('createdAt', descending: true);
+        // Unpaid orders or pending orders - filter by status in memory
+        return col.where('customerId', isEqualTo: userId);
       case 'to_install':
-        // Orders that are approved/scheduled/processing for installation
-        // Query all customer orders and filter in memory to avoid composite index
-        return col
-            .where('customerId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true);
       case 'to_receive':
-        // Shipped orders awaiting receipt
-        // Query all customer orders and filter in memory
-        return col
-            .where('customerId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true);
       case 'to_rate':
-        // Completed orders that can be rated
-        // Query all customer orders and filter in memory
-        return col
-            .where('customerId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true);
       default:
-        return col
-            .where('customerId', isEqualTo: userId)
-            .orderBy('createdAt', descending: true);
+        // Query all customer orders and filter/sort in memory
+        return col.where('customerId', isEqualTo: userId);
     }
   }
 }
@@ -1641,7 +2048,12 @@ class MyAddressesScreen extends StatelessWidget {
                   .snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return Center(
+          child: CircularProgressIndicator(
+            color: AppColors.primary,
+            strokeWidth: 3,
+          ),
+        );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
@@ -2768,6 +3180,199 @@ class ProfileDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Widget that handles profile image loading with retry and URL refresh logic
+class _ProfileImageWidget extends StatefulWidget {
+  final String imageUrl;
+  final String userId;
+  final double width;
+  final double height;
+
+  const _ProfileImageWidget({
+    required this.imageUrl,
+    required this.userId,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  State<_ProfileImageWidget> createState() => _ProfileImageWidgetState();
+}
+
+class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
+  String? _currentImageUrl;
+  String? _cacheBustToken;
+  int _retryCount = 0;
+  static const int _maxRetries = 2;
+  bool _isRetrying = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentImageUrl = widget.imageUrl;
+    _cacheBustToken = DateTime.now().millisecondsSinceEpoch.toString();
+  }
+
+  @override
+  void didUpdateWidget(_ProfileImageWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      setState(() {
+        _currentImageUrl = widget.imageUrl;
+        _cacheBustToken = DateTime.now().millisecondsSinceEpoch.toString();
+        _retryCount = 0;
+        _isRetrying = false;
+      });
+      debugPrint('🔄 Profile image URL updated: ${widget.imageUrl}');
+    }
+  }
+
+  /// Regenerate download URL from Firebase Storage
+  Future<String?> _regenerateDownloadUrl() async {
+    try {
+      // Get reference to the profile image
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('profile_images')
+          .child('${widget.userId}.jpg');
+      
+      // Get fresh download URL
+      final newUrl = await storageRef.getDownloadURL();
+      debugPrint('✅ Regenerated download URL for profile image');
+      return newUrl;
+    } catch (e) {
+      debugPrint('❌ Failed to regenerate URL: $e');
+      return null;
+    }
+  }
+
+  /// Handle image load error with retry logic
+  Future<void> _handleImageError(Object error) async {
+    if (_retryCount >= _maxRetries || _isRetrying) {
+      debugPrint('❌ Image load failed after $_retryCount retries: $error');
+      return;
+    }
+
+    _isRetrying = true;
+    _retryCount++;
+    
+    debugPrint('🔄 Retrying image load (attempt $_retryCount/$_maxRetries)...');
+    
+    // Wait a bit before retrying
+    await Future.delayed(Duration(milliseconds: 500 * _retryCount));
+    
+    // Try to regenerate the URL
+    final newUrl = await _regenerateDownloadUrl();
+    
+    if (mounted && newUrl != null && newUrl != _currentImageUrl) {
+      setState(() {
+        _currentImageUrl = newUrl;
+      });
+      
+      // Update Firestore with new URL
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(widget.userId)
+            .update({
+          'profilePic': newUrl,
+          'profileImageUrl': newUrl,
+        });
+      } catch (e) {
+        debugPrint('⚠️ Failed to update Firestore with new URL: $e');
+      }
+    }
+    
+    _isRetrying = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_currentImageUrl == null || _currentImageUrl!.isEmpty) {
+      return Container(
+        width: widget.width,
+        height: widget.height,
+        color: Colors.grey[300],
+        child: Icon(
+          Icons.person,
+          size: widget.width * 0.5,
+          color: Colors.grey[400],
+        ),
+      );
+    }
+
+    // Add cache busting parameter to force reload when URL changes
+    final imageUrlWithCacheBust = _currentImageUrl!.contains('?')
+        ? '$_currentImageUrl&_t=$_cacheBustToken'
+        : '$_currentImageUrl?_t=$_cacheBustToken';
+    
+    return Image.network(
+      imageUrlWithCacheBust,
+      width: widget.width,
+      height: widget.height,
+      fit: BoxFit.cover,
+      key: ValueKey('profile_image_${_currentImageUrl}_${widget.userId}_$_cacheBustToken'),
+      cacheWidth: widget.width.toInt(),
+      cacheHeight: widget.height.toInt(),
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+        if (wasSynchronouslyLoaded || frame != null) {
+          return child;
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.grey[300],
+          child: Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        // Handle error and retry
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _handleImageError(error);
+        });
+        
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.grey[300],
+          child: Icon(
+            Icons.person,
+            size: widget.width * 0.5,
+            color: Colors.grey[400],
+          ),
+        );
+      },
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) {
+          return child;
+        }
+        return Container(
+          width: widget.width,
+          height: widget.height,
+          color: Colors.grey[300],
+          child: Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                      loadingProgress.expectedTotalBytes!
+                  : null,
+              strokeWidth: 2,
+              color: AppColors.primary,
+            ),
+          ),
+        );
+      },
     );
   }
 }

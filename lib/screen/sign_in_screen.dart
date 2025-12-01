@@ -52,24 +52,35 @@ class _SignInScreenState extends State<SignInScreen> {
           _buildBubbleOverlay(),
           // Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.only(
-                left: 24,
-                right: 24,
-                top: 40,
-                bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 20),
-                  // Title and Subtitle
-                  _buildTitleSection(),
-                  const SizedBox(height: 40),
-                  // Form Container with White Border
-                  _buildFormContainer(),
-                ],
-              ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 40,
+                    bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
+                  ),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight:
+                          constraints.maxHeight -
+                          (keyboardHeight > 0 ? keyboardHeight + 60 : 80),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 20),
+                        // Title and Subtitle
+                        _buildTitleSection(),
+                        const SizedBox(height: 40),
+                        // Form Container with White Border
+                        _buildFormContainer(),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -82,14 +93,20 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Widget _buildTitleSection() {
-    return const Text(
-      'Sign in',
-      style: TextStyle(
-        fontSize: 42,
-        fontWeight: FontWeight.bold,
-        color: Colors.white, // White text for better contrast on red background
-        letterSpacing: 0.5,
-        height: 1.2,
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: const Text(
+        '"Sign in to your account"',
+        style: TextStyle(
+          fontSize: 30,
+          fontWeight: FontWeight.bold,
+          color:
+              Colors.white, // White text for better contrast on red background
+          letterSpacing: 0.5,
+          height: 1.2,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }
@@ -99,9 +116,9 @@ class _SignInScreenState extends State<SignInScreen> {
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.transparent,
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.9), width: 2),
+        border: Border.all(color: Colors.black, width: 2),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -149,11 +166,11 @@ class _SignInScreenState extends State<SignInScreen> {
                 'Forgot Password?',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: Colors.white, // White text for better contrast
+                  color: Colors.black, // Black text
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
                   decoration: TextDecoration.underline,
-                  decorationColor: Colors.white,
+                  decorationColor: Colors.black,
                 ),
               ),
             ),
@@ -184,7 +201,7 @@ class _SignInScreenState extends State<SignInScreen> {
           style: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
+            color: Colors.black87,
             letterSpacing: 0.2,
           ),
         ),
@@ -213,24 +230,15 @@ class _SignInScreenState extends State<SignInScreen> {
               suffixIcon: suffixIcon,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.transparent,
-                  width: 1,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.transparent,
-                  width: 1,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Colors.pinkAccent,
-                  width: 1.5,
-                ),
+                borderSide: const BorderSide(color: Colors.black, width: 2),
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 16,
@@ -304,7 +312,7 @@ class _SignInScreenState extends State<SignInScreen> {
         text: const TextSpan(
           style: TextStyle(
             fontSize: 15,
-            color: Colors.white, // White text for better contrast
+            color: Colors.black87, // Dark text for better contrast on white
             fontWeight: FontWeight.w500,
           ),
           children: [
@@ -312,10 +320,10 @@ class _SignInScreenState extends State<SignInScreen> {
             TextSpan(
               text: 'Sign Up',
               style: TextStyle(
-                color: Colors.white, // White text for better contrast
+                color: Color(0xFFCD5656), // Red color for link
                 fontWeight: FontWeight.bold,
                 decoration: TextDecoration.underline,
-                decorationColor: Colors.white,
+                decorationColor: Color(0xFFCD5656),
               ),
             ),
           ],
@@ -536,7 +544,7 @@ class BubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
-    
+
     // Theme bubble colors
     final bubbleColors = [
       const Color(0xFFCD5656).withOpacity(0.3),
@@ -549,7 +557,7 @@ class BubblePainter extends CustomPainter {
       final x = size.width * (0.1 + random.nextDouble() * 0.8);
       final y = size.height * (0.1 + random.nextDouble() * 0.8);
       final radius = 50 + random.nextDouble() * 100;
-      
+
       final paint = Paint()
         ..color = bubbleColors[i % bubbleColors.length]
         ..style = PaintingStyle.fill;

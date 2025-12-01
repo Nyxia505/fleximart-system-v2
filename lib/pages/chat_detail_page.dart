@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'dart:typed_data';
 
 class ChatDetailPage extends StatefulWidget {
@@ -452,13 +452,38 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         messageDoc.data() as Map<String, dynamic>;
                     final senderId = messageData['senderId'] as String?;
                     final text = messageData['text'] as String? ?? '';
-                    final imageUrl = messageData['imageUrl'] as String?;
+                    // Check multiple possible field names for image URL
+                    String? imageUrl = 
+                        (messageData['imageUrl'] as String?) ??
+                        (messageData['image_url'] as String?) ??
+                        (messageData['photoUrl'] as String?) ??
+                        (messageData['photo_url'] as String?);
+                    
+                    // Clean up the URL - remove any whitespace
+                    if (imageUrl != null) {
+                      imageUrl = imageUrl.trim();
+                      if (imageUrl.isEmpty) {
+                        imageUrl = null;
+                      }
+                    }
+                    
+                    // Also check if text contains a URL (for backward compatibility)
+                    final textUrl = text.isNotEmpty && 
+                        (text.startsWith('http://') || text.startsWith('https://'))
+                        ? text.trim()
+                        : null;
+                    final finalImageUrl = imageUrl ?? textUrl;
+                    
+                    // Debug: Print image URL if available
+                    if (kDebugMode && finalImageUrl != null) {
+                      debugPrint('📸 Chat image URL: $finalImageUrl');
+                    }
                     final timestamp = messageData['createdAt'] as Timestamp?;
                     final isMe = senderId == currentUserId;
 
                     return _buildMessageBubble(
-                      text,
-                      imageUrl,
+                      finalImageUrl != null && finalImageUrl == text ? '' : text,
+                      finalImageUrl,
                       timestamp,
                       isMe,
                       index < messages.length - 1
@@ -551,6 +576,14 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     bool isMe,
     String? nextSenderId,
   ) {
+    // Check if text is actually a URL (for backward compatibility)
+    final isTextUrl = text.isNotEmpty && 
+        (text.startsWith('http://') || text.startsWith('https://'));
+    final displayText = (isTextUrl && imageUrl != null && imageUrl.isNotEmpty) 
+        ? '' 
+        : text;
+    final hasImage = imageUrl != null && imageUrl.isNotEmpty;
+    
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
@@ -567,10 +600,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   : CrossAxisAlignment.start,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.75,
                   ),
+                  padding: hasImage && displayText.isEmpty
+                      ? const EdgeInsets.all(4)
+                      : const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
                   decoration: BoxDecoration(
                     color: isMe
                         ? AppColors.secondary
@@ -584,24 +622,111 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (imageUrl != null && imageUrl.isNotEmpty)
+                      // Image bubble - clickable photo
+                      if (hasImage)
                         GestureDetector(
                           onTap: () => _showFullImage(imageUrl),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.network(
-                              imageUrl,
-                              width: 220,
-                              fit: BoxFit.cover,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              maxWidth: 250,
+                              maxHeight: 300,
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Stack(
+                                children: [
+                                  Image.network(
+                                    imageUrl,
+                                    width: 250,
+                                    fit: BoxFit.cover,
+                                    headers: const {
+                                      'Cache-Control': 'max-age=31536000',
+                                    },
+                                    cacheWidth: 500, // Cache optimized size
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        width: 250,
+                                        height: 200,
+                                        color: Colors.grey[200],
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                            color: isMe ? Colors.white70 : AppColors.secondary,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      if (kDebugMode) {
+                                        debugPrint('❌ Image load error: $error');
+                                        debugPrint('📸 Image URL: $imageUrl');
+                                      }
+                                      return Container(
+                                        width: 250,
+                                        height: 200,
+                                        color: Colors.grey[200],
+                                        child: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.broken_image,
+                                              size: 48,
+                                              color: Colors.grey[400],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              'Failed to load image',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Tap to retry',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors.grey[500],
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  // Photo indicator overlay
+                                  Positioned(
+                                    top: 8,
+                                    right: 8,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withOpacity(0.5),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Icon(
+                                        Icons.photo,
+                                        color: Colors.white,
+                                        size: 16,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      if (text.isNotEmpty) ...[
-                        if (imageUrl != null && imageUrl.isNotEmpty)
-                          const SizedBox(height: 8),
+                      // Text message
+                      if (displayText.isNotEmpty) ...[
+                        if (hasImage) const SizedBox(height: 8),
                         Text(
-                          text,
+                          displayText,
                           style: TextStyle(
                             color: isMe ? Colors.white : AppColors.textPrimary,
                             fontSize: 15,
@@ -617,7 +742,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     child: Text(
                       _formatTime(timestamp),
                       style: TextStyle(
-                        fontSize: 12, // Increased for clarity
+                        fontSize: 12,
                         color: AppColors.textSecondary,
                       ),
                     ),
@@ -635,22 +760,90 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   void _showFullImage(String imageUrl) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.9),
+      barrierColor: Colors.black.withOpacity(0.95),
       builder: (context) {
-        return GestureDetector(
-          onTap: () => Navigator.of(context).pop(),
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: EdgeInsets.zero,
           child: Stack(
             children: [
               Center(
                 child: InteractiveViewer(
-                  child: Image.network(imageUrl, fit: BoxFit.contain),
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Container(
+                        padding: const EdgeInsets.all(48),
+                        color: Colors.black87,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: Colors.white,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        padding: const EdgeInsets.all(48),
+                        color: Colors.black87,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.broken_image,
+                              size: 64,
+                              color: Colors.white70,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Failed to load image',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              imageUrl,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                              textAlign: TextAlign.center,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ),
               Positioned(
                 top: 32,
                 right: 16,
                 child: IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white),
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      color: Colors.white,
+                      size: 24,
+                    ),
+                  ),
                   onPressed: () => Navigator.of(context).pop(),
                 ),
               ),

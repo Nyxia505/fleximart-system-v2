@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 /// Order Model
 /// 
 /// Maps Firestore document data to an Order object
-/// Matches the structure used in cart_screen.dart and proceed_buy_screen.dart
+/// Matches the structure used in proceed_buy_screen.dart
 class OrderModel {
   final String id;
   final String customerId;

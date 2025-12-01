@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Phone Verification Service
 ///
@@ -10,6 +11,9 @@ class PhoneVerificationService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   String? _verificationId;
+  bool _isSendingOtp = false; // Flag to prevent duplicate simultaneous requests
+  static const int _cooldownSeconds = 60; // 60-second cooldown between requests
+  static const String _lastOtpSentKey = 'phone_otp_last_sent_timestamp';
 
   /// Send OTP to phone number
   ///
@@ -24,7 +28,29 @@ class PhoneVerificationService {
     Function(String verificationId)? onCodeSent,
     Function(String error)? onError,
   }) async {
+    // Prevent duplicate simultaneous requests
+    if (_isSendingOtp) {
+      onError?.call('Please wait for the current request to complete.');
+      return false;
+    }
+
     try {
+      // Check cooldown period
+      final prefs = await SharedPreferences.getInstance();
+      final lastSentTimestamp = prefs.getInt(_lastOtpSentKey);
+      
+      if (lastSentTimestamp != null) {
+        final now = DateTime.now().millisecondsSinceEpoch;
+        final elapsedSeconds = (now - lastSentTimestamp) ~/ 1000;
+        final remainingSeconds = _cooldownSeconds - elapsedSeconds;
+        
+        if (remainingSeconds > 0) {
+          final errorMsg = 'Please wait $remainingSeconds seconds before requesting a new OTP.';
+          onError?.call(errorMsg);
+          return false;
+        }
+      }
+
       // Format phone number (ensure it starts with +)
       String formattedPhone = phoneNumber.trim();
       if (!formattedPhone.startsWith('+')) {
@@ -45,6 +71,9 @@ class PhoneVerificationService {
         return false;
       }
 
+      // Set flag to prevent duplicate requests
+      _isSendingOtp = true;
+
       await _auth.verifyPhoneNumber(
         phoneNumber: formattedPhone,
         // For Android: Firebase will try SMS Retriever API first (automatic verification)
@@ -59,6 +88,7 @@ class PhoneVerificationService {
           String errorMessage = 'Failed to send OTP';
           final errorMsg = e.message ?? '';
           final errorCode = e.code;
+          bool isRecaptchaError = false;
 
           // Check for blocked/rate limit errors first
           if (errorMsg.contains('blocked') ||
@@ -113,12 +143,24 @@ class PhoneVerificationService {
             } else {
               // For Android: Play Integrity failed, Firebase will use reCAPTCHA
               // The browser will open for reCAPTCHA - this is normal
-              // User needs to complete reCAPTCHA and return to app
-              errorMessage =
-                  'Security verification required.\n\n'
-                  'A browser window will open for security verification.\n'
-                  'Please complete the verification and return to the app.\n\n'
-                  'If no browser opens, please try again.';
+              // Don't show this as an error - Firebase handles it automatically
+              // Only show error if it's actually a failure
+              if (errorMsg.contains('failed') || 
+                  errorMsg.contains('error') ||
+                  errorMsg.contains('denied') ||
+                  errorMsg.contains('invalid')) {
+                errorMessage =
+                    'Security verification failed. Please try again.';
+              } else {
+                // This is just informational - Firebase handles reCAPTCHA automatically
+                // Don't call onError - let the process continue normally
+                // The codeSent callback will be called when OTP is sent
+                // Don't reset flag - keep it true so dialog stays open
+                isRecaptchaError = true;
+                // Call onError with reCAPTCHA message so dialog can show waiting state
+                onError?.call('reCAPTCHA');
+                return; // Exit without resetting flag
+              }
             }
           } else {
             errorMessage = errorMsg.isNotEmpty
@@ -126,10 +168,23 @@ class PhoneVerificationService {
                 : 'Failed to send OTP. Please try again.';
           }
 
+          // Reset flag only for real errors, not reCAPTCHA
+          if (!isRecaptchaError) {
+            _isSendingOtp = false;
+          }
+          
           onError?.call(errorMessage);
         },
-        codeSent: (String verificationId, int? resendToken) {
+        codeSent: (String verificationId, int? resendToken) async {
           _verificationId = verificationId;
+          
+          // Save timestamp when OTP is sent successfully
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt(_lastOtpSentKey, DateTime.now().millisecondsSinceEpoch);
+          
+          // Reset flag
+          _isSendingOtp = false;
+          
           // resendToken can be used for resending OTP in the future
           onCodeSent?.call(verificationId);
         },
@@ -141,6 +196,8 @@ class PhoneVerificationService {
 
       return true;
     } catch (e) {
+      // Reset flag on error
+      _isSendingOtp = false;
       String errorMsg = 'An error occurred while sending OTP.';
       if (e is FirebaseAuthException) {
         final errorMessage = e.message ?? '';
@@ -318,6 +375,7 @@ class PhoneVerificationService {
   /// Save verified phone number to Firestore
   ///
   /// This should be called after signInWithPhoneCredential() succeeds
+  /// Uses set() with merge: true to ensure it works even if document doesn't exist
   Future<void> saveVerifiedPhone({
     required String uid,
     required String phoneNumber,
@@ -333,12 +391,23 @@ class PhoneVerificationService {
     }
 
     try {
-      // Save to Firestore with phoneNumber field name (as specified by user)
-      await _firestore.collection('users').doc(uid).update({
+      // Use set() with merge: true to ensure it works even if document doesn't exist
+      // This prevents errors and ensures the verification status is saved
+      await _firestore.collection('users').doc(uid).set({
         'phoneNumber': formattedPhone,
         'phoneVerified': true,
         'phoneVerifiedAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
+      
+      // Verify the save was successful by reading it back
+      final doc = await _firestore.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        final savedVerified = data?['phoneVerified'] as bool? ?? false;
+        if (!savedVerified) {
+          throw Exception('Failed to save phone verification status. Please try again.');
+        }
+      }
     } catch (e) {
       // If it's a Firestore error, re-throw with better message
       if (e.toString().contains('PERMISSION_DENIED') ||

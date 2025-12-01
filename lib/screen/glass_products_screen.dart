@@ -564,6 +564,6 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
     );
-    Navigator.pushNamed(context, '/cart');
+    // Service booking functionality
   }
 }

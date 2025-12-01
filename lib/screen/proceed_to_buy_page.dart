@@ -184,13 +184,39 @@ class _ProceedToBuyPageState extends State<ProceedToBuyPage> {
       );
 
       if (shouldVerify == true && mounted) {
-        // Navigate to phone verification
-        Navigator.push(
+        // Navigate to phone verification and wait for result
+        final verificationResult = await Navigator.push<bool>(
           context,
           MaterialPageRoute(
             builder: (context) => const PhoneVerificationInputPage(),
           ),
         );
+        
+        // If verification was successful, retry the order placement
+        if (verificationResult == true && mounted) {
+          // Re-check verification status
+          final isNowVerified = await PhoneVerificationService.isPhoneVerified(user.uid);
+          if (isNowVerified) {
+            // Verification successful, proceed with order
+            // Call the order placement method again
+            _placeOrder();
+            return;
+          } else {
+            // Still not verified, show error
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Text('Phone verification incomplete. Please try again.'),
+                  backgroundColor: AppColors.error,
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            }
+          }
+        }
       }
       return;
     }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/phone_verification_service.dart';
 import '../constants/app_colors.dart';
 import 'phone_verification_otp_page.dart';
@@ -22,6 +23,7 @@ class _PhoneVerificationInputPageState
   final _phoneVerificationService = PhoneVerificationService();
   bool _loading = false;
   String? _errorMessage;
+  bool _isBlocked = false; // Track if user is blocked
 
   @override
   void dispose() {
@@ -56,14 +58,29 @@ class _PhoneVerificationInputPageState
         throw Exception('Please enter a valid phone number');
       }
 
+      // Check if phone is already verified before sending OTP
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final isAlreadyVerified = await PhoneVerificationService.isPhoneVerified(user.uid);
+        if (isAlreadyVerified) {
+          if (!mounted) return;
+          setState(() {
+            _loading = false;
+          });
+          // Phone already verified, return success
+          Navigator.pop(context, true);
+          return;
+        }
+      }
+
       // Send OTP
       final success = await _phoneVerificationService.sendOtp(
         phoneNumber: phoneNumber,
-        onCodeSent: (verificationId) {
+        onCodeSent: (verificationId) async {
           if (!mounted) return;
           
-          // Navigate to OTP verification page
-          Navigator.push(
+          // Navigate to OTP verification page and wait for result
+          final result = await Navigator.push<bool>(
             context,
             MaterialPageRoute(
               builder: (context) => PhoneVerificationOtpPage(
@@ -72,12 +89,36 @@ class _PhoneVerificationInputPageState
               ),
             ),
           );
+          
+          // Pass the result back to the caller
+          if (mounted && result == true) {
+            Navigator.pop(context, true);
+          }
         },
         onError: (error) {
           if (!mounted) return;
           setState(() {
-            _errorMessage = error;
             _loading = false;
+            _isBlocked = false;
+            
+            // Check for blocked/rate limit errors
+            if (error.contains('blocked') ||
+                error.contains('unusual activity') ||
+                error.contains('Try again later') ||
+                error.contains('too-many-requests')) {
+              _isBlocked = true;
+              _errorMessage = error;
+            } else if (error.contains('reCAPTCHA') ||
+                error.contains('Security verification') ||
+                error.isEmpty) {
+              // reCAPTCHA is handled automatically by Firebase
+              // Don't show this as an error
+              _errorMessage = null;
+            } else if (error.isNotEmpty) {
+              _errorMessage = error;
+            } else {
+              _errorMessage = null;
+            }
           });
         },
       );
@@ -154,6 +195,7 @@ class _PhoneVerificationInputPageState
                     hintText: '09123456789',
                     prefixIcon: const Icon(Icons.phone),
                     prefixText: '+63 ',
+                    isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -190,13 +232,25 @@ class _PhoneVerificationInputPageState
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: _isBlocked 
+                          ? Colors.red.shade50 
+                          : Colors.red.shade50,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(
+                        color: _isBlocked 
+                            ? Colors.red.shade200 
+                            : Colors.red.shade200,
+                        width: 1,
+                      ),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                        Icon(
+                          _isBlocked ? Icons.block : Icons.error_outline,
+                          color: Colors.red.shade700,
+                          size: 20,
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
@@ -204,6 +258,7 @@ class _PhoneVerificationInputPageState
                             style: TextStyle(
                               color: Colors.red.shade700,
                               fontSize: 14,
+                              height: 1.4,
                             ),
                           ),
                         ),
@@ -216,7 +271,7 @@ class _PhoneVerificationInputPageState
                 SizedBox(
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _loading ? null : _sendOtp,
+                    onPressed: (_loading || _isBlocked) ? null : _sendOtp,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,

@@ -301,6 +301,63 @@ class NotificationService {
         .map((snapshot) => snapshot.docs.length);
   }
 
+  /// Delete a notification
+  /// 
+  /// Parameters:
+  /// - [notificationId]: The notification document ID to delete
+  Future<void> deleteNotification(String notificationId) async {
+    try {
+      await _firestore
+          .collection('notifications')
+          .doc(notificationId)
+          .delete();
+      
+      if (kDebugMode) {
+        print('✅ Notification deleted: $notificationId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error deleting notification: $e');
+      }
+      rethrow;
+    }
+  }
+
+  /// Delete all notifications for a user
+  /// 
+  /// Parameters:
+  /// - [userId]: The user ID whose notifications should be deleted
+  Future<void> deleteAllNotifications(String userId) async {
+    try {
+      final notifications = await _firestore
+          .collection('notifications')
+          .where('userId', isEqualTo: userId)
+          .get();
+
+      if (notifications.docs.isEmpty) {
+        if (kDebugMode) {
+          print('⚠️ No notifications to delete for user: $userId');
+        }
+        return;
+      }
+
+      final batch = _firestore.batch();
+      for (var doc in notifications.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (kDebugMode) {
+        print('✅ Deleted ${notifications.docs.length} notifications for user: $userId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error deleting all notifications: $e');
+      }
+      rethrow;
+    }
+  }
+
   /// Create order notification
   /// 
   /// Parameters:

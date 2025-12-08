@@ -637,49 +637,42 @@ class QuotationsPage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: AppColors.dashboardBackground,
-      body: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.white,
-              border: Border(
-                bottom: BorderSide(color: AppColors.border),
+      appBar: AppBar(
+        title: const Text('Quotations'),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(gradient: AppColors.mainGradient),
+        ),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('quotations')
+                    .where('customerId', isEqualTo: user.uid)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData) {
+                    final count = snapshot.data!.docs.length;
+                    return Text(
+                      '$count ${count == 1 ? 'quotation' : 'quotations'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
               ),
             ),
-            child: Row(
-              children: [
-                const Text(
-                  'Quotations',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const Spacer(),
-                StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('quotations')
-                      .where('customerId', isEqualTo: user.uid)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    if (snapshot.hasData) {
-                      final count = snapshot.data!.docs.length;
-                      return Text(
-                        '$count ${count == 1 ? 'quotation' : 'quotations'}',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-              ],
-            ),
           ),
+        ],
+      ),
+      body: Column(
+        children: [
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance

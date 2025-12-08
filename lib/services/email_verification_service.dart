@@ -1,7 +1,9 @@
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'email_service.dart';
+import 'otp_push_notification_service.dart';
 
 class EmailVerificationService {
   EmailVerificationService._();
@@ -52,11 +54,26 @@ class EmailVerificationService {
     await prefs.setInt(_expKey(email), expiryMs);
     await prefs.setInt(_lastSentKey(email), nowMs);
 
+    // Send OTP via email
     await EmailService.sendOtpEmail(
       toEmail: email,
       otpCode: otp,
       toName: displayName,
     );
+
+    // Also send OTP via push notification (falls back silently if FCM token unavailable)
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      await OtpPushNotificationService.sendOtpPushNotification(
+        email: email,
+        otpCode: otp,
+        displayName: displayName,
+        userId: currentUser?.uid,
+      );
+    } catch (e) {
+      // Silently fail - email is already sent as primary method
+      // Push notification is just a convenience feature
+    }
 
     return otp; // Useful for QA; avoid exposing in production UIs/logs.
   }

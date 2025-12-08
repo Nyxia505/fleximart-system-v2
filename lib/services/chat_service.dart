@@ -63,6 +63,9 @@ class ChatService {
   /// - [receiverId]: The UID of the message receiver
   /// - [text]: The message text content
   /// - [chatId]: The chat room ID (can be generated using makeChatId())
+  /// - [replyToMessageId]: Optional ID of the message being replied to
+  /// - [replyToText]: Optional text of the message being replied to
+  /// - [replyToSenderId]: Optional sender ID of the message being replied to
   ///
   /// Throws:
   /// - Exception if text is empty or null
@@ -70,8 +73,11 @@ class ChatService {
     String senderId,
     String receiverId,
     String text,
-    String chatId,
-  ) async {
+    String chatId, {
+    String? replyToMessageId,
+    String? replyToText,
+    String? replyToSenderId,
+  }) async {
     // Validate input
     if (text.trim().isEmpty) {
       throw Exception('Message text cannot be empty');
@@ -93,13 +99,27 @@ class ChatService {
       }, SetOptions(merge: true));
     }
 
-    // Add message to messages subcollection
-    await chatRef.collection('messages').add({
+    // Build message data
+    final messageData = <String, dynamic>{
       'senderId': senderId,
       'receiverId': receiverId,
       'text': text.trim(),
       'createdAt': FieldValue.serverTimestamp(),
-    });
+    };
+
+    // Add reply fields if replying to a message
+    if (replyToMessageId != null && replyToMessageId.isNotEmpty) {
+      messageData['replyToMessageId'] = replyToMessageId;
+      if (replyToText != null) {
+        messageData['replyToText'] = replyToText;
+      }
+      if (replyToSenderId != null) {
+        messageData['replyToSenderId'] = replyToSenderId;
+      }
+    }
+
+    // Add message to messages subcollection
+    await chatRef.collection('messages').add(messageData);
 
     // Update chat document with last message and unread count
     final chatData = chatDoc.data() ?? {};
@@ -378,6 +398,69 @@ class ChatService {
           }
           return total;
         });
+  }
+
+  /// Delete a message from a chat
+  ///
+  /// Parameters:
+  /// - [chatId]: The chat room ID
+  /// - [messageId]: The ID of the message to delete
+  /// - [senderId]: The UID of the user trying to delete (must be the sender)
+  ///
+  /// Throws:
+  /// - Exception if user is not the sender or message doesn't exist
+  Future<void> deleteMessage(
+    String chatId,
+    String messageId,
+    String senderId,
+  ) async {
+    final messageRef = _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .doc(messageId);
+
+    final messageDoc = await messageRef.get();
+    if (!messageDoc.exists) {
+      throw Exception('Message not found');
+    }
+
+    final messageData = messageDoc.data() ?? {};
+    final messageSenderId = messageData['senderId'] as String?;
+
+    // Only allow deletion if the user is the sender
+    if (messageSenderId != senderId) {
+      throw Exception('You can only delete your own messages');
+    }
+
+    // Delete the message
+    await messageRef.delete();
+
+    // Update chat's last message if this was the last message
+    final chatRef = _firestore.collection('chats').doc(chatId);
+    final messagesSnapshot = await chatRef
+        .collection('messages')
+        .orderBy('createdAt', descending: true)
+        .limit(1)
+        .get();
+
+    if (messagesSnapshot.docs.isNotEmpty) {
+      final lastMessage = messagesSnapshot.docs.first.data();
+      final lastMessageText = lastMessage['text'] as String? ?? '';
+      final lastMessageType = lastMessage['type'] as String?;
+      
+      await chatRef.update({
+        'lastMessage': lastMessageType == 'image' ? '[Photo]' : lastMessageText,
+        'lastMessageTime': lastMessage['createdAt'],
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } else {
+      // No messages left, update to empty
+      await chatRef.update({
+        'lastMessage': '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   /// Generate a consistent chatId from two UIDs

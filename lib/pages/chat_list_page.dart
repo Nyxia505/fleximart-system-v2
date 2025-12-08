@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
+import '../widgets/profile_picture_placeholder.dart';
 import 'chat_detail_page.dart';
 import 'start_chat_page.dart';
 
@@ -363,25 +364,13 @@ class ChatListPage extends StatelessWidget {
         child: Row(
           children: [
             // Avatar with profile picture
-            CircleAvatar(
-              radius: 28,
-              backgroundColor: AppColors.secondary,
-              backgroundImage: profilePicUrl != null && profilePicUrl.isNotEmpty
-                  ? NetworkImage(profilePicUrl)
-                  : null,
-              child: profilePicUrl == null || profilePicUrl.isEmpty
-                  ? Text(
-                      otherUserName.isNotEmpty
-                          ? otherUserName[0].toUpperCase()
-                          : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
+            profilePicUrl != null && profilePicUrl.isNotEmpty
+                ? CircleAvatar(
+                    radius: 28,
+                    backgroundColor: AppColors.secondary,
+                    backgroundImage: NetworkImage(profilePicUrl),
+                  )
+                : const CompactProfilePicturePlaceholder(size: 56),
             const SizedBox(width: 16),
             // Name and message
             Expanded(

@@ -90,7 +90,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFFCD5656) // Solid primary color for active
+                ? const Color(0xFF8B2E2E) // Solid primary color for active
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -103,7 +103,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFFCD5656) // Solid primary color circle
+                      ? const Color(0xFF8B2E2E) // Solid primary color circle
                       : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
@@ -181,7 +181,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 child: Container(
                   padding: const EdgeInsets.all(4),
                   decoration: const BoxDecoration(
-                    color: Color(0xFFCD5656), // Primary color badge
+                    color: Color(0xFF8B2E2E), // Primary color badge
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(

@@ -8,6 +8,7 @@ import '../utils/price_formatter.dart';
 import '../dialogs/delivery_schedule_dialog.dart';
 import '../utils/role_helper.dart';
 import '../services/order_service.dart';
+import '../widgets/map_coming_soon_placeholder.dart';
 
 class OrderDetailPage extends StatefulWidget {
   final String orderId;
@@ -228,6 +229,33 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             _buildInfoRow('Address', completeAddress),
                           if (landmark != null && landmark.isNotEmpty)
                             _buildInfoRow('Landmark', landmark),
+                          // View Map button (if coordinates exist)
+                          if (data['latitude'] != null && data['longitude'] != null) ...[
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const MapComingSoonPlaceholder(
+                                        title: 'Order Location',
+                                        message: 'Map view for order delivery location is coming soon!',
+                                      ),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.map),
+                                label: const Text('View on Map'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primary,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

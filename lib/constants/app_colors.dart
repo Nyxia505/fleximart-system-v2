@@ -5,30 +5,30 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._(); // Private constructor to prevent instantiation
 
-  // 🎨 Primary Color System - New Theme
-  /// Primary: #CD5656 (Main brand color - for primary actions, status success)
-  static const Color primary = Color(0xFFCD5656);
+  // 🎨 Primary Color System - Dark Maroon/Red Theme
+  /// Primary: #8B2E2E (Dark maroon - Main brand color)
+  static const Color primary = Color(0xFF8B2E2E);
 
-  /// Secondary: #AF3E3E (for secondary elements)
-  static const Color secondary = Color(0xFFAF3E3E);
+  /// Secondary: #6B1F1F (Darker maroon for secondary elements)
+  static const Color secondary = Color(0xFF6B1F1F);
 
-  /// Accent: Darker shade of secondary for depth
-  static const Color accent = Color(0xFF8B2E2E);
+  /// Accent: Darkest shade for depth
+  static const Color accent = Color(0xFF4A1515);
   
   // 🎨 Theme Color Variants
-  /// Primary Red: #CD5656
-  static const Color redCrimson = Color(0xFFCD5656);
+  /// Primary Red: #8B2E2E (Dark maroon)
+  static const Color redCrimson = Color(0xFF8B2E2E);
   
-  /// Secondary Red: #AF3E3E
-  static const Color berryRed = Color(0xFFAF3E3E);
+  /// Secondary Red: #6B1F1F (Darker maroon)
+  static const Color berryRed = Color(0xFF6B1F1F);
   
-  /// Darker Red: #8B2E2E
-  static const Color darkWine = Color(0xFF8B2E2E);
+  /// Darker Red: #4A1515 (Darkest maroon)
+  static const Color darkWine = Color(0xFF4A1515);
   
-  /// Bubble Colors (Red Tones)
-  static const Color bubble1 = Color(0xFFCD5656);
-  static const Color bubble2 = Color(0xFFAF3E3E);
-  static const Color bubble3 = Color(0xFF8B2E2E);
+  /// Bubble Colors (Dark Maroon Tones)
+  static const Color bubble1 = Color(0xFF8B2E2E);
+  static const Color bubble2 = Color(0xFF6B1F1F);
+  static const Color bubble3 = Color(0xFF4A1515);
 
   // 🎨 Status Colors
   /// Pending: Yellow #FFCE43
@@ -77,35 +77,35 @@ class AppColors {
   static const Color error = Color(0xFFEF4444);
 
   /// Success: Primary color for success messages
-  static const Color success = Color(0xFFCD5656);
+  static const Color success = Color(0xFF8B2E2E);
 
   /// Warning: Orange for warnings (using toInstall)
   static const Color warning = Color(0xFFFF8A39);
 
   /// Customer Primary: Primary color
-  static const Color customerPrimary = Color(0xFFCD5656);
+  static const Color customerPrimary = Color(0xFF8B2E2E);
 
   /// Customer Secondary: Secondary color
-  static const Color customerSecondary = Color(0xFFAF3E3E);
+  static const Color customerSecondary = Color(0xFF6B1F1F);
 
   /// Cart Background: Light Red Tint
   static const Color cartBackground = Color(0xFFFFF0F0);
 
   /// Checkout Background: Primary color
-  static const Color checkoutBackground = Color(0xFFCD5656);
+  static const Color checkoutBackground = Color(0xFF8B2E2E);
 
-  // 🛒 Feature-Based Gradients (New Theme)
+  // 🛒 Feature-Based Gradients (Dark Maroon Theme)
   /// Main Gradient: Primary → Secondary → Darker
   static const LinearGradient mainGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
   
-  /// Button Gradient: Primary → Secondary
+  /// Button Gradient: Primary → Secondary (darker towards bottom)
   static const LinearGradient buttonGradient = LinearGradient(
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF4A1515)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
@@ -114,7 +114,7 @@ class AppColors {
   static const LinearGradient welcomeGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
 
@@ -122,7 +122,7 @@ class AppColors {
   static const LinearGradient homeGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
 
@@ -130,7 +130,7 @@ class AppColors {
   static const LinearGradient profileGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
 
@@ -138,7 +138,7 @@ class AppColors {
   static const LinearGradient shopGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
 
@@ -146,19 +146,19 @@ class AppColors {
   static const LinearGradient promoGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [Color(0xFFCD5656), Color(0xFFAF3E3E), Color(0xFF8B2E2E)],
+    colors: [Color(0xFF8B2E2E), Color(0xFF6B1F1F), Color(0xFF4A1515)],
     stops: [0.0, 0.5, 1.0],
   );
 
   // Price colors
   static const Color priceOriginal = Color(0xFF9E9E9E);
-  static const Color priceSale = Color(0xFFCD5656);
-  static const Color priceHighlight = Color(0xFFCD5656);
+  static const Color priceSale = Color(0xFF8B2E2E);
+  static const Color priceHighlight = Color(0xFF8B2E2E);
 
   // Login/Signup colors
   /// Login/Signup background - Clean white
   static const Color loginBackground = Color(0xFFFFFFFF);
 
   /// Login/Signup primary color highlight
-  static const Color loginBlue = Color(0xFFCD5656);
+  static const Color loginBlue = Color(0xFF8B2E2E);
 }

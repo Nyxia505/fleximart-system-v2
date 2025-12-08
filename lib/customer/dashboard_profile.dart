@@ -165,6 +165,19 @@ class _DashboardProfileState extends State<DashboardProfile> {
         if (user == null) {
           throw Exception('User not logged in');
         }
+        
+        // Refresh the user's authentication token to ensure it's valid
+        try {
+          await user.reload();
+          final refreshedUser = FirebaseAuth.instance.currentUser;
+          if (refreshedUser == null) {
+            throw Exception('User authentication expired. Please log in again.');
+          }
+          debugPrint('✅ User authentication verified: ${refreshedUser.uid}');
+        } catch (authError) {
+          debugPrint('⚠️ Auth refresh warning: $authError (continuing anyway)');
+          // Continue anyway, as the user might still be valid
+        }
 
         // Pick image
         debugPrint('📷 Picking image from ${source == ImageSource.gallery ? "gallery" : "camera"}...');
@@ -293,11 +306,37 @@ class _DashboardProfileState extends State<DashboardProfile> {
           Navigator.pop(loadingDialogContext!);
         }
         if (!mounted) return;
+        
+        // Provide user-friendly error messages
+        String errorMessage = 'Failed to upload profile picture';
+        final errorString = e.toString().toLowerCase();
+        
+        if (errorString.contains('unauthorized') || errorString.contains('permission denied')) {
+          errorMessage = 'Permission denied. Please make sure you are logged in and try again.';
+          debugPrint('🔐 Authorization error detected - user may not be authenticated properly');
+        } else if (errorString.contains('network') || errorString.contains('connection')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else if (errorString.contains('timeout')) {
+          errorMessage = 'Upload timeout. Please check your connection and try again.';
+        } else if (errorString.contains('storage') || errorString.contains('firebase')) {
+          errorMessage = 'Storage error. Please check Firebase Storage rules and try again.';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
+            content: Text(errorMessage),
+            backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            margin: const EdgeInsets.all(16),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _pickProfileImage(userId),
+            ),
           ),
         );
       }
@@ -1470,24 +1509,12 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             Center(
               child: Stack(
                 children: [
-                  CircleAvatar(
+                  // Profile Picture - Use Container with conditional CircleAvatar
+                  _profileImageUrl != null && _profileImageUrl!.isNotEmpty
+                      ? CircleAvatar(
                     radius: 50,
                     backgroundColor: Colors.grey[300],
-                    backgroundImage: _profileImageUrl != null &&
-                            _profileImageUrl!.isNotEmpty
-                        ? NetworkImage(_profileImageUrl!)
-                        : null,
-                    child: _uploadingImage
-                        ? const CircularProgressIndicator(
-                            color: AppColors.primary,
-                          )
-                        : _profileImageUrl == null || _profileImageUrl!.isEmpty
-                            ? const Icon(
-                                Icons.person,
-                                size: 50,
-                                color: Colors.grey,
-                              )
-                            : null,
+                          backgroundImage: NetworkImage(_profileImageUrl!),
                     onBackgroundImageError: (exception, stackTrace) {
                       // Handle image load error
                       if (mounted) {
@@ -1496,6 +1523,24 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                         });
                       }
                     },
+                          child: _uploadingImage
+                              ? const CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                )
+                              : null,
+                        )
+                      : CircleAvatar(
+                          radius: 50,
+                          backgroundColor: Colors.grey[300],
+                          child: _uploadingImage
+                              ? const CircularProgressIndicator(
+                                  color: AppColors.primary,
+                                )
+                              : const Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: Colors.grey,
+                                ),
                   ),
                   Positioned(
                     bottom: 0,

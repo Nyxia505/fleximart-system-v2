@@ -417,6 +417,54 @@ exports.sendQuotationPriceUpdateNotification = functions.firestore
   });
 
 /**
+ * OTP Push Notification:
+ * Callable function to send OTP code via push notification.
+ * Can be called from Flutter app with FCM token and OTP code.
+ */
+exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
+  const { fcmToken, otpCode, email, displayName } = data;
+
+  // Validate input
+  if (!fcmToken || !otpCode) {
+    throw new functions.https.HttpsError(
+      'invalid-argument',
+      'fcmToken and otpCode are required'
+    );
+  }
+
+  try {
+    const title = 'FlexiMart Verification Code';
+    const body = `Your verification code is: ${otpCode}`;
+
+    const payload = {
+      notification: {
+        title,
+        body,
+      },
+      data: {
+        type: 'otp_verification',
+        email: email || '',
+        otp: otpCode,
+      },
+    };
+
+    await admin.messaging().sendToDevice(fcmToken, payload);
+    console.log(`✅ OTP push notification sent to token ${fcmToken.substring(0, 10)}...`);
+    
+    return {
+      success: true,
+      message: 'OTP push notification sent successfully',
+    };
+  } catch (error) {
+    console.error('❌ Error sending OTP push notification:', error);
+    throw new functions.https.HttpsError(
+      'internal',
+      'Failed to send OTP push notification'
+    );
+  }
+});
+
+/**
  * Admin-only function to assign roles.
  * Callable from Flutter using FirebaseFunctions.instance.httpsCallable()
  */

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../services/phone_verification_service.dart';
 import '../screen/phone_verification_otp_page.dart';
+import '../widgets/map_coming_soon_placeholder.dart';
 
 /// Delivery Address Dialog
 ///
@@ -24,6 +25,8 @@ class _DeliveryAddressDialogState extends State<DeliveryAddressDialog> {
   final _landmarkController = TextEditingController();
   bool _isLoading = false;
   bool _isLoadingProfile = true;
+  double? _selectedLatitude;
+  double? _selectedLongitude;
 
   @override
   void initState() {
@@ -128,6 +131,8 @@ class _DeliveryAddressDialogState extends State<DeliveryAddressDialog> {
               'phoneNumber': phoneNumber,
               'completeAddress': _completeAddressController.text.trim(),
               'landmark': _landmarkController.text.trim(),
+              'latitude': _selectedLatitude,
+              'longitude': _selectedLongitude,
             });
           }
           return;
@@ -218,12 +223,29 @@ class _DeliveryAddressDialogState extends State<DeliveryAddressDialog> {
                         TextFormField(
                           controller: _completeAddressController,
                           maxLines: 3,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Complete Address *',
                             hintText:
-                                'Enter your complete address (street, building, area)',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(Icons.location_on),
+                                'Enter your complete address or pick on map',
+                            border: const OutlineInputBorder(),
+                            prefixIcon: const Icon(Icons.location_on),
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.map, color: AppColors.primary),
+                              tooltip: 'Pick location on map',
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const MapComingSoonPlaceholder(
+                                      title: 'Location Picker',
+                                      message: 'Interactive map location picker is coming soon! Please enter your address manually for now.',
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                            helperText: 'Tap the map icon to select location',
+                            helperMaxLines: 1,
                           ),
                           validator: _validateCompleteAddress,
                         ),

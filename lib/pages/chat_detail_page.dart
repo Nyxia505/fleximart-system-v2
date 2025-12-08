@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
+import '../widgets/profile_picture_placeholder.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'dart:typed_data';
@@ -30,6 +31,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
   final currentUserId = FirebaseAuth.instance.currentUser?.uid;
   final ImagePicker _picker = ImagePicker();
   String? _otherUserProfilePic;
+
+  // Reply context
+  String? _replyingToMessageId;
+  String? _replyingToText;
+  String? _replyingToSenderId;
+  String? _replyingToSenderName;
 
   @override
   void initState() {
@@ -95,8 +102,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         widget.otherUserId,
         text,
         widget.chatId,
+        replyToMessageId: _replyingToMessageId,
+        replyToText: _replyingToText,
+        replyToSenderId: _replyingToSenderId,
       );
       _messageController.clear();
+      _clearReplyContext();
 
       // Scroll to bottom after sending
       if (_scrollController.hasClients) {
@@ -111,6 +122,86 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error sending message: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  void _clearReplyContext() {
+    setState(() {
+      _replyingToMessageId = null;
+      _replyingToText = null;
+      _replyingToSenderId = null;
+      _replyingToSenderName = null;
+    });
+  }
+
+  void _setReplyContext(
+    String messageId,
+    String text,
+    String senderId,
+    String senderName,
+  ) {
+    setState(() {
+      _replyingToMessageId = messageId;
+      _replyingToText = text;
+      _replyingToSenderId = senderId;
+      _replyingToSenderName = senderName;
+    });
+    // Focus on text field
+    FocusScope.of(context).requestFocus(FocusNode());
+    Future.delayed(const Duration(milliseconds: 100), () {
+      FocusScope.of(context).requestFocus(FocusNode());
+    });
+  }
+
+  Future<void> _deleteMessage(String messageId) async {
+    if (currentUserId == null) return;
+
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _chatService.deleteMessage(
+        widget.chatId,
+        messageId,
+        currentUserId!,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            backgroundColor: AppColors.success,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting message: $e'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -314,28 +405,21 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
       appBar: AppBar(
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white,
-              backgroundImage:
-                  _otherUserProfilePic != null &&
-                      _otherUserProfilePic!.isNotEmpty
-                  ? NetworkImage(_otherUserProfilePic!)
-                  : null,
-              child:
-                  _otherUserProfilePic == null || _otherUserProfilePic!.isEmpty
-                  ? Text(
-                      widget.otherUserName.isNotEmpty
-                          ? widget.otherUserName[0].toUpperCase()
-                          : '?',
-                      style: TextStyle(
-                        color: AppColors.secondary,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    )
-                  : null,
-            ),
+            _otherUserProfilePic != null && _otherUserProfilePic!.isNotEmpty
+                ? CircleAvatar(
+                    radius: 18,
+                    backgroundColor: Colors.white,
+                    backgroundImage: NetworkImage(_otherUserProfilePic!),
+                    onBackgroundImageError: (exception, stackTrace) {
+                      // Handle image load error by clearing the profile pic
+                      if (mounted) {
+                        setState(() {
+                          _otherUserProfilePic = null;
+                        });
+                      }
+                    },
+                  )
+                : const CompactProfilePicturePlaceholder(size: 36),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -453,12 +537,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     final senderId = messageData['senderId'] as String?;
                     final text = messageData['text'] as String? ?? '';
                     // Check multiple possible field names for image URL
-                    String? imageUrl = 
+                    String? imageUrl =
                         (messageData['imageUrl'] as String?) ??
                         (messageData['image_url'] as String?) ??
                         (messageData['photoUrl'] as String?) ??
                         (messageData['photo_url'] as String?);
-                    
+
                     // Clean up the URL - remove any whitespace
                     if (imageUrl != null) {
                       imageUrl = imageUrl.trim();
@@ -466,23 +550,35 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         imageUrl = null;
                       }
                     }
-                    
+
                     // Also check if text contains a URL (for backward compatibility)
-                    final textUrl = text.isNotEmpty && 
-                        (text.startsWith('http://') || text.startsWith('https://'))
+                    final textUrl =
+                        text.isNotEmpty &&
+                            (text.startsWith('http://') ||
+                                text.startsWith('https://'))
                         ? text.trim()
                         : null;
                     final finalImageUrl = imageUrl ?? textUrl;
-                    
+
                     // Debug: Print image URL if available
                     if (kDebugMode && finalImageUrl != null) {
                       debugPrint('📸 Chat image URL: $finalImageUrl');
                     }
                     final timestamp = messageData['createdAt'] as Timestamp?;
                     final isMe = senderId == currentUserId;
+                    final messageId = messageDoc.id;
+
+                    // Get reply context
+                    final replyToMessageId =
+                        messageData['replyToMessageId'] as String?;
+                    final replyToText = messageData['replyToText'] as String?;
+                    final replyToSenderId =
+                        messageData['replyToSenderId'] as String?;
 
                     return _buildMessageBubble(
-                      finalImageUrl != null && finalImageUrl == text ? '' : text,
+                      finalImageUrl != null && finalImageUrl == text
+                          ? ''
+                          : text,
                       finalImageUrl,
                       timestamp,
                       isMe,
@@ -490,12 +586,70 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           ? (messages[index + 1].data()
                                 as Map<String, dynamic>)['senderId']
                           : null,
+                      messageId: messageId,
+                      replyToMessageId: replyToMessageId,
+                      replyToText: replyToText,
+                      replyToSenderId: replyToSenderId,
                     );
                   },
                 );
               },
             ),
           ),
+          // Reply Preview (if replying)
+          if (_replyingToMessageId != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.secondary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _replyingToSenderId == currentUserId
+                              ? 'You'
+                              : (_replyingToSenderName ?? 'User'),
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.secondary,
+                            fontSize: 14,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          _replyingToText ?? '',
+                          style: TextStyle(
+                            color: Colors.grey[700],
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: _clearReplyContext,
+                    color: Colors.grey[600],
+                  ),
+                ],
+              ),
+            ),
           // Message Input
           Container(
             decoration: BoxDecoration(
@@ -525,7 +679,9 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                       child: TextField(
                         controller: _messageController,
                         decoration: InputDecoration(
-                          hintText: 'Type a message...',
+                          hintText: _replyingToMessageId != null
+                              ? 'Type a reply...'
+                              : 'Type a message...',
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(24),
                             borderSide: BorderSide(color: AppColors.border),
@@ -574,184 +730,351 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
     String? imageUrl,
     Timestamp? timestamp,
     bool isMe,
-    String? nextSenderId,
-  ) {
+    String? nextSenderId, {
+    String? messageId,
+    String? replyToMessageId,
+    String? replyToText,
+    String? replyToSenderId,
+  }) {
     // Check if text is actually a URL (for backward compatibility)
-    final isTextUrl = text.isNotEmpty && 
+    final isTextUrl =
+        text.isNotEmpty &&
         (text.startsWith('http://') || text.startsWith('https://'));
-    final displayText = (isTextUrl && imageUrl != null && imageUrl.isNotEmpty) 
-        ? '' 
+    final displayText = (isTextUrl && imageUrl != null && imageUrl.isNotEmpty)
+        ? ''
         : text;
     final hasImage = imageUrl != null && imageUrl.isNotEmpty;
-    
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        mainAxisAlignment: isMe
-            ? MainAxisAlignment.end
-            : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          if (!isMe) const SizedBox(width: 8),
-          Flexible(
-            child: Column(
-              crossAxisAlignment: isMe
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+      padding: const EdgeInsets.only(bottom: 8),
+      child: GestureDetector(
+        onLongPress: messageId != null
+            ? () => _showMessageOptions(messageId, text, isMe)
+            : null,
+        child: Column(
+          crossAxisAlignment: isMe
+              ? CrossAxisAlignment.end
+              : CrossAxisAlignment.start,
+          children: [
+            // Show sender name for received messages (not your own)
+            if (!isMe) ...[
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: 4),
+                child: Text(
+                  widget.otherUserName,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+            Row(
+              mainAxisAlignment: isMe
+                  ? MainAxisAlignment.end
+                  : MainAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.75,
-                  ),
-                  padding: hasImage && displayText.isEmpty
-                      ? const EdgeInsets.all(4)
-                      : const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? AppColors.secondary
-                        : AppColors.dashboardBackground,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: Radius.circular(isMe ? 20 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 20),
-                    ),
-                  ),
+                if (!isMe) const SizedBox(width: 8),
+                Flexible(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: isMe
+                        ? CrossAxisAlignment.end
+                        : CrossAxisAlignment.start,
                     children: [
-                      // Image bubble - clickable photo
-                      if (hasImage)
-                        GestureDetector(
-                          onTap: () => _showFullImage(imageUrl),
-                          child: Container(
-                            constraints: const BoxConstraints(
-                              maxWidth: 250,
-                              maxHeight: 300,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Stack(
-                                children: [
-                                  Image.network(
-                                    imageUrl,
-                                    width: 250,
-                                    fit: BoxFit.cover,
-                                    headers: const {
-                                      'Cache-Control': 'max-age=31536000',
-                                    },
-                                    cacheWidth: 500, // Cache optimized size
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        width: 250,
-                                        height: 200,
-                                        color: Colors.grey[200],
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                                ? loadingProgress.cumulativeBytesLoaded /
-                                                    loadingProgress.expectedTotalBytes!
-                                                : null,
-                                            color: isMe ? Colors.white70 : AppColors.secondary,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    errorBuilder: (context, error, stackTrace) {
-                                      if (kDebugMode) {
-                                        debugPrint('❌ Image load error: $error');
-                                        debugPrint('📸 Image URL: $imageUrl');
-                                      }
-                                      return Container(
-                                        width: 250,
-                                        height: 200,
-                                        color: Colors.grey[200],
-                                        child: Column(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Icon(
-                                              Icons.broken_image,
-                                              size: 48,
-                                              color: Colors.grey[400],
-                                            ),
-                                            const SizedBox(height: 8),
-                                            Text(
-                                              'Failed to load image',
-                                              style: TextStyle(
-                                                fontSize: 12,
-                                                color: Colors.grey[600],
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              'Tap to retry',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                color: Colors.grey[500],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  // Photo indicator overlay
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.black.withOpacity(0.5),
-                                        borderRadius: BorderRadius.circular(20),
-                                      ),
-                                      child: const Icon(
-                                        Icons.photo,
-                                        color: Colors.white,
-                                        size: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                      Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75,
+                    ),
+                    padding: hasImage && displayText.isEmpty
+                        ? const EdgeInsets.all(4)
+                        : const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 10,
+                          ),
+                    decoration: BoxDecoration(
+                      color: isMe
+                          ? AppColors.secondary
+                          : AppColors.dashboardBackground,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(20),
+                        topRight: const Radius.circular(20),
+                        bottomLeft: Radius.circular(isMe ? 20 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 20),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Reply context (if this message is a reply)
+                        if (replyToMessageId != null &&
+                            replyToText != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: (isMe ? Colors.white : Colors.grey[300])
+                                  ?.withOpacity(0.3),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border(
+                                left: BorderSide(
+                                  color: isMe
+                                      ? Colors.white70
+                                      : AppColors.secondary,
+                                  width: 3,
+                                ),
                               ),
                             ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  replyToSenderId == currentUserId
+                                      ? 'You'
+                                      : widget.otherUserName,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isMe
+                                        ? Colors.white70
+                                        : AppColors.secondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  replyToText.length > 50
+                                      ? '${replyToText.substring(0, 50)}...'
+                                      : replyToText,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isMe
+                                        ? Colors.white70
+                                        : Colors.grey[700],
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      // Text message
-                      if (displayText.isNotEmpty) ...[
-                        if (hasImage) const SizedBox(height: 8),
-                        Text(
-                          displayText,
-                          style: TextStyle(
-                            color: isMe ? Colors.white : AppColors.textPrimary,
-                            fontSize: 15,
+                        ],
+                        // Image bubble - clickable photo (responsive)
+                        if (hasImage)
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Calculate responsive image size
+                              // Use 70% of message bubble max width, but cap between min and max
+                              final screenWidth = MediaQuery.of(context).size.width;
+                              final messageMaxWidth = screenWidth * 0.75;
+                              final imageMaxWidth = messageMaxWidth * 0.95; // 95% of bubble width
+                              
+                              // Responsive sizing: smaller on mobile, larger on web/tablet
+                              final responsiveWidth = kIsWeb 
+                                  ? imageMaxWidth.clamp(200.0, 400.0) // Web: 200-400px
+                                  : imageMaxWidth.clamp(200.0, 350.0); // Mobile: 200-350px
+                              
+                              final responsiveHeight = responsiveWidth * 1.2; // Maintain aspect ratio
+                              
+                              return GestureDetector(
+                                onTap: () => _showFullImage(imageUrl),
+                                child: Container(
+                                  constraints: BoxConstraints(
+                                    maxWidth: responsiveWidth,
+                                    maxHeight: responsiveHeight,
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Stack(
+                                      children: [
+                                        Image.network(
+                                          imageUrl,
+                                          width: responsiveWidth,
+                                          fit: BoxFit.contain, // Changed from cover to contain for better display
+                                          headers: const {
+                                            'Cache-Control': 'max-age=31536000',
+                                          },
+                                          cacheWidth: (responsiveWidth * 2).round().clamp(200, 800),
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null)
+                                              return child;
+                                            return Container(
+                                              width: responsiveWidth,
+                                              height: responsiveHeight * 0.7,
+                                              color: Colors.grey[200],
+                                              child: Center(
+                                                child: CircularProgressIndicator(
+                                                  value:
+                                                      loadingProgress
+                                                              .expectedTotalBytes !=
+                                                          null
+                                                      ? loadingProgress
+                                                                .cumulativeBytesLoaded /
+                                                            loadingProgress
+                                                                .expectedTotalBytes!
+                                                      : null,
+                                                  color: isMe
+                                                      ? Colors.white70
+                                                      : AppColors.secondary,
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          errorBuilder:
+                                              (context, error, stackTrace) {
+                                                if (kDebugMode) {
+                                                  debugPrint(
+                                                    '❌ Image load error: $error',
+                                                  );
+                                                  debugPrint(
+                                                    '📸 Image URL: $imageUrl',
+                                                  );
+                                                }
+                                                return Container(
+                                                  width: responsiveWidth,
+                                                  height: responsiveHeight * 0.7,
+                                                  color: Colors.grey[200],
+                                                  child: Column(
+                                                    mainAxisAlignment:
+                                                        MainAxisAlignment.center,
+                                                    children: [
+                                                      Icon(
+                                                        Icons.broken_image,
+                                                        size: 48,
+                                                        color: Colors.grey[400],
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      Text(
+                                                        'Failed to load image',
+                                                        style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.grey[600],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 4),
+                                                      Text(
+                                                        'Tap to retry',
+                                                        style: TextStyle(
+                                                          fontSize: 10,
+                                                          color: Colors.grey[500],
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                );
+                                              },
+                                        ),
+                                        // Photo indicator overlay
+                                        Positioned(
+                                          top: 8,
+                                          right: 8,
+                                          child: Container(
+                                            padding: const EdgeInsets.all(6),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.5),
+                                              borderRadius: BorderRadius.circular(
+                                                20,
+                                              ),
+                                            ),
+                                            child: const Icon(
+                                              Icons.photo,
+                                              color: Colors.white,
+                                              size: 16,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
+                        // Text message
+                        if (displayText.isNotEmpty) ...[
+                          if (hasImage) const SizedBox(height: 8),
+                          Text(
+                            displayText,
+                            style: TextStyle(
+                              color: isMe
+                                  ? Colors.white
+                                  : AppColors.textPrimary,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ],
                       ],
+                    ),
+                  ),
                     ],
                   ),
                 ),
-                if (timestamp != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, right: 8, left: 8),
-                    child: Text(
-                      _formatTime(timestamp),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ),
+                if (isMe) const SizedBox(width: 8),
               ],
             ),
-          ),
-          if (isMe) const SizedBox(width: 8),
-        ],
+            // Show timestamp below message
+            if (timestamp != null)
+              Padding(
+                padding: EdgeInsets.only(
+                  top: 2,
+                  left: isMe ? 0 : 12,
+                  right: isMe ? 12 : 0,
+                ),
+                child: Text(
+                  _formatTime(timestamp),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: AppColors.textSecondary.withOpacity(0.7),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMessageOptions(
+    String messageId,
+    String messageText,
+    bool isMyMessage,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply, color: AppColors.secondary),
+              title: const Text('Reply'),
+              onTap: () {
+                Navigator.pop(context);
+                // Get sender name for reply - if it's my message, use "You", otherwise use other user's name
+                final senderName = isMyMessage ? 'You' : widget.otherUserName;
+                final senderId = isMyMessage
+                    ? currentUserId
+                    : widget.otherUserId;
+                _setReplyContext(
+                  messageId,
+                  messageText,
+                  senderId ?? '',
+                  senderName,
+                );
+              },
+            ),
+            if (isMyMessage && currentUserId != null)
+              ListTile(
+                leading: const Icon(Icons.delete, color: AppColors.error),
+                title: const Text('Delete'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteMessage(messageId);
+                },
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -783,7 +1106,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                           child: CircularProgressIndicator(
                             value: loadingProgress.expectedTotalBytes != null
                                 ? loadingProgress.cumulativeBytesLoaded /
-                                    loadingProgress.expectedTotalBytes!
+                                      loadingProgress.expectedTotalBytes!
                                 : null,
                             color: Colors.white,
                           ),

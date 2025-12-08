@@ -83,7 +83,7 @@ void main() async {
 
   // Initialize local notifications and FCM listeners
   await NotificationService.instance.init();
-  await NotificationService.instance.configureFirebaseMessaging();
+  await NotificationService.instance.configureFirebaseMessaging(null);
 
   // FCM token refresh listener
   initFcmTokenRefresh();

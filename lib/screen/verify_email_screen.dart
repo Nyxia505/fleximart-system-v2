@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import '../constants/app_colors.dart';
 import '../services/email_verification_service.dart';
+import '../services/otp_popup_service.dart';
 
 class VerifyEmailScreen extends StatefulWidget {
   final String uid;
@@ -56,6 +58,54 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       _focusNodes[0].requestFocus();
       // Check authentication status
       _checkAuthStatus();
+      // Setup OTP popup listener
+      _setupOtpPopup();
+    });
+  }
+
+  void _setupOtpPopup() {
+    // Set callback to auto-fill OTP when received
+    OtpPopupService.instance.onOtpReceived = (otpCode) {
+      _fillOtpCode(otpCode);
+    };
+
+    // Listen for OTP notifications
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      final data = message.data;
+      if (data['type'] == 'otp_verification' && mounted) {
+        final otpCode = data['otp'] as String?;
+        final email = data['email'] as String? ?? '';
+        if (otpCode != null && otpCode.isNotEmpty) {
+          OtpPopupService.instance.showOtpPopup(context, otpCode, email);
+        }
+      }
+    });
+
+    // Listen for when app is opened from notification
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final data = message.data;
+      if (data['type'] == 'otp_verification' && mounted) {
+        final otpCode = data['otp'] as String?;
+        final email = data['email'] as String? ?? '';
+        if (otpCode != null && otpCode.isNotEmpty) {
+          OtpPopupService.instance.showOtpPopup(context, otpCode, email);
+        }
+      }
+    });
+  }
+
+  void _fillOtpCode(String code) {
+    if (code.length != 6) return;
+    
+    for (int i = 0; i < 6 && i < _controllers.length; i++) {
+      _controllers[i].text = code[i];
+    }
+    
+    // Move focus to last field and trigger verification
+    _focusNodes[5].requestFocus();
+    // Auto-verify after a short delay
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _verify();
     });
   }
   
@@ -87,6 +137,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
 
   @override
   void dispose() {
+    // Clear OTP callback
+    OtpPopupService.instance.onOtpReceived = null;
     for (var controller in _controllers) {
       controller.dispose();
     }
@@ -385,7 +437,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('A new verification code has been sent to your email.'),
+          content: Text('A new verification code has been sent to your email and push notification.'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -458,7 +510,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     const SizedBox(height: 8),
                     // Email text - Smaller grey
                     Text(
-                      'Sent to ${widget.email}',
+                      'Sent to ${widget.email}\nAlso check your push notifications',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 14,

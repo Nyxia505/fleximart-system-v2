@@ -4,11 +4,11 @@ import 'dart:math' as math;
 class WelcomeBackScreen extends StatelessWidget {
   const WelcomeBackScreen({super.key});
 
-  // New theme colors (for background)
-  static const Color deepRed = Color(0xFFCD5656);
-  static const Color crimson = Color(0xFFAF3E3E);
-  static const Color magenta = Color(0xFFAF3E3E);
-  static const Color darkPurple = Color(0xFF8B2E2E);
+  // Dark maroon theme colors (for background)
+  static const Color deepRed = Color(0xFF8B2E2E);
+  static const Color crimson = Color(0xFF6B1F1F);
+  static const Color magenta = Color(0xFF6B1F1F);
+  static const Color darkPurple = Color(0xFF4A1515);
 
   @override
   Widget build(BuildContext context) {
@@ -30,27 +30,32 @@ class WelcomeBackScreen extends StatelessWidget {
           CustomPaint(painter: BubblePainter(), size: Size.infinite),
           // Main Content
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 60),
-                  // Welcome to text at the top
-                  _buildWelcomeTo(),
-                  const SizedBox(height: 24),
-                  // FlexiMart Logo
-                  _buildLogo(),
-                  const SizedBox(height: 24),
-                  // FlexiMart Branding
-                  _buildBranding(),
-                  const SizedBox(height: 60),
-                  // Buttons (directly on gradient, no white card)
-                  _buildButtons(context),
-                  const SizedBox(height: 40),
-                  // Social Media Section
-                  _buildSocialMediaSection(context),
-                ],
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 450),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const SizedBox(height: 60),
+                      // Welcome to text at the top
+                      _buildWelcomeTo(),
+                      const SizedBox(height: 24),
+                      // FlexiMart Logo
+                      _buildLogo(),
+                      const SizedBox(height: 24),
+                      // FlexiMart Branding
+                      _buildBranding(),
+                      const SizedBox(height: 60),
+                      // Buttons (directly on gradient, no white card)
+                      _buildButtons(context),
+                      const SizedBox(height: 40),
+                      // Social Media Section
+                      _buildSocialMediaSection(context),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
@@ -190,8 +195,8 @@ class WelcomeBackScreen extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            const Color.fromARGB(255, 85, 13, 13),
-            const Color.fromARGB(255, 0, 0, 0),
+            const Color(0xFF8B2E2E),
+            const Color(0xFF4A1515),
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -430,11 +435,11 @@ class BubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
     
-    // Red bubble colors
+    // Dark maroon bubble colors
     final bubbleColors = [
-      const Color(0xFFCD5656).withOpacity(0.3),
-      const Color(0xFFAF3E3E).withOpacity(0.25),
-      const Color(0xFF8B2E2E).withOpacity(0.2),
+      const Color(0xFF8B2E2E).withOpacity(0.3),
+      const Color(0xFF6B1F1F).withOpacity(0.25),
+      const Color(0xFF4A1515).withOpacity(0.2),
     ];
 
     // Draw multiple glossy bubbles with soft blue tones

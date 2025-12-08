@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
+import '../widgets/map_coming_soon_placeholder.dart';
 
 /// Modern Track Order page with delivery timeline
 class TrackOrderTimeline extends StatelessWidget {
@@ -53,6 +57,13 @@ class TrackOrderTimeline extends StatelessWidget {
           final statusText = _statusHeadline(status);
           final updates = _parseUpdates(orderData['updates']);
 
+          // Check if order has delivery location
+          final hasLocation = orderData['latitude'] != null && orderData['longitude'] != null;
+          final latitude = orderData['latitude'] as num?;
+          final longitude = orderData['longitude'] as num?;
+          final deliveryAddress = orderData['completeAddress'] as String? ??
+              (orderData['deliveryInfo'] as Map<String, dynamic>?)?['address'] as String?;
+
           return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Column(
@@ -65,6 +76,19 @@ class TrackOrderTimeline extends StatelessWidget {
                 Text(statusText.subtitle, style: AppTextStyles.bodyMedium(color: AppColors.textSecondary)),
                 const SizedBox(height: 20),
                 _StatusTracker(currentStep: currentStep),
+                // Map view for delivery location (like Shopee)
+                if (hasLocation && latitude != null && longitude != null) ...[
+                  const SizedBox(height: 24),
+                  Text('Delivery Location', style: AppTextStyles.heading3()),
+                  const SizedBox(height: 12),
+                  _DeliveryMapCard(
+                    latitude: latitude.toDouble(),
+                    longitude: longitude.toDouble(),
+                    address: deliveryAddress,
+                    orderId: orderId,
+                    status: status,
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Text('Latest updates', style: AppTextStyles.heading3()),
                 const SizedBox(height: 12),
@@ -422,5 +446,273 @@ class _TimelineUpdate {
     required this.description,
     required this.timestamp,
   });
+}
+
+/// Delivery Map Card - Shows order location on map (like Shopee)
+class _DeliveryMapCard extends StatefulWidget {
+  final double latitude;
+  final double longitude;
+  final String? address;
+  final String orderId;
+  final String status;
+
+  const _DeliveryMapCard({
+    required this.latitude,
+    required this.longitude,
+    required this.address,
+    required this.orderId,
+    required this.status,
+  });
+
+  @override
+  State<_DeliveryMapCard> createState() => _DeliveryMapCardState();
+}
+
+class _DeliveryMapCardState extends State<_DeliveryMapCard> {
+  final MapController _mapController = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Center map on delivery location
+    Future.delayed(const Duration(milliseconds: 300), () {
+      _mapController.move(
+        LatLng(widget.latitude, widget.longitude),
+        15.0,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _mapController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _openFullMap() async {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MapComingSoonPlaceholder(
+          title: 'Order Location',
+          message: 'Map view for order delivery location is coming soon!',
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openDirections() async {
+    final url = Uri.parse(
+      'https://www.google.com/maps/dir/?api=1&destination=${widget.latitude},${widget.longitude}',
+    );
+    
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open directions'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Color _getStatusColor() {
+    switch (widget.status.toLowerCase()) {
+      case 'processing':
+      case 'shipped':
+      case 'out_for_delivery':
+        return Colors.orange;
+      case 'delivered':
+      case 'completed':
+        return Colors.green;
+      default:
+        return AppColors.primary;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = LatLng(widget.latitude, widget.longitude);
+    final statusColor = _getStatusColor();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Map preview
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: Container(
+              height: 200,
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _mapController,
+                    options: MapOptions(
+                      initialCenter: location,
+                      initialZoom: 15.0,
+                      minZoom: 12.0,
+                      maxZoom: 18.0,
+                    ),
+                    children: [
+                      TileLayer(
+                        urlTemplate: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+                        subdomains: const ['a', 'b', 'c', 'd'],
+                        userAgentPackageName: 'com.example.fleximart',
+                        maxZoom: 20,
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: location,
+                            width: 50,
+                            height: 50,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: statusColor.withOpacity(0.3),
+                                    blurRadius: 8,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.location_on,
+                                color: statusColor,
+                                size: 40,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  // Tap to open full map overlay
+                  Positioned.fill(
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _openFullMap,
+                        child: Container(
+                          alignment: Alignment.center,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.fullscreen,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Tap to view full map',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Address and actions
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.address != null) ...[
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.location_on,
+                        color: statusColor,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          widget.address!,
+                          style: AppTextStyles.bodyMedium().copyWith(
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _openFullMap,
+                        icon: const Icon(Icons.map, size: 18),
+                        label: const Text('View Map'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _openDirections,
+                        icon: const Icon(Icons.directions, size: 18),
+                        label: const Text('Directions'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: statusColor,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 

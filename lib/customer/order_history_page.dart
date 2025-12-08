@@ -7,6 +7,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../pages/order_detail_page.dart';
 import '../utils/price_formatter.dart';
+import '../widgets/rating_image_widget.dart';
 
 class OrderHistoryPage extends StatelessWidget {
   const OrderHistoryPage({super.key});
@@ -616,8 +617,15 @@ class OrderHistoryPage extends StatelessWidget {
                                 const SizedBox(height: 8),
                                 ClipRRect(
                                   borderRadius: BorderRadius.circular(8),
-                                  child: _RatingImageWidget(
+                                  child: RatingImageWidget(
                                     imageUrl: ratingImageUrl.trim(),
+                                    width: double.infinity,
+                                    height: 200,
+                                    fit: BoxFit.cover,
+                                    borderRadius: BorderRadius.circular(8),
+                                    backgroundColor: Colors.grey[200],
+                                    primaryColor: AppColors.primary,
+                                    orderId: orderId,
                                   ),
                                 ),
                               ],

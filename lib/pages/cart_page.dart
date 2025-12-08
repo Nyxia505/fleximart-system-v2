@@ -122,6 +122,8 @@ class _CartPageState extends State<CartPage> {
             completeAddress: deliveryAddress['completeAddress'] as String,
             landmark: deliveryAddress['landmark'] as String?,
             mapLink: deliveryAddress['mapLink'] as String?,
+            latitude: deliveryAddress['latitude'] as double?,
+            longitude: deliveryAddress['longitude'] as double?,
             selectedWidth: selectedWidth,
             selectedHeight: selectedHeight,
             productLength: length,

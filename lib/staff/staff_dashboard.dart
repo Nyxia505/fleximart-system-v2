@@ -14,27 +14,29 @@ import '../utils/price_formatter.dart';
 import '../services/notification_service.dart';
 import '../utils/role_helper.dart';
 import '../widgets/rating_image_widget.dart';
+import '../widgets/map_coming_soon_placeholder.dart';
+import '../widgets/customer_profile_avatar.dart';
 
 // Official theme colors - Staff Theme (Bright Red)
 // Staff uses brighter, more vibrant red palette to differentiate from admin's deeper wine red
 class StaffThemeColors {
   StaffThemeColors._();
-  // Bright vibrant red palette (different from admin's wine red)
-  static const Color primaryRed = Color(0xFFE63946);      // Bright coral red
-  static const Color deepRed = Color(0xFFC1121F);         // Deep bright red
-  static const Color darkRed = Color(0xFF9D0208);         // Dark vibrant red
+  // Dark maroon palette (matching admin theme)
+  static const Color primaryRed = Color(0xFF8B2E2E);      // Dark maroon
+  static const Color deepRed = Color(0xFF6B1F1F);         // Darker maroon
+  static const Color darkRed = Color(0xFF4A1515);         // Darkest maroon
 
   // Navigation colors
-  static const Color navActive = Color(0xFFE63946);
-  static const Color navActiveBg = Color(0x42C1121F); // Bright red with opacity
+  static const Color navActive = Color(0xFF8B2E2E);
+  static const Color navActiveBg = Color(0x426B1F1F); // Dark maroon with opacity
   
   // Legacy names for compatibility
-  static const Color crimsonRed = Color(0xFFE63946);
-  static const Color deepBerryRed = Color(0xFFC1121F);
-  static const Color darkWinePurple = Color(0xFF9D0208);
+  static const Color crimsonRed = Color(0xFF8B2E2E);
+  static const Color deepBerryRed = Color(0xFF6B1F1F);
+  static const Color darkWinePurple = Color(0xFF4A1515);
   
   // Alias for primary
-  static const Color primaryBlue = Color(0xFFE63946); // Keep for compatibility
+  static const Color primaryBlue = Color(0xFF8B2E2E); // Keep for compatibility
 }
 
 class StaffDashboard extends StatefulWidget {
@@ -106,7 +108,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
     {'icon': Icons.shopping_bag_outlined, 'label': 'Orders'},
     {'icon': Icons.description_outlined, 'label': 'Quotations'},
     {'icon': Icons.chat_bubble_outline, 'label': 'Messages'},
-    {'icon': Icons.people_outline, 'label': 'Customers'},
     {'icon': Icons.feedback_outlined, 'label': 'Feedback'},
     {'icon': Icons.settings_outlined, 'label': 'Settings'},
   ];
@@ -118,7 +119,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
     const _OrdersViewPage(),
     const StaffQuotationListPage(),
     const ChatListPage(showBackButton: false),
-    const _CustomersViewPage(),
     const _FeedbackSupportPage(),
     const _StaffProfilePage(),
   ];
@@ -202,9 +202,9 @@ class _StaffDashboardState extends State<StaffDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFE63946), // Bright coral red
-              Color(0xFFC1121F), // Deep bright red
-              Color(0xFF9D0208), // Dark vibrant red
+              Color(0xFF8B2E2E), // Dark maroon
+              Color(0xFF6B1F1F), // Darker maroon
+              Color(0xFF4A1515), // Darkest maroon
             ],
             stops: [0.0, 0.5, 1.0],
           ),
@@ -251,8 +251,8 @@ class _StaffDashboardState extends State<StaffDashboard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFE63946), // Bright coral red start
-            Color(0xFFC1121F), // Deep bright red end
+            Color(0xFF8B2E2E), // Dark maroon start
+            Color(0xFF4A1515), // Darkest maroon end
           ],
         ),
         border: Border(
@@ -333,27 +333,27 @@ class _StaffDashboardState extends State<StaffDashboard> {
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                     horizontal: 4,
-                    vertical: 12,
-                  ),
+                  vertical: 12,
+                ),
                   child: Column(
                     children: List.generate(_navItems.length, (index) {
-                      final item = _navItems[index];
-                      final selected = _selectedIndex == index;
-                      return _NavTile(
-                        icon: item['icon'] as IconData,
-                        label: item['label'] as String,
-                        selected: selected,
-                        collapsed: _sidebarCollapsed,
-                        onTap: () {
-                          if (mounted) {
-                            setState(() {
-                              _selectedIndex = index;
-                            });
-                          }
-                        },
-                      );
+                  final item = _navItems[index];
+                  final selected = _selectedIndex == index;
+                  return _NavTile(
+                    icon: item['icon'] as IconData,
+                    label: item['label'] as String,
+                    selected: selected,
+                    collapsed: _sidebarCollapsed,
+                    onTap: () {
+                      if (mounted) {
+                        setState(() {
+                          _selectedIndex = index;
+                        });
+                      }
+                    },
+                  );
                     }),
                   ),
                 ),
@@ -400,69 +400,69 @@ class _StaffDashboardState extends State<StaffDashboard> {
         final userEmail = user?.email ?? '';
 
         return Row(
-          children: [
-            Container(
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: CircleAvatar(
-                radius: _sidebarCollapsed ? 18 : 24,
-                backgroundColor: Colors.white,
-                child: CircleAvatar(
-                  radius: _sidebarCollapsed ? 16 : 22,
-                  backgroundColor: StaffThemeColors.primaryRed,
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: _sidebarCollapsed ? 16 : 20,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (!_sidebarCollapsed) ...[
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      userName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white.withOpacity(0.95),
-                        letterSpacing: 0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      userEmail,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white.withOpacity(0.8),
-                        letterSpacing: 0.1,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
                   ],
                 ),
+                  child: CircleAvatar(
+                    radius: _sidebarCollapsed ? 18 : 24,
+                    backgroundColor: Colors.white,
+                    child: CircleAvatar(
+                      radius: _sidebarCollapsed ? 16 : 22,
+                  backgroundColor: StaffThemeColors.primaryRed,
+                    child: Text(
+                      userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: _sidebarCollapsed ? 16 : 20,
+                      ),
+                    ),
+                  ),
+                ),
               ),
+              if (!_sidebarCollapsed) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        userName,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        color: Colors.white.withOpacity(0.95),
+                          letterSpacing: 0.2,
+                        ),
+                        maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        userEmail,
+                        style: TextStyle(
+                          fontSize: 12,
+                        color: Colors.white.withOpacity(0.8),
+                          letterSpacing: 0.1,
+                        ),
+                        maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ],
-          ],
         );
       },
     );
@@ -476,20 +476,20 @@ class _StaffDashboardState extends State<StaffDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFE63946), // Bright coral red start
-              Color(0xFFC1121F), // Deep bright red end
+              Color(0xFF8B2E2E), // Dark maroon start
+              Color(0xFF4A1515), // Darkest maroon end
             ],
           ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
               blurRadius: 12,
               offset: const Offset(4, 0),
               spreadRadius: 2,
-            ),
-          ],
-        ),
-        child: SafeArea(
+                  ),
+                ],
+              ),
+              child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.max,
             children: [
@@ -512,13 +512,13 @@ class _StaffDashboardState extends State<StaffDashboard> {
                   children: [
                     const Expanded(
                       child: Text(
-                        'FlexiMart',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                          letterSpacing: 0.5,
-                        ),
+                      'FlexiMart',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        letterSpacing: 0.5,
+                      ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -526,23 +526,23 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                      ),
+                    ),
                       child: IconButton(
-                        icon: const Icon(Icons.menu_open, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                        tooltip: 'Close',
+                      icon: const Icon(Icons.menu_open, color: Colors.white),
+                      onPressed: () => Navigator.pop(context),
+                      tooltip: 'Close',
                         padding: const EdgeInsets.all(8),
                         constraints: const BoxConstraints(
                           minWidth: 36,
                           minHeight: 36,
-                        ),
-                      ),
                     ),
-                  ],
                 ),
               ),
+                  ],
+            ),
+              ),
               // Navigation Items - Scrollable with Expanded
-              Expanded(
+            Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -556,36 +556,36 @@ class _StaffDashboardState extends State<StaffDashboard> {
                         return _NavTile(
                           icon: item['icon'] as IconData,
                           label: item['label'] as String,
-                          selected: selected,
+                      selected: selected,
                           collapsed: false,
-                          onTap: () {
-                            if (mounted) {
-                              setState(() {
-                                _selectedIndex = index;
-                              });
-                              Navigator.pop(context);
-                            }
-                          },
-                        );
+                      onTap: () {
+                        if (mounted) {
+                          setState(() {
+                            _selectedIndex = index;
+                          });
+                          Navigator.pop(context);
+                        }
+                      },
+                  );
                       }),
-                    ),
-                  ),
+              ),
+            ),
                 ),
               ),
               // Profile Section - Pinned at bottom with proper spacing
-              Container(
+            Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
                 ),
-                decoration: BoxDecoration(
-                  border: Border(
-                    top: BorderSide(
+              decoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
                       color: Colors.white.withOpacity(0.1),
-                      width: 1,
-                    ),
+                    width: 1,
                   ),
                 ),
+              ),
                 child: _buildMobileProfileSection(context),
               ),
             ],
@@ -599,25 +599,25 @@ class _StaffDashboardState extends State<StaffDashboard> {
     final user = FirebaseAuth.instance.currentUser;
     return StreamBuilder<DocumentSnapshot>(
       stream: user != null
-          ? FirebaseFirestore.instance
-                .collection('users')
+                    ? FirebaseFirestore.instance
+                          .collection('users')
                 .doc(user.uid)
-                .snapshots()
-          : null,
-      builder: (context, snapshot) {
-        final userData = snapshot.hasData && snapshot.data!.exists
-            ? snapshot.data!.data() as Map<String, dynamic>?
-            : null;
-        final userName =
-            (userData?['fullName'] as String?) ??
+                          .snapshots()
+                    : null,
+                builder: (context, snapshot) {
+                  final userData = snapshot.hasData && snapshot.data!.exists
+                      ? snapshot.data!.data() as Map<String, dynamic>?
+                      : null;
+                  final userName =
+                      (userData?['fullName'] as String?) ??
             (userData?['name'] as String?) ??
             (userData?['customerName'] as String?) ??
-            user?.email?.split('@')[0] ??
-            'Staff';
+                      user?.email?.split('@')[0] ??
+                      'Staff';
         final userEmail = user?.email ?? '';
 
-        return Row(
-          children: [
+                  return Row(
+                    children: [
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -630,56 +630,56 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 ],
               ),
               child: CircleAvatar(
-                radius: 24,
+                        radius: 24,
                 backgroundColor: Colors.white,
                 child: CircleAvatar(
                   radius: 22,
-                  backgroundColor: StaffThemeColors.primaryRed,
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
+                        backgroundColor: StaffThemeColors.primaryRed,
+                        child: Text(
+                          userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 20,
                     ),
                   ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    userName,
+                          children: [
+                            Text(
+                              userName,
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.bold,
                       color: Colors.white.withOpacity(0.95),
                       letterSpacing: 0.2,
-                    ),
+                              ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
                     userEmail,
-                    style: TextStyle(
+                              style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withOpacity(0.8),
                       letterSpacing: 0.1,
-                    ),
+                              ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        );
-      },
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
     );
   }
 }
@@ -823,9 +823,9 @@ class _StaffDashboardPage extends StatelessWidget {
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: [
-                      Color(0xFFE63946), // Bright coral red
-                      Color(0xFFC1121F), // Deep bright red
-                      Color(0xFF9D0208), // Dark vibrant red
+                      Color(0xFF8B2E2E), // Bright coral red
+                      Color(0xFF6B1F1F), // Darker maroon
+                      Color(0xFF4A1515), // Darkest maroon
                     ],
                     stops: [0.0, 0.5, 1.0],
                   ),
@@ -1047,7 +1047,7 @@ class _StaffKpiCard extends StatelessWidget {
           color: Colors.white, // White card background
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
           border: Border.all(
-            color: const Color(0xFFE63946).withOpacity(0.3), // Bright red border matching theme
+            color: const Color(0xFF8B2E2E).withOpacity(0.3), // Bright red border matching theme
             width: 2,
           ),
           boxShadow: [
@@ -1090,7 +1090,7 @@ class _StaffKpiCard extends StatelessWidget {
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFFE63946), // Bright red color for staff
+                        color: Color(0xFF8B2E2E), // Dark maroon color for staff
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -1139,7 +1139,7 @@ class _StaffPanel extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFFE63946).withOpacity(0.3), // Bright red border matching theme
+            color: const Color(0xFF8B2E2E).withOpacity(0.3), // Bright red border matching theme
             width: 2,
           ),
           boxShadow: [
@@ -1160,12 +1160,12 @@ class _StaffPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE63946).withOpacity(0.1),
+                      color: const Color(0xFF8B2E2E).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       icon,
-                      color: const Color(0xFFE63946), // Bright red icon for staff
+                      color: const Color(0xFF8B2E2E), // Bright red icon for staff
                       size: 20,
                     ),
                   ),
@@ -1564,7 +1564,7 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                   color: Colors.white,
                   border: Border(
                     bottom: BorderSide(
-                      color: const Color(0xFFE63946).withOpacity(0.3),
+                      color: const Color(0xFF8B2E2E).withOpacity(0.3),
                       width: 2,
                     ),
                   ),
@@ -3197,6 +3197,30 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                       },
                     ),
                   ),
+                  const SizedBox(width: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MapComingSoonPlaceholder(
+                            title: 'Delivery Locations Map',
+                            message: 'Map view of all delivery locations is coming soon!',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('View Map'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: StaffThemeColors.primaryRed,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -3500,6 +3524,31 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                 style: TextStyle(color: AppColors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 12),
+              // View Map button (if coordinates exist)
+              if (order['latitude'] != null && order['longitude'] != null)
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const MapComingSoonPlaceholder(
+                            title: 'Order Location',
+                            message: 'Map view for order delivery location is coming soon!',
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.map, size: 18),
+                    label: const Text('View Map'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              if (order['latitude'] != null && order['longitude'] != null)
+                const SizedBox(height: 8),
               if (status != 'delivered' && status != 'completed')
                 SizedBox(
                   width: double.infinity,
@@ -3520,797 +3569,6 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
         ),
       ),
     );
-  }
-}
-
-class _CustomersViewPage extends StatefulWidget {
-  const _CustomersViewPage();
-
-  @override
-  State<_CustomersViewPage> createState() => _CustomersViewPageState();
-}
-
-class _CustomersViewPageState extends State<_CustomersViewPage> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.dashboardBackground,
-      body: Column(
-        children: [
-          // Header with Search
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(0xFFE63946).withOpacity(0.3),
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Customers',
-                      style: TextStyle(
-                        fontSize: isMobile ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (!isMobile) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'View registered customers (Read-only)',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.dashboardBackground,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value;
-                          });
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search customers by name or email...',
-                          hintStyle: TextStyle(color: AppColors.textSecondary),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: AppColors.textSecondary,
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {
-                                      _searchQuery = '';
-                                    });
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          // Customers List - Only show customers who have placed orders
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('orders')
-                  .snapshots(),
-              builder: (context, ordersSnapshot) {
-                if (ordersSnapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading orders: ${ordersSnapshot.error}',
-                    ),
-                  );
-                }
-
-                if (ordersSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                // Get unique customer IDs from orders
-                final Set<String> customerIdsWithOrders = {};
-                if (ordersSnapshot.hasData) {
-                  for (var orderDoc in ordersSnapshot.data!.docs) {
-                    final orderData = orderDoc.data() as Map<String, dynamic>;
-                    final customerId = orderData['customerId'] as String?;
-                    if (customerId != null && customerId.isNotEmpty) {
-                      customerIdsWithOrders.add(customerId);
-                    }
-                  }
-                }
-
-                if (customerIdsWithOrders.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No customers with orders yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Now fetch customer details for those who have orders
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .where('role', isEqualTo: 'customer')
-                      .snapshots(),
-                  builder: (context, customersSnapshot) {
-                    if (customersSnapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          'Error loading customers: ${customersSnapshot.error}',
-                        ),
-                      );
-                    }
-
-                    if (customersSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    if (!customersSnapshot.hasData ||
-                        customersSnapshot.data!.docs.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.people_outline,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No customers found',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    // Filter customers to only those who have placed orders
-                    var customers = customersSnapshot.data!.docs.where((doc) {
-                      return customerIdsWithOrders.contains(doc.id);
-                    }).toList();
-
-                    // Filter by search query
-                    if (_searchQuery.isNotEmpty) {
-                      customers = customers.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final name = (data['fullName'] as String? ?? '')
-                            .toLowerCase();
-                        final email = (data['email'] as String? ?? '')
-                            .toLowerCase();
-                        final query = _searchQuery.toLowerCase();
-                        return name.contains(query) || email.contains(query);
-                      }).toList();
-                    }
-
-                    if (customers.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No customers match your search',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      );
-                    }
-
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isMobile = constraints.maxWidth < 768;
-                        if (isMobile) {
-                          return ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: customers.length,
-                            itemBuilder: (context, index) {
-                              return _buildCustomerCard(
-                                context,
-                                customers[index],
-                                true,
-                              );
-                            },
-                          );
-                        } else {
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Customers: ${customers.length}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 16,
-                                  runSpacing: 16,
-                                  children: customers.map((doc) {
-                                    return SizedBox(
-                                      width: (constraints.maxWidth - 48) / 3,
-                                      child: _buildCustomerCard(
-                                        context,
-                                        doc,
-                                        false,
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomerCard(
-    BuildContext context,
-    DocumentSnapshot customerDoc,
-    bool isMobile,
-  ) {
-    final customer = customerDoc.data() as Map<String, dynamic>;
-    final name = customer['fullName'] as String? ?? 'Unknown';
-    final email = customer['email'] as String? ?? 'No email';
-    final phone = customer['phone'] as String? ?? 'No phone';
-    final userId = customerDoc.id;
-
-    // Check multiple possible field names for profile picture
-    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl =
-        (customer['profilePic'] as String?) ??
-        (customer['profilePictureUrl'] as String?) ??
-        (customer['profileImageUrl'] as String?) ??
-        (customer['photoUrl'] as String?) ??
-        (customer['imageUrl'] as String?) ??
-        (customer['profileImage'] as String?);
-
-    // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture =
-        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
-    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: EdgeInsets.only(bottom: isMobile ? 12 : 0),
-      child: InkWell(
-        onTap: () => _showCustomerDetails(context, customerDoc),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: isMobile ? 24 : 28,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: validProfilePicUrl != null
-                        ? NetworkImage(validProfilePicUrl)
-                        : null,
-                    onBackgroundImageError: validProfilePicUrl != null
-                        ? (exception, stackTrace) {
-                            // Handle image loading errors gracefully
-                            debugPrint(
-                              'Error loading profile image: $exception',
-                            );
-                          }
-                        : null,
-                    child: validProfilePicUrl == null
-                        ? Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                            style: TextStyle(
-                              color: StaffThemeColors.primaryRed,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 16, color: AppColors.textSecondary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      phone,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('customerId', isEqualTo: userId)
-                    .snapshots(),
-                builder: (context, ordersSnapshot) {
-                  final orderCount = ordersSnapshot.hasData
-                      ? ordersSnapshot.data!.docs.length
-                      : 0;
-                  double totalSpent = 0;
-                  if (ordersSnapshot.hasData) {
-                    for (var order in ordersSnapshot.data!.docs) {
-                      final data = order.data() as Map<String, dynamic>;
-                      // Get totalPrice from Firestore
-                      final totalPriceValue = data['totalPrice'];
-                      double orderTotal = 0.0;
-                      if (totalPriceValue is num) {
-                        orderTotal = totalPriceValue.toDouble();
-                      } else if (totalPriceValue is String) {
-                        orderTotal = double.tryParse(totalPriceValue) ?? 0.0;
-                      } else {
-                        // Compute from items if totalPrice doesn't exist
-                        final items = (data['items'] as List?) ?? [];
-                        if (items.isNotEmpty) {
-                          for (var item in items) {
-                            if (item is Map<String, dynamic>) {
-                              final priceValue = item['price'];
-                              double price = 0.0;
-                              if (priceValue is num) {
-                                price = priceValue.toDouble();
-                              } else if (priceValue is String) {
-                                price = double.tryParse(priceValue) ?? 0.0;
-                              }
-
-                              final quantityValue = item['quantity'];
-                              int quantity = 1;
-                              if (quantityValue is num) {
-                                quantity = quantityValue.toInt();
-                              } else if (quantityValue is String) {
-                                quantity = int.tryParse(quantityValue) ?? 1;
-                              }
-
-                              orderTotal += price * quantity;
-                            }
-                          }
-                        }
-                      }
-                      totalSpent += orderTotal;
-                    }
-                  }
-
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.shopping_bag_outlined,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$orderCount orders',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '₱${_formatNumber(totalSpent)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: StaffThemeColors.primaryRed,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCustomerDetails(
-    BuildContext context,
-    DocumentSnapshot customerDoc,
-  ) {
-    final customer = customerDoc.data() as Map<String, dynamic>;
-    final name = customer['fullName'] as String? ?? 'Unknown';
-    final email = customer['email'] as String? ?? 'No email';
-    final phone = customer['phone'] as String? ?? 'No phone';
-    final userId = customerDoc.id;
-
-    // Check multiple possible field names for profile picture
-    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl =
-        (customer['profilePic'] as String?) ??
-        (customer['profilePictureUrl'] as String?) ??
-        (customer['profileImageUrl'] as String?) ??
-        (customer['photoUrl'] as String?) ??
-        (customer['imageUrl'] as String?) ??
-        (customer['profileImage'] as String?);
-
-    // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture =
-        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
-    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 32,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: validProfilePicUrl != null
-                        ? NetworkImage(validProfilePicUrl)
-                        : null,
-                    onBackgroundImageError: validProfilePicUrl != null
-                        ? (exception, stackTrace) {
-                            // Handle image loading errors gracefully
-                            debugPrint(
-                              'Error loading profile image: $exception',
-                            );
-                          }
-                        : null,
-                    child: validProfilePicUrl == null
-                        ? Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                            style: TextStyle(
-                              color: StaffThemeColors.primaryRed,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 24,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildDetailRow(Icons.phone, 'Phone', phone),
-              const SizedBox(height: 16),
-              _buildDetailRow(
-                Icons.person_outline,
-                'Customer ID',
-                userId.length >= 8 ? userId.substring(0, 8) : userId,
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Order History',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('orders')
-                      .where('customerId', isEqualTo: userId)
-                      .limit(10)
-                      .snapshots(),
-                  builder: (context, snapshot) {
-                    // Handle connection state
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    // Handle errors
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 48,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Error loading orders',
-                              style: TextStyle(color: AppColors.textSecondary),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No orders yet',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      );
-                    }
-
-                    // Sort orders by createdAt in memory if orderBy failed
-                    final orders = List<QueryDocumentSnapshot>.from(
-                      snapshot.data!.docs,
-                    );
-                    orders.sort((a, b) {
-                      final aData = a.data() as Map<String, dynamic>;
-                      final bData = b.data() as Map<String, dynamic>;
-                      final aCreatedAt = aData['createdAt'] as Timestamp?;
-                      final bCreatedAt = bData['createdAt'] as Timestamp?;
-                      if (aCreatedAt == null && bCreatedAt == null) return 0;
-                      if (aCreatedAt == null) return 1;
-                      if (bCreatedAt == null) return -1;
-                      return bCreatedAt.compareTo(aCreatedAt);
-                    });
-
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: orders.length,
-                      itemBuilder: (context, index) {
-                        final order = orders[index];
-                        final data = order.data() as Map<String, dynamic>;
-                        // Get totalPrice from Firestore, or compute from items if missing
-                        final totalPriceValue = data['totalPrice'];
-                        double? totalPrice;
-                        if (totalPriceValue is num) {
-                          totalPrice = totalPriceValue.toDouble();
-                        } else if (totalPriceValue is String) {
-                          totalPrice = double.tryParse(totalPriceValue);
-                        }
-
-                        // Compute from items if totalPrice doesn't exist
-                        double computedTotal = 0.0;
-                        if (totalPrice == null) {
-                          final items = (data['items'] as List?) ?? [];
-                          if (items.isNotEmpty) {
-                            for (var item in items) {
-                              if (item is Map<String, dynamic>) {
-                                final priceValue = item['price'];
-                                double price = 0.0;
-                                if (priceValue is num) {
-                                  price = priceValue.toDouble();
-                                } else if (priceValue is String) {
-                                  price = double.tryParse(priceValue) ?? 0.0;
-                                }
-
-                                final quantityValue = item['quantity'];
-                                int quantity = 1;
-                                if (quantityValue is num) {
-                                  quantity = quantityValue.toInt();
-                                } else if (quantityValue is String) {
-                                  quantity = int.tryParse(quantityValue) ?? 1;
-                                }
-
-                                computedTotal += price * quantity;
-                              }
-                            }
-                          }
-                        }
-
-                        final total = totalPrice ?? computedTotal;
-                        final status = data['status'] as String? ?? 'pending';
-                        final createdAt = data['createdAt'] as Timestamp?;
-                        final orderDate = createdAt != null
-                            ? '${createdAt.toDate().toString().substring(0, 16)}'
-                            : 'Unknown date';
-
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: StaffThemeColors.primaryBlue
-                                .withOpacity(0.1),
-                            child: Icon(
-                              Icons.shopping_bag,
-                              color: StaffThemeColors.primaryRed,
-                            ),
-                          ),
-                          title: Text(PriceFormatter.formatPrice(total)),
-                          subtitle: Text(orderDate),
-                          trailing: Chip(
-                            label: Text(
-                              status.toUpperCase(),
-                              style: const TextStyle(
-                                fontSize: 12, // Increased for clarity
-                                letterSpacing: 0.2,
-                              ),
-                            ),
-                            backgroundColor: StaffThemeColors.primaryBlue
-                                .withOpacity(0.1),
-                            labelStyle: TextStyle(
-                              color: StaffThemeColors.primaryRed,
-                            ),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: AppColors.textPrimary,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatNumber(double value) {
-    if (value >= 1000000) {
-      return '${(value / 1000000).toStringAsFixed(1)}M';
-    } else if (value >= 1000) {
-      return '${(value / 1000).toStringAsFixed(1)}K';
-    }
-    return value.toStringAsFixed(0);
   }
 }
 
@@ -4557,6 +3815,8 @@ class _FeedbackSupportPage extends StatelessWidget {
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
         'Unknown Customer';
+    // Get customerId to fetch profile picture
+    final customerId = orderData['customerId'] as String?;
     final createdAt = orderData['createdAt'] as Timestamp?;
     final orderDate = createdAt != null
         ? '${createdAt.toDate().toString().substring(0, 16)}'
@@ -4578,7 +3838,13 @@ class _FeedbackSupportPage extends StatelessWidget {
             // Header with customer info and date
             Row(
               children: [
-                CircleAvatar(
+                // Customer profile picture - fetch from Firestore
+                customerId != null && customerId.isNotEmpty
+                    ? CustomerProfileAvatar(
+                        customerId: customerId,
+                        size: isMobile ? 40 : 48,
+                      )
+                    : CircleAvatar(
                   radius: isMobile ? 20 : 24,
                   backgroundColor: StaffThemeColors.primaryBlue.withOpacity(0.1),
                   child: Icon(
@@ -4643,69 +3909,106 @@ class _FeedbackSupportPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            // Rating image
+            // Rating image (responsive)
             if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
               const SizedBox(height: 12),
               Builder(
                 builder: (context) {
                   // Create local non-nullable variable since we've already checked
                   final imageUrl = ratingImageUrl!;
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Calculate responsive image size
+                      final screenHeight = MediaQuery.of(context).size.height;
+                      
+                      // For card thumbnail: responsive height based on screen size
+                      final thumbnailHeight = isMobile
+                          ? (screenHeight * 0.2).clamp(120.0, 200.0) // Mobile: 120-200px
+                          : (screenHeight * 0.25).clamp(150.0, 250.0); // Desktop: 150-250px
+                      
                   return GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => Dialog(
-                          backgroundColor: Colors.transparent,
-                          child: Stack(
-                            children: [
-                              Center(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (dialogContext) => Dialog(
+                              backgroundColor: Colors.transparent,
+                              insetPadding: EdgeInsets.all(isMobile ? 16 : 24),
+                              child: LayoutBuilder(
+                                builder: (context, dialogConstraints) {
+                                  final dialogScreenWidth = MediaQuery.of(dialogContext).size.width;
+                                  final dialogScreenHeight = MediaQuery.of(dialogContext).size.height;
+                                  
+                                  // Responsive full-screen image dimensions
+                                  final responsiveFullWidth = isMobile
+                                      ? dialogScreenWidth - 32 // Mobile: account for padding
+                                      : (dialogScreenWidth * 0.85).clamp(400.0, 1200.0); // Desktop: 400-1200px
+                                  
+                                  final responsiveFullHeight = isMobile
+                                      ? dialogScreenHeight * 0.8 // Mobile: 80% of height
+                                      : (dialogScreenHeight * 0.85).clamp(400.0, 900.0); // Desktop: 400-900px
+                                  
+                                  return Stack(
+                                children: [
+                                  Center(
                                 child: RatingImageWidget(
                                   imageUrl: imageUrl,
-                                  fit: BoxFit.contain,
-                                  height: MediaQuery.of(context).size.height * 0.7,
-                                  width: MediaQuery.of(context).size.width * 0.9,
+                              fit: BoxFit.contain,
+                                          height: responsiveFullHeight,
+                                          width: responsiveFullWidth,
                                   primaryColor: StaffThemeColors.primaryRed,
                                   orderId: orderId,
-                                ),
-                              ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: () => Navigator.pop(context),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.black54,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: StaffThemeColors.primaryRed.withOpacity(0.2),
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
+                          Positioned(
+                            top: 8,
+                            right: 8,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                              size: 24,
+                              ),
+                                            onPressed: () => Navigator.pop(dialogContext),
+                                            tooltip: 'Close',
+                              ),
+                            ),
+                          ),
+                        ],
+                                  );
+                                },
                       ),
+                    ),
+                  );
+                },
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: StaffThemeColors.primaryRed.withOpacity(0.2),
+                        width: 1,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
                       child: RatingImageWidget(
                         imageUrl: imageUrl,
-                        width: double.infinity,
-                        height: isMobile ? 150 : 200,
-                        fit: BoxFit.cover,
+                      width: double.infinity,
+                              height: thumbnailHeight,
+                      fit: BoxFit.cover,
                         borderRadius: BorderRadius.circular(8),
                         backgroundColor: Colors.grey[200],
                         primaryColor: StaffThemeColors.primaryRed,
                         orderId: orderId,
-                      ),
+                            ),
+                              ),
                     ),
+                      );
+                    },
                   );
                 },
               ),

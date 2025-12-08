@@ -50,13 +50,22 @@ class NotificationService {
   }
 
   /// Configure Firebase Messaging listeners for foreground notifications.
-  Future<void> configureFirebaseMessaging() async {
+  Future<void> configureFirebaseMessaging(BuildContext? context) async {
     if (kIsWeb) {
       // Web relies on browser push; in-app we can still show SnackBars elsewhere if needed.
       return;
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      // Check if this is an OTP notification - handle it separately
+      final data = message.data;
+      if (data['type'] == 'otp_verification' && context != null) {
+        // OTP notifications are handled by OtpPopupService
+        // Don't show regular notification, popup will be shown instead
+        return;
+      }
+      
+      // Show regular notification for other types
       await showRemoteNotification(message);
     });
 

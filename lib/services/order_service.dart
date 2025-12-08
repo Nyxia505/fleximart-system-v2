@@ -59,6 +59,8 @@ class OrderService {
     required String completeAddress,
     String? landmark,
     String? mapLink,
+    double? latitude,
+    double? longitude,
     double? selectedWidth,
     double? selectedHeight,
     double? addedPrice,
@@ -123,6 +125,8 @@ class OrderService {
         'completeAddress': completeAddress,
         if (landmark != null && landmark.isNotEmpty) 'landmark': landmark,
         if (mapLink != null && mapLink.isNotEmpty) 'mapLink': mapLink,
+        if (latitude != null) 'latitude': latitude,
+        if (longitude != null) 'longitude': longitude,
         // Legacy address field (for backward compatibility)
         if (address != null) 'address': address,
         if (selectedWidth != null) 'selectedWidth': selectedWidth,

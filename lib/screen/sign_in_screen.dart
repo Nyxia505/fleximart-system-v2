@@ -16,11 +16,11 @@ class _SignInScreenState extends State<SignInScreen> {
   bool obscure = true;
   bool loading = false;
 
-  // New theme colors
-  static const Color deepRed = Color(0xFFCD5656);
-  static const Color crimson = Color(0xFFAF3E3E);
-  static const Color magenta = Color(0xFFAF3E3E);
-  static const Color darkPurple = Color(0xFF8B2E2E);
+  // Dark maroon theme colors
+  static const Color deepRed = Color(0xFF8B2E2E);
+  static const Color crimson = Color(0xFF6B1F1F);
+  static const Color magenta = Color(0xFF6B1F1F);
+  static const Color darkPurple = Color(0xFF4A1515);
 
   @override
   void dispose() {
@@ -52,35 +52,39 @@ class _SignInScreenState extends State<SignInScreen> {
           _buildBubbleOverlay(),
           // Main Content
           SafeArea(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return SingleChildScrollView(
-                  padding: EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 40,
-                    bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight:
-                          constraints.maxHeight -
-                          (keyboardHeight > 0 ? keyboardHeight + 60 : 80),
+            child: Center(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final isMobile = constraints.maxWidth < 600;
+                  return SingleChildScrollView(
+                    padding: EdgeInsets.only(
+                      left: isMobile ? 12 : 24,
+                      right: isMobile ? 12 : 24,
+                      top: 40,
+                      bottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const SizedBox(height: 20),
-                        // Title and Subtitle
-                        _buildTitleSection(),
-                        const SizedBox(height: 40),
-                        // Form Container with White Border
-                        _buildFormContainer(),
-                      ],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 450,
+                        minHeight:
+                            constraints.maxHeight -
+                            (keyboardHeight > 0 ? keyboardHeight + 60 : 80),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 20),
+                          // Title and Subtitle
+                          _buildTitleSection(),
+                          const SizedBox(height: 40),
+                          // Form Container with White Border
+                          _buildFormContainer(isMobile: isMobile),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -111,9 +115,9 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  Widget _buildFormContainer() {
+  Widget _buildFormContainer({bool isMobile = false}) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
+      margin: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 20),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -256,7 +260,7 @@ class _SignInScreenState extends State<SignInScreen> {
       height: 56,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFFCD5656), Color(0xFFAF3E3E)],
+          colors: [Color(0xFF8B2E2E), Color(0xFF4A1515)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -267,7 +271,7 @@ class _SignInScreenState extends State<SignInScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFCD5656).withOpacity(0.3),
+            color: const Color(0xFF8B2E2E).withOpacity(0.3),
             blurRadius: 8,
             offset: const Offset(0, 4),
           ),
@@ -320,10 +324,10 @@ class _SignInScreenState extends State<SignInScreen> {
             TextSpan(
               text: 'Sign Up',
               style: TextStyle(
-                color: Color(0xFFCD5656), // Red color for link
+                color: Color(0xFF8B2E2E), // Dark maroon color for link
                 fontWeight: FontWeight.bold,
                 decoration: TextDecoration.underline,
-                decorationColor: Color(0xFFCD5656),
+                decorationColor: Color(0xFF8B2E2E),
               ),
             ),
           ],
@@ -545,11 +549,11 @@ class BubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
 
-    // Theme bubble colors
+    // Dark maroon bubble colors
     final bubbleColors = [
-      const Color(0xFFCD5656).withOpacity(0.3),
-      const Color(0xFFAF3E3E).withOpacity(0.25),
-      const Color(0xFF8B2E2E).withOpacity(0.2),
+      const Color(0xFF8B2E2E).withOpacity(0.3),
+      const Color(0xFF6B1F1F).withOpacity(0.25),
+      const Color(0xFF4A1515).withOpacity(0.2),
     ];
 
     // Draw multiple glossy bubbles with soft blue tones

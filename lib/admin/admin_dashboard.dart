@@ -21,16 +21,20 @@ import '../utils/role_helper.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 import '../widgets/rating_image_widget.dart';
+import '../widgets/profile_picture_placeholder.dart';
+import '../widgets/map_coming_soon_placeholder.dart';
+import '../widgets/customer_profile_avatar.dart';
+import 'activity_log_page.dart';
 
 // Official theme colors - New Theme
 class AdminThemeColors {
   AdminThemeColors._();
-  static const Color crimsonRed = Color(0xFFCD5656);
-  static const Color deepBerryRed = Color(0xFFAF3E3E);
-  static const Color darkWinePurple = Color(0xFF8B2E2E);
+  static const Color crimsonRed = Color(0xFF8B2E2E);
+  static const Color deepBerryRed = Color(0xFF6B1F1F);
+  static const Color darkWinePurple = Color(0xFF4A1515);
 
   // Navigation colors
-  static const Color navActive = Color(0xFFCD5656);
+  static const Color navActive = Color(0xFF8B2E2E);
   static const Color navActiveBg = Color(
     0x42AF3E3E,
   ); // Secondary red with opacity
@@ -105,7 +109,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     {'icon': Icons.calendar_today, 'label': 'Sales Calendar'},
     {'icon': Icons.shopping_bag_outlined, 'label': 'Orders'},
     {'icon': Icons.description_outlined, 'label': 'Quotations'},
-    {'icon': Icons.people_outline, 'label': 'Customers'},
+    {'icon': Icons.history, 'label': 'Activity Log'},
     {'icon': Icons.chat_bubble_outline, 'label': 'Messages'},
     {'icon': Icons.person_outline, 'label': 'Staff'},
     {'icon': Icons.feedback_outlined, 'label': 'Feedback'},
@@ -119,7 +123,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     const _SalesCalendarPage(),
     const _OrdersManagementPage(),
     const AdminQuotationScreen(),
-    const _CustomersManagementPage(),
+    const _ActivityLogPage(),
     const _AdminMessagesPage(),
     const _StaffManagementPage(),
     const _FeedbackPage(),
@@ -214,8 +218,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            Color(0xFFCD5656), // Primary color start
-            Color(0xFFAF3E3E), // Secondary color end
+            Color(0xFF8B2E2E), // Primary color start
+            Color(0xFF4A1515), // Secondary color end
           ],
         ),
         border: Border(
@@ -523,8 +527,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFFCD5656), // Primary color
-              Color(0xFFAF3E3E), // Secondary color
+              Color(0xFF8B2E2E), // Primary color
+              Color(0xFF4A1515), // Secondary color
             ],
           ),
           boxShadow: [
@@ -1301,7 +1305,7 @@ class _EnhancedKpiCard extends StatelessWidget {
               style: const TextStyle(
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFCD5656), // Card value color (primary)
+                color: Color(0xFF8B2E2E), // Card value color (primary)
                 height: 1.2,
               ),
             ),
@@ -4699,407 +4703,413 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
       59,
     );
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            // Handle bar
-            Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AdminThemeColors.crimsonRed.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Icon(
-                      Icons.calendar_today,
-                      color: AdminThemeColors.crimsonRed,
-                      size: 24,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Sales for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          DateFormat('EEEE').format(selectedDate),
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: const Color(
-                              0xFF1D3B53,
-                            ), // Dark blue for better contrast
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            // Sales Data - Query orders collection instead of sales
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseAuth.instance.currentUser != null
-                    ? FirebaseFirestore.instance
-                          .collection('orders')
-                          .where(
-                            'createdAt',
-                            isGreaterThanOrEqualTo: Timestamp.fromDate(
-                              startOfDay,
-                            ),
-                          )
-                          .where(
-                            'createdAt',
-                            isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
-                          )
-                          .snapshots()
-                          .handleError((error) {
-                            // Fallback: query without date filters if index is missing
-                            if (error.toString().contains('index') ||
-                                error.toString().contains(
-                                  'failed-precondition',
-                                )) {
-                              return FirebaseFirestore.instance
-                                  .collection('orders')
-                                  .snapshots();
-                            }
-                            throw error;
-                          })
-                    : null,
-                builder: (context, snapshot) {
-                  // Check authentication first
-                  if (FirebaseAuth.instance.currentUser == null) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.lock_outline,
-                              size: 64,
-                              color: Colors.orange[300],
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Authentication Required',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              'Please log in to view sales data.',
-                              style: const TextStyle(color: Color(0xFF1D3B53)),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
+      barrierDismissible: true,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.9,
+          constraints: BoxConstraints(
+            maxWidth: 600,
+            maxHeight: MediaQuery.of(context).size.height * 0.85,
+          ),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header - Fixed at top
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AdminThemeColors.crimsonRed.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    );
-                  }
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    final error = snapshot.error.toString();
-                    final isPermissionError =
-                        error.contains('permission-denied') ||
-                        error.contains('Missing or insufficient permissions');
-                    final isIndexError =
-                        error.contains('index') ||
-                        error.contains('requires an index');
-
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              isIndexError
-                                  ? Icons.build_outlined
-                                  : Icons.error_outline,
-                              size: 64,
-                              color: isIndexError
-                                  ? Colors.orange[300]
-                                  : Colors.red[300],
+                      child: Icon(
+                        Icons.calendar_today,
+                        color: AdminThemeColors.crimsonRed,
+                        size: 24,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Sales for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
                             ),
-                            const SizedBox(height: 16),
-                            Text(
-                              isIndexError
-                                  ? 'Index Required'
-                                  : 'Error loading sales',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey[800],
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            DateFormat('EEEE').format(selectedDate),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: const Color(
+                                0xFF1D3B53,
+                              ), // Dark blue for better contrast
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Sales Data - Scrollable content area
+              Expanded(
+                child: StreamBuilder<QuerySnapshot>(
+                  stream: FirebaseAuth.instance.currentUser != null
+                      ? FirebaseFirestore.instance
+                            .collection('orders')
+                            .where(
+                              'createdAt',
+                              isGreaterThanOrEqualTo: Timestamp.fromDate(
+                                startOfDay,
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              isIndexError
-                                  ? 'A Firestore index is required for this query. Please check the console for the index creation link, or contact your administrator.'
-                                  : isPermissionError
-                                  ? 'Permission denied. Please ensure you are logged in and have the correct permissions.'
-                                  : error,
-                              style: const TextStyle(color: Color(0xFF1D3B53)),
-                              textAlign: TextAlign.center,
-                            ),
-                            if (isPermissionError) ...[
+                            )
+                            .where(
+                              'createdAt',
+                              isLessThanOrEqualTo: Timestamp.fromDate(endOfDay),
+                            )
+                            .snapshots()
+                            .handleError((error) {
+                              // Fallback: query without date filters if index is missing
+                              if (error.toString().contains('index') ||
+                                  error.toString().contains(
+                                    'failed-precondition',
+                                  )) {
+                                return FirebaseFirestore.instance
+                                    .collection('orders')
+                                    .snapshots();
+                              }
+                              throw error;
+                            })
+                      : null,
+                  builder: (context, snapshot) {
+                    // Check authentication first
+                    if (FirebaseAuth.instance.currentUser == null) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.lock_outline,
+                                size: 64,
+                                color: Colors.orange[300],
+                              ),
                               const SizedBox(height: 16),
                               Text(
-                                'If this error persists, please contact your administrator.',
+                                'Authentication Required',
                                 style: TextStyle(
-                                  color: const Color(
-                                    0xFF1D3B53,
-                                  ).withOpacity(0.8),
-                                  fontSize: 12,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Please log in to view sales data.',
+                                style: const TextStyle(
+                                  color: Color(0xFF1D3B53),
                                 ),
                                 textAlign: TextAlign.center,
                               ),
                             ],
+                          ),
+                        ),
+                      );
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snapshot.hasError) {
+                      final error = snapshot.error.toString();
+                      final isPermissionError =
+                          error.contains('permission-denied') ||
+                          error.contains('Missing or insufficient permissions');
+                      final isIndexError =
+                          error.contains('index') ||
+                          error.contains('requires an index');
+
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                isIndexError
+                                    ? Icons.build_outlined
+                                    : Icons.error_outline,
+                                size: 64,
+                                color: isIndexError
+                                    ? Colors.orange[300]
+                                    : Colors.red[300],
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                isIndexError
+                                    ? 'Index Required'
+                                    : 'Error loading sales',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                isIndexError
+                                    ? 'A Firestore index is required for this query. Please check the console for the index creation link, or contact your administrator.'
+                                    : isPermissionError
+                                    ? 'Permission denied. Please ensure you are logged in and have the correct permissions.'
+                                    : error,
+                                style: const TextStyle(
+                                  color: Color(0xFF1D3B53),
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              if (isPermissionError) ...[
+                                const SizedBox(height: 16),
+                                Text(
+                                  'If this error persists, please contact your administrator.',
+                                  style: TextStyle(
+                                    color: const Color(
+                                      0xFF1D3B53,
+                                    ).withOpacity(0.8),
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Filter orders by selected date and sort by date (descending)
+                    final allOrders = snapshot.data!.docs;
+                    final ordersForDate =
+                        allOrders.where((orderDoc) {
+                          final order = orderDoc.data() as Map<String, dynamic>;
+                          final createdAt = order['createdAt'] as Timestamp?;
+                          if (createdAt == null) return false;
+
+                          final orderDate = createdAt.toDate();
+                          return orderDate.isAfter(
+                                startOfDay.subtract(const Duration(seconds: 1)),
+                              ) &&
+                              orderDate.isBefore(
+                                endOfDay.add(const Duration(seconds: 1)),
+                              );
+                        }).toList()..sort((a, b) {
+                          final aData = a.data() as Map<String, dynamic>;
+                          final bData = b.data() as Map<String, dynamic>;
+                          final aTimestamp = aData['createdAt'] as Timestamp?;
+                          final bTimestamp = bData['createdAt'] as Timestamp?;
+                          if (aTimestamp == null && bTimestamp == null)
+                            return 0;
+                          if (aTimestamp == null) return 1;
+                          if (bTimestamp == null) return -1;
+                          return bTimestamp.compareTo(
+                            aTimestamp,
+                          ); // Descending order
+                        });
+
+                    if (ordersForDate.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.receipt_long,
+                              size: 64,
+                              color: Colors.grey[300],
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'No sales for this date',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'No transactions found for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
                           ],
                         ),
-                      ),
-                    );
-                  }
+                      );
+                    }
 
-                  // Filter orders by selected date and sort by date (descending)
-                  final allOrders = snapshot.data!.docs;
-                  final ordersForDate =
-                      allOrders.where((orderDoc) {
-                        final order = orderDoc.data() as Map<String, dynamic>;
-                        final createdAt = order['createdAt'] as Timestamp?;
-                        if (createdAt == null) return false;
+                    double totalSales = 0;
+                    int transactionCount = ordersForDate.length;
 
-                        final orderDate = createdAt.toDate();
-                        return orderDate.isAfter(
-                              startOfDay.subtract(const Duration(seconds: 1)),
-                            ) &&
-                            orderDate.isBefore(
-                              endOfDay.add(const Duration(seconds: 1)),
-                            );
-                      }).toList()..sort((a, b) {
-                        final aData = a.data() as Map<String, dynamic>;
-                        final bData = b.data() as Map<String, dynamic>;
-                        final aTimestamp = aData['createdAt'] as Timestamp?;
-                        final bTimestamp = bData['createdAt'] as Timestamp?;
-                        if (aTimestamp == null && bTimestamp == null) return 0;
-                        if (aTimestamp == null) return 1;
-                        if (bTimestamp == null) return -1;
-                        return bTimestamp.compareTo(
-                          aTimestamp,
-                        ); // Descending order
-                      });
+                    // Calculate total sales from orders
+                    for (var order in ordersForDate) {
+                      final data = order.data() as Map<String, dynamic>;
+                      // Try totalPrice first, then totalAmount, then amount
+                      final amount =
+                          data['totalPrice'] ??
+                          data['totalAmount'] ??
+                          data['amount'];
+                      if (amount != null) {
+                        if (amount is num) {
+                          totalSales += amount.toDouble();
+                        } else if (amount is String) {
+                          totalSales += double.tryParse(amount) ?? 0;
+                        }
+                      }
+                    }
 
-                  if (ordersForDate.isEmpty) {
-                    return Center(
+                    return SingleChildScrollView(
                       child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Icon(
-                            Icons.receipt_long,
-                            size: 64,
-                            color: Colors.grey[300],
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No sales for this date',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.grey[800],
+                          // Summary Cards
+                          Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: _buildSummaryCard(
+                                    'Total Sales',
+                                    PriceFormatter.formatPrice(totalSales),
+                                    Icons.attach_money,
+                                    AdminThemeColors.crimsonRed,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: _buildSummaryCard(
+                                    'Transactions',
+                                    transactionCount.toString(),
+                                    Icons.receipt_long,
+                                    AdminThemeColors.deepBerryRed,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'No transactions found for ${DateFormat('MMMM d, yyyy').format(selectedDate)}',
-                            style: TextStyle(color: Colors.grey[600]),
+                          const Divider(height: 1),
+                          // Transactions List
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(20),
+                            itemCount: ordersForDate.length,
+                            itemBuilder: (context, index) {
+                              final order = ordersForDate[index];
+                              final data = order.data() as Map<String, dynamic>;
+                              // Try totalPrice first, then totalAmount, then amount
+                              final amount =
+                                  data['totalPrice'] ??
+                                  data['totalAmount'] ??
+                                  data['amount'];
+                              final createdAt = data['createdAt'] as Timestamp?;
+
+                              double saleAmount = 0;
+                              if (amount != null) {
+                                if (amount is num) {
+                                  saleAmount = amount.toDouble();
+                                } else if (amount is String) {
+                                  saleAmount = double.tryParse(amount) ?? 0;
+                                }
+                              }
+
+                              String timeString = '';
+                              if (createdAt != null) {
+                                timeString = DateFormat(
+                                  'h:mm a',
+                                ).format(createdAt.toDate());
+                              }
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 12),
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  leading: Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AdminThemeColors.crimsonRed
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Icon(
+                                      Icons.payment,
+                                      color: AdminThemeColors.crimsonRed,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    'Transaction ${index + 1}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    timeString.isNotEmpty
+                                        ? 'Time: $timeString'
+                                        : 'No time available',
+                                    style: TextStyle(
+                                      color: const Color(
+                                        0xFF1D3B53,
+                                      ), // Dark blue for better contrast
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  trailing: Text(
+                                    PriceFormatter.formatPrice(saleAmount),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AdminThemeColors.crimsonRed,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),
                     );
-                  }
-
-                  double totalSales = 0;
-                  int transactionCount = ordersForDate.length;
-
-                  // Calculate total sales from orders
-                  for (var order in ordersForDate) {
-                    final data = order.data() as Map<String, dynamic>;
-                    // Try totalPrice first, then totalAmount, then amount
-                    final amount =
-                        data['totalPrice'] ??
-                        data['totalAmount'] ??
-                        data['amount'];
-                    if (amount != null) {
-                      if (amount is num) {
-                        totalSales += amount.toDouble();
-                      } else if (amount is String) {
-                        totalSales += double.tryParse(amount) ?? 0;
-                      }
-                    }
-                  }
-
-                  return Column(
-                    children: [
-                      // Summary Cards
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: _buildSummaryCard(
-                                'Total Sales',
-                                PriceFormatter.formatPrice(totalSales),
-                                Icons.attach_money,
-                                AdminThemeColors.crimsonRed,
-                              ),
-                            ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: _buildSummaryCard(
-                                'Transactions',
-                                transactionCount.toString(),
-                                Icons.receipt_long,
-                                AdminThemeColors.deepBerryRed,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      // Transactions List
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(20),
-                          itemCount: ordersForDate.length,
-                          itemBuilder: (context, index) {
-                            final order = ordersForDate[index];
-                            final data = order.data() as Map<String, dynamic>;
-                            // Try totalPrice first, then totalAmount, then amount
-                            final amount =
-                                data['totalPrice'] ??
-                                data['totalAmount'] ??
-                                data['amount'];
-                            final createdAt = data['createdAt'] as Timestamp?;
-
-                            double saleAmount = 0;
-                            if (amount != null) {
-                              if (amount is num) {
-                                saleAmount = amount.toDouble();
-                              } else if (amount is String) {
-                                saleAmount = double.tryParse(amount) ?? 0;
-                              }
-                            }
-
-                            String timeString = '';
-                            if (createdAt != null) {
-                              timeString = DateFormat(
-                                'h:mm a',
-                              ).format(createdAt.toDate());
-                            }
-
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                leading: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: AdminThemeColors.crimsonRed
-                                        .withOpacity(0.1),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Icon(
-                                    Icons.payment,
-                                    color: AdminThemeColors.crimsonRed,
-                                    size: 24,
-                                  ),
-                                ),
-                                title: Text(
-                                  'Transaction ${index + 1}',
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  timeString.isNotEmpty
-                                      ? 'Time: $timeString'
-                                      : 'No time available',
-                                  style: TextStyle(
-                                    color: const Color(
-                                      0xFF1D3B53,
-                                    ), // Dark blue for better contrast
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                trailing: Text(
-                                  PriceFormatter.formatPrice(saleAmount),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: AdminThemeColors.crimsonRed,
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -5328,13 +5338,45 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Orders & Quotations',
-                      style: TextStyle(
-                        fontSize: isMobile ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Orders & Quotations',
+                            style: TextStyle(
+                              fontSize: isMobile ? 20 : 24,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const MapComingSoonPlaceholder(
+                                      title: 'Delivery Locations Map',
+                                      message:
+                                          'Map view of all delivery locations is coming soon!',
+                                    ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.map, size: 18),
+                          label: const Text('View Map'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (!isMobile) ...[
                       const SizedBox(height: 4),
@@ -5949,6 +5991,30 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                   minimumSize: const Size(double.infinity, 44),
                 ),
               ),
+              // View Map button (if coordinates exist)
+              if (order['latitude'] != null && order['longitude'] != null) ...[
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const MapComingSoonPlaceholder(
+                          title: 'Order Location',
+                          message:
+                              'Map view for order delivery location is coming soon!',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.map, size: 18),
+                  label: const Text('View Map'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                ),
+              ],
               if (status != 'delivered' && status != 'completed') ...[
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
@@ -5994,6 +6060,30 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                       ),
                     ),
                   ),
+                  // View Map button (if coordinates exist)
+                  if (order['latitude'] != null && order['longitude'] != null)
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MapComingSoonPlaceholder(
+                              title: 'Order Location',
+                              message:
+                                  'Map view for order delivery location is coming soon!',
+                            ),
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.map, size: 18),
+                      label: const Text('View Map'),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
                   if (status != 'delivered' && status != 'completed')
                     ElevatedButton.icon(
                       onPressed: () =>
@@ -6248,11 +6338,7 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                   final isAssigned = order['assignedStaffId'] == staff.id;
 
                   return ListTile(
-                    leading: CircleAvatar(
-                      child: Text(
-                        staffName.isNotEmpty ? staffName[0].toUpperCase() : 'S',
-                      ),
-                    ),
+                    leading: const CompactProfilePicturePlaceholder(size: 40),
                     title: Text(staffName),
                     subtitle: Text(staffData['email'] ?? ''),
                     trailing: isAssigned
@@ -6355,956 +6441,16 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
   }
 }
 
-class _CustomersManagementPage extends StatefulWidget {
-  const _CustomersManagementPage();
-
-  @override
-  State<_CustomersManagementPage> createState() =>
-      _CustomersManagementPageState();
-}
-
-class _CustomersManagementPageState extends State<_CustomersManagementPage> {
-  final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
+class _ActivityLogPage extends StatelessWidget {
+  const _ActivityLogPage();
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.dashboardBackground,
-      body: Column(
-        children: [
-          // Header with Search
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(
-                        0xFFCD5656,
-                      ).withOpacity(0.3), // Red border matching theme
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Customer Management',
-                      style: TextStyle(
-                        fontSize: isMobile ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    if (!isMobile) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'View and manage all registered customers',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.dashboardBackground,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.border),
-                      ),
-                      child: TextField(
-                        controller: _searchController,
-                        onChanged: (value) {
-                          setState(() {
-                            _searchQuery = value;
-                          });
-                        },
-                        decoration: InputDecoration(
-                          hintText: 'Search customers by name or email...',
-                          hintStyle: TextStyle(color: AppColors.textSecondary),
-                          prefixIcon: Icon(
-                            Icons.search,
-                            color: AppColors.textSecondary,
-                          ),
-                          suffixIcon: _searchQuery.isNotEmpty
-                              ? IconButton(
-                                  icon: Icon(
-                                    Icons.clear,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                    setState(() {
-                                      _searchQuery = '';
-                                    });
-                                  },
-                                )
-                              : null,
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          // Customers List - Only show customers who have placed orders
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('orders')
-                  .snapshots(),
-              builder: (context, ordersSnapshot) {
-                if (ordersSnapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading orders: ${ordersSnapshot.error}',
-                    ),
-                  );
-                }
-
-                if (ordersSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                // Get unique customer IDs from orders (check both customerId and userId fields)
-                final Set<String> customerIdsWithOrders = {};
-                if (ordersSnapshot.hasData) {
-                  for (var orderDoc in ordersSnapshot.data!.docs) {
-                    final orderData = orderDoc.data() as Map<String, dynamic>;
-                    // Check both customerId and userId fields
-                    final customerId = orderData['customerId'] as String?;
-                    final userId = orderData['userId'] as String?;
-                    if (customerId != null && customerId.isNotEmpty) {
-                      customerIdsWithOrders.add(customerId);
-                    }
-                    if (userId != null && userId.isNotEmpty) {
-                      customerIdsWithOrders.add(userId);
-                    }
-                  }
-                }
-
-                if (customerIdsWithOrders.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.people_outline,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No customers with orders yet',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Now fetch customer details for those who have orders
-                return StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .snapshots() // Load all users, filter in memory
-                      .handleError((error) {
-                        debugPrint('⚠️ Error loading users: $error');
-                        return FirebaseFirestore.instance
-                            .collection('users')
-                            .snapshots();
-                      }),
-                  builder: (context, allUsersSnapshot) {
-                    if (allUsersSnapshot.hasError) {
-                      return Center(
-                        child: Text(
-                          'Error loading users: ${allUsersSnapshot.error}',
-                        ),
-                      );
-                    }
-
-                    if (allUsersSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    // Filter customers in memory - include all users who have placed orders
-                    // Check both explicit 'customer' role and users who have orders
-                    final customers =
-                        (allUsersSnapshot.hasData
-                                ? allUsersSnapshot.data!.docs
-                                : <QueryDocumentSnapshot>[])
-                            .where((doc) {
-                              final data = doc.data() as Map<String, dynamic>;
-                              final role = (data['role'] as String?) ?? '';
-                              // Include if role is 'customer' OR if they have placed orders
-                              final isCustomerRole =
-                                  role.toLowerCase() == 'customer';
-                              final hasOrder = customerIdsWithOrders.contains(
-                                doc.id,
-                              );
-                              return isCustomerRole || hasOrder;
-                            })
-                            .toList();
-
-                    if (customers.isEmpty) {
-                      return Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.people_outline,
-                              size: 64,
-                              color: AppColors.textSecondary,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'No customers found',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }
-
-                    // Filter customers to only those who have placed orders
-                    var filteredCustomers = customers.where((doc) {
-                      return customerIdsWithOrders.contains(doc.id);
-                    }).toList();
-
-                    // Filter by search query
-                    if (_searchQuery.isNotEmpty) {
-                      filteredCustomers = filteredCustomers.where((doc) {
-                        final data = doc.data() as Map<String, dynamic>;
-                        final name =
-                            ((data['name'] as String?) ??
-                                    (data['fullName'] as String?) ??
-                                    (data['customerName'] as String?) ??
-                                    '')
-                                .toLowerCase();
-                        final email = (data['email'] as String? ?? '')
-                            .toLowerCase();
-                        final query = _searchQuery.toLowerCase();
-                        return name.contains(query) || email.contains(query);
-                      }).toList();
-                    }
-
-                    if (filteredCustomers.isEmpty) {
-                      return Center(
-                        child: Text(
-                          'No customers match your search',
-                          style: TextStyle(color: AppColors.textSecondary),
-                        ),
-                      );
-                    }
-
-                    return LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isMobile = constraints.maxWidth < 768;
-                        if (isMobile) {
-                          return ListView.builder(
-                            padding: const EdgeInsets.all(16),
-                            itemCount: filteredCustomers.length,
-                            itemBuilder: (context, index) {
-                              return _buildCustomerCard(
-                                context,
-                                filteredCustomers[index],
-                                true,
-                              );
-                            },
-                          );
-                        } else {
-                          return SingleChildScrollView(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Total Customers: ${filteredCustomers.length}',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                Wrap(
-                                  spacing: 16,
-                                  runSpacing: 16,
-                                  children: customers.map((doc) {
-                                    return SizedBox(
-                                      width: (constraints.maxWidth - 48) / 3,
-                                      child: _buildCustomerCard(
-                                        context,
-                                        doc,
-                                        false,
-                                      ),
-                                    );
-                                  }).toList(),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCustomerCard(
-    BuildContext context,
-    DocumentSnapshot customerDoc,
-    bool isMobile,
-  ) {
-    final customer = customerDoc.data() as Map<String, dynamic>;
-    final name =
-        (customer['name'] as String?) ??
-        (customer['fullName'] as String?) ??
-        (customer['customerName'] as String?) ??
-        'Unknown';
-    final email = customer['email'] as String? ?? 'No email';
-    final phone = customer['phone'] as String? ?? 'No phone';
-    final phoneVerified = (customer['phoneVerified'] as bool?) ?? false;
-    final userId = customerDoc.id;
-
-    // Check multiple possible field names for profile picture
-    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl =
-        (customer['profilePic'] as String?) ??
-        (customer['profilePictureUrl'] as String?) ??
-        (customer['profileImageUrl'] as String?) ??
-        (customer['photoUrl'] as String?) ??
-        (customer['imageUrl'] as String?) ??
-        (customer['profileImage'] as String?);
-
-    // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture =
-        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
-    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
-
-    return Card(
-      elevation: 2,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      margin: EdgeInsets.only(bottom: isMobile ? 12 : 0),
-      child: InkWell(
-        onTap: () => _showCustomerDetails(context, customerDoc),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: isMobile ? 24 : 28,
-                    backgroundColor: Colors.grey.shade200,
-                    backgroundImage: validProfilePicUrl != null
-                        ? NetworkImage(validProfilePicUrl)
-                        : null,
-                    onBackgroundImageError: validProfilePicUrl != null
-                        ? (exception, stackTrace) {
-                            // Handle image loading errors gracefully
-                            debugPrint(
-                              'Error loading profile image: $exception',
-                            );
-                          }
-                        : null,
-                    child: validProfilePicUrl == null
-                        ? Icon(
-                            Icons.person,
-                            color: Colors.grey.shade600,
-                            size: isMobile ? 24 : 28,
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          email,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(Icons.phone, size: 16, color: AppColors.textSecondary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      phone,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (phoneVerified)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.success.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.success, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.verified,
-                            size: 12,
-                            color: AppColors.success,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Verified',
-                            style: TextStyle(
-                              fontSize: 12, // Increased for clarity
-                              color: AppColors.success,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else if (phone != 'No phone')
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            size: 12,
-                            color: Colors.orange,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Not Verified',
-                            style: TextStyle(
-                              fontSize: 12, // Increased for clarity
-                              color: Colors.orange,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('orders')
-                    .where('customerId', isEqualTo: userId)
-                    .snapshots(),
-                builder: (context, ordersSnapshot) {
-                  final orderCount = ordersSnapshot.hasData
-                      ? ordersSnapshot.data!.docs.length
-                      : 0;
-                  double totalSpent = 0;
-                  if (ordersSnapshot.hasData) {
-                    for (var order in ordersSnapshot.data!.docs) {
-                      final data = order.data() as Map<String, dynamic>;
-                      // Use totalPrice field (correct Firestore field name)
-                      totalSpent +=
-                          (data['totalPrice'] as num?)?.toDouble() ??
-                          (data['price'] as num?)?.toDouble() ??
-                          0.0;
-                    }
-                  }
-
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.shopping_bag_outlined,
-                            size: 16,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '$orderCount orders',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        '₱${_formatNumber(totalSpent)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showCustomerDetails(
-    BuildContext context,
-    DocumentSnapshot customerDoc,
-  ) {
-    final customer = customerDoc.data() as Map<String, dynamic>;
-    final name =
-        (customer['name'] as String?) ??
-        (customer['fullName'] as String?) ??
-        (customer['customerName'] as String?) ??
-        'Unknown';
-    final email = customer['email'] as String? ?? 'No email';
-    final phone = customer['phone'] as String? ?? 'No phone';
-    final phoneVerified = (customer['phoneVerified'] as bool?) ?? false;
-    final phoneVerifiedAt = customer['phoneVerifiedAt'] as Timestamp?;
-    final userId = customerDoc.id;
-
-    // Check multiple possible field names for profile picture
-    // Priority: profilePic (primary) > profilePictureUrl > profileImageUrl > others
-    final String? profilePicUrl =
-        (customer['profilePic'] as String?) ??
-        (customer['profilePictureUrl'] as String?) ??
-        (customer['profileImageUrl'] as String?) ??
-        (customer['photoUrl'] as String?) ??
-        (customer['imageUrl'] as String?) ??
-        (customer['profileImage'] as String?);
-
-    // Check if profile picture URL exists and is not empty
-    final bool hasProfilePicture =
-        profilePicUrl != null && profilePicUrl.trim().isNotEmpty;
-    final String? validProfilePicUrl = hasProfilePicture ? profilePicUrl : null;
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 32,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: validProfilePicUrl != null
-                          ? NetworkImage(validProfilePicUrl)
-                          : null,
-                      onBackgroundImageError: validProfilePicUrl != null
-                          ? (exception, stackTrace) {
-                              // Handle image loading errors gracefully
-                              debugPrint(
-                                'Error loading profile image: $exception',
-                              );
-                            }
-                          : null,
-                      child: validProfilePicUrl == null
-                          ? Icon(
-                              Icons.person,
-                              color: Colors.grey.shade600,
-                              size: 32,
-                            )
-                          : null,
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            email,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: AppColors.textSecondary,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    Icon(Icons.phone, size: 20, color: AppColors.textSecondary),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Phone',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        phone,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                    if (phoneVerified)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: AppColors.success,
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.verified,
-                              size: 14,
-                              color: AppColors.success,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Verified',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: AppColors.success,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      )
-                    else if (phone != 'No phone')
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.orange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.orange, width: 1),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.warning_amber_rounded,
-                              size: 14,
-                              color: Colors.orange,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Not Verified',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.orange,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-                if (phoneVerified && phoneVerifiedAt != null) ...[
-                  const SizedBox(height: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 32),
-                    child: Text(
-                      'Verified on: ${phoneVerifiedAt.toDate().toString().substring(0, 16)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppColors.textSecondary,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                _buildDetailRow(
-                  Icons.person_outline,
-                  'Customer ID',
-                  userId.substring(0, 8),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Order History',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  height: 300,
-                  child: StreamBuilder<QuerySnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('orders')
-                        .where('customerId', isEqualTo: userId)
-                        .limit(10)
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      // Handle connection state
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-
-                      // Handle errors
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.error_outline,
-                                size: 48,
-                                color: AppColors.textSecondary,
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Error loading orders',
-                                style: TextStyle(
-                                  color: AppColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      }
-
-                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                        return Center(
-                          child: Text(
-                            'No orders yet',
-                            style: TextStyle(color: AppColors.textSecondary),
-                          ),
-                        );
-                      }
-
-                      // Sort orders by createdAt in memory if orderBy failed
-                      final orders = List<QueryDocumentSnapshot>.from(
-                        snapshot.data!.docs,
-                      );
-                      orders.sort((a, b) {
-                        final aData = a.data() as Map<String, dynamic>;
-                        final bData = b.data() as Map<String, dynamic>;
-                        final aCreatedAt = aData['createdAt'] as Timestamp?;
-                        final bCreatedAt = bData['createdAt'] as Timestamp?;
-                        if (aCreatedAt == null && bCreatedAt == null) return 0;
-                        if (aCreatedAt == null) return 1;
-                        if (bCreatedAt == null) return -1;
-                        return bCreatedAt.compareTo(aCreatedAt);
-                      });
-
-                      return ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: orders.length,
-                        itemBuilder: (context, index) {
-                          final order = orders[index];
-                          final data = order.data() as Map<String, dynamic>;
-                          // Use totalPrice field (correct Firestore field name)
-                          final total =
-                              (data['totalPrice'] as num?)?.toDouble() ??
-                              (data['price'] as num?)?.toDouble() ??
-                              0.0;
-                          final status = data['status'] as String? ?? 'pending';
-                          final createdAt = data['createdAt'] as Timestamp?;
-                          final orderDate = createdAt != null
-                              ? '${createdAt.toDate().toString().substring(0, 16)}'
-                              : 'Unknown date';
-
-                          return ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
-                              child: Icon(
-                                Icons.shopping_bag,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                            title: Text(
-                              PriceFormatter.formatPrice(total),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              orderDate,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Chip(
-                              label: Text(
-                                status.toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 12, // Increased for clarity
-                                  letterSpacing: 0.2,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              backgroundColor: AppColors.primary.withOpacity(
-                                0.1,
-                              ),
-                              labelStyle: TextStyle(color: AppColors.primary),
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(IconData icon, String label, String value) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
-        const SizedBox(width: 12),
-        Text(
-          label,
-          style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ],
-    );
-  }
-
-  String _formatNumber(double value) {
-    if (value >= 1000000) {
-      return '${(value / 1000000).toStringAsFixed(1)}M';
-    } else if (value >= 1000) {
-      return '${(value / 1000).toStringAsFixed(1)}K';
-    }
-    return value.toStringAsFixed(0);
+    return const ActivityLogPage();
   }
 }
+
+// Old CustomersManagementPageState removed - replaced with ActivityLogPage
 
 class _StaffManagementPage extends StatefulWidget {
   const _StaffManagementPage();
@@ -7502,18 +6648,7 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            CircleAvatar(
-              radius: 30,
-              backgroundColor: AppColors.primary,
-              child: Text(
-                name[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 20,
-                ),
-              ),
-            ),
+            const ProfilePicturePlaceholder(size: 60),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -7679,7 +6814,7 @@ class _FeedbackPage extends StatelessWidget {
               color: Colors.white,
               border: Border(
                 bottom: BorderSide(
-                  color: const Color(0xFFCD5656).withOpacity(0.3),
+                  color: const Color(0xFF8B2E2E).withOpacity(0.3),
                   width: 2,
                 ),
               ),
@@ -7914,15 +7049,25 @@ class _FeedbackPage extends StatelessWidget {
     final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
     final review = orderData['review'] as String? ?? '';
     // Check multiple possible field names for image URL
-    final ratingImageUrl =
+    String? ratingImageUrl =
         (orderData['ratingImageUrl'] as String?) ??
         (orderData['rating_image_url'] as String?) ??
         (orderData['imageUrl'] as String?) ??
         (orderData['image_url'] as String?);
+
+    // Clean up the URL - remove any whitespace
+    if (ratingImageUrl != null) {
+      ratingImageUrl = ratingImageUrl.trim();
+      if (ratingImageUrl.isEmpty) {
+        ratingImageUrl = null;
+      }
+    }
     final customerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
         'Unknown Customer';
+    // Get customerId to fetch profile picture
+    final customerId = orderData['customerId'] as String?;
     final createdAt = orderData['createdAt'] as Timestamp?;
     final orderDate = createdAt != null
         ? DateFormat('yyyy-MM-dd HH:mm').format(createdAt.toDate())
@@ -7959,20 +7104,15 @@ class _FeedbackPage extends StatelessWidget {
             // Header with customer info and date
             Row(
               children: [
-                CircleAvatar(
-                  radius: isMobile ? 20 : 24,
-                  backgroundColor: AppColors.primary,
-                  child: Text(
-                    customerName.isNotEmpty
-                        ? customerName[0].toUpperCase()
-                        : 'U',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: isMobile ? 18 : 20,
-                    ),
-                  ),
-                ),
+                // Customer profile picture - fetch from Firestore
+                customerId != null && customerId.isNotEmpty
+                    ? CustomerProfileAvatar(
+                        customerId: customerId,
+                        size: isMobile ? 40 : 48,
+                      )
+                    : CompactProfilePicturePlaceholder(
+                        size: isMobile ? 40 : 48,
+                      ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -8018,7 +7158,7 @@ class _FeedbackPage extends StatelessWidget {
                   color: const Color(0xFFFFF5F5), // Light pink background
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: const Color(0xFFCD5656).withOpacity(0.2),
+                    color: const Color(0xFF8B2E2E).withOpacity(0.2),
                     width: 1,
                   ),
                 ),
@@ -8033,69 +7173,126 @@ class _FeedbackPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            // Rating image
+            // Rating image (responsive)
             if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
               const SizedBox(height: 12),
               Builder(
                 builder: (context) {
                   // Create local non-nullable variable since we've already checked
-                  final imageUrl = ratingImageUrl!;
-                  return GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (context) => Dialog(
-                          backgroundColor: Colors.transparent,
-                          child: Stack(
-                            children: [
-                              Center(
-                                child: RatingImageWidget(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.contain,
-                                  height: MediaQuery.of(context).size.height * 0.7,
-                                  width: MediaQuery.of(context).size.width * 0.9,
-                                  primaryColor: AppColors.primary,
-                                  orderId: orderId,
-                                ),
+                  final imageUrl =
+                      ratingImageUrl!; // Non-null assertion since we checked above
+                  return LayoutBuilder(
+                    builder: (context, constraints) {
+                      // Calculate responsive image size
+                      final screenHeight = MediaQuery.of(context).size.height;
+
+                      // For card thumbnail: responsive height based on screen size
+                      final thumbnailHeight = isMobile
+                          ? (screenHeight * 0.2).clamp(
+                              120.0,
+                              200.0,
+                            ) // Mobile: 120-200px
+                          : (screenHeight * 0.25).clamp(
+                              150.0,
+                              250.0,
+                            ); // Desktop: 150-250px
+
+                      return GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (dialogContext) => Dialog(
+                              backgroundColor: Colors.transparent,
+                              insetPadding: EdgeInsets.all(isMobile ? 16 : 24),
+                              child: LayoutBuilder(
+                                builder: (context, dialogConstraints) {
+                                  final dialogScreenWidth = MediaQuery.of(
+                                    dialogContext,
+                                  ).size.width;
+                                  final dialogScreenHeight = MediaQuery.of(
+                                    dialogContext,
+                                  ).size.height;
+
+                                  // Responsive full-screen image dimensions
+                                  final responsiveFullWidth = isMobile
+                                      ? dialogScreenWidth -
+                                            32 // Mobile: account for padding
+                                      : (dialogScreenWidth * 0.85).clamp(
+                                          400.0,
+                                          1200.0,
+                                        ); // Desktop: 400-1200px
+
+                                  final responsiveFullHeight = isMobile
+                                      ? dialogScreenHeight *
+                                            0.8 // Mobile: 80% of height
+                                      : (dialogScreenHeight * 0.85).clamp(
+                                          400.0,
+                                          900.0,
+                                        ); // Desktop: 400-900px
+
+                                  return Stack(
+                                    children: [
+                                      Center(
+                                        child: RatingImageWidget(
+                                          imageUrl: imageUrl,
+                                          fit: BoxFit.contain,
+                                          height: responsiveFullHeight,
+                                          width: responsiveFullWidth,
+                                          primaryColor: AppColors.primary,
+                                          orderId: orderId,
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 8,
+                                        right: 8,
+                                        child: Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.black54,
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: IconButton(
+                                            icon: const Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            onPressed: () =>
+                                                Navigator.pop(dialogContext),
+                                            tooltip: 'Close',
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
-                              Positioned(
-                                top: 8,
-                                right: 8,
-                                child: IconButton(
-                                  icon: const Icon(
-                                    Icons.close,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: () => Navigator.pop(context),
-                                  style: IconButton.styleFrom(
-                                    backgroundColor: Colors.black54,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
+                          );
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: const Color(0xFF8B2E2E).withOpacity(0.2),
+                              width: 1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: RatingImageWidget(
+                              imageUrl: imageUrl,
+                              width: double.infinity,
+                              height: thumbnailHeight,
+                              fit: BoxFit.cover,
+                              borderRadius: BorderRadius.circular(8),
+                              backgroundColor: const Color(0xFFFFF5F5),
+                              primaryColor: AppColors.primary,
+                              orderId: orderId,
+                            ),
                           ),
                         ),
                       );
                     },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        border: Border.all(
-                          color: const Color(0xFFCD5656).withOpacity(0.2),
-                          width: 1,
-                        ),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: RatingImageWidget(
-                        imageUrl: imageUrl,
-                        width: double.infinity,
-                        height: isMobile ? 150 : 200,
-                        fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(8),
-                        backgroundColor: const Color(0xFFFFF5F5),
-                        primaryColor: AppColors.primary,
-                        orderId: orderId,
-                      ),
-                    ),
                   );
                 },
               ),

@@ -292,6 +292,8 @@ class _ProceedToBuyPageState extends State<ProceedToBuyPage> {
         completeAddress: deliveryAddress['completeAddress'] as String,
         landmark: deliveryAddress['landmark'] as String?,
         mapLink: deliveryAddress['mapLink'] as String?,
+        latitude: deliveryAddress['latitude'] as double?,
+        longitude: deliveryAddress['longitude'] as double?,
         selectedWidth: selectedWidth,
         selectedHeight: selectedHeight,
         addedPrice: addedPrice > 0 ? addedPrice : null,

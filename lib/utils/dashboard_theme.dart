@@ -5,10 +5,10 @@ import 'dart:math' as math;
 class DashboardTheme {
   DashboardTheme._();
 
-  // New theme gradient colors
-  static const Color gradientStart = Color(0xFFCD5656);
-  static const Color gradientMiddle = Color(0xFFAF3E3E);
-  static const Color gradientEnd = Color(0xFF8B2E2E);
+  // Dark maroon theme gradient colors
+  static const Color gradientStart = Color(0xFF8B2E2E);
+  static const Color gradientMiddle = Color(0xFF6B1F1F);
+  static const Color gradientEnd = Color(0xFF4A1515);
 
   // Gradient for headers and top bars
   static const LinearGradient headerGradient = LinearGradient(
@@ -77,11 +77,11 @@ class _BubblePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final random = math.Random(42);
     
-    // Theme bubble colors
+    // Dark maroon bubble colors
     final bubbleColors = [
-      const Color(0xFFCD5656).withOpacity(0.3),
-      const Color(0xFFAF3E3E).withOpacity(0.25),
-      const Color(0xFF8B2E2E).withOpacity(0.2),
+      const Color(0xFF8B2E2E).withOpacity(0.3),
+      const Color(0xFF6B1F1F).withOpacity(0.25),
+      const Color(0xFF4A1515).withOpacity(0.2),
     ];
 
     // Draw multiple glossy bubbles with soft blue tones

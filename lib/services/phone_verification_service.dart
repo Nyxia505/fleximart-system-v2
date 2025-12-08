@@ -391,29 +391,64 @@ class PhoneVerificationService {
     }
 
     try {
-      // Use set() with merge: true to ensure it works even if document doesn't exist
-      // This prevents errors and ensures the verification status is saved
-      await _firestore.collection('users').doc(uid).set({
+      // Check if document exists first
+      final docRef = _firestore.collection('users').doc(uid);
+      final docSnapshot = await docRef.get();
+      
+      if (!docSnapshot.exists) {
+        // Document doesn't exist - create it with phone verification
+        await docRef.set({
+          'phoneNumber': formattedPhone,
+          'phoneVerified': true,
+          'phoneVerifiedAt': FieldValue.serverTimestamp(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        // Document exists - update it with phone verification
+        await docRef.update({
         'phoneNumber': formattedPhone,
         'phoneVerified': true,
         'phoneVerifiedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+        });
+      }
       
       // Verify the save was successful by reading it back
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        final data = doc.data();
+      final verifyDoc = await docRef.get();
+      if (verifyDoc.exists) {
+        final data = verifyDoc.data();
         final savedVerified = data?['phoneVerified'] as bool? ?? false;
         if (!savedVerified) {
           throw Exception('Failed to save phone verification status. Please try again.');
         }
       }
-    } catch (e) {
-      // If it's a Firestore error, re-throw with better message
-      if (e.toString().contains('PERMISSION_DENIED') ||
-          e.toString().contains('permission')) {
+    } on FirebaseException catch (e) {
+      // Handle Firestore-specific errors
+      if (e.code == 'permission-denied') {
         throw Exception(
-          'Permission denied. Please check your Firestore security rules.',
+          'Permission denied. Please ensure you are logged in and try again.',
+        );
+      } else if (e.code == 'not-found') {
+        // Try to create document again
+        try {
+          await _firestore.collection('users').doc(uid).set({
+            'phoneNumber': formattedPhone,
+            'phoneVerified': true,
+            'phoneVerifiedAt': FieldValue.serverTimestamp(),
+            'createdAt': FieldValue.serverTimestamp(),
+          });
+        } catch (e2) {
+          throw Exception('Failed to save phone verification. Please try again.');
+        }
+      } else {
+        throw Exception('Failed to save phone verification: ${e.message ?? e.toString()}');
+      }
+    } catch (e) {
+      // Handle other errors
+      if (e.toString().contains('PERMISSION_DENIED') ||
+          e.toString().contains('permission-denied') ||
+          e.toString().toLowerCase().contains('permission')) {
+        throw Exception(
+          'Permission denied. Please ensure you are logged in and try again.',
         );
       }
       throw Exception('Failed to save phone verification: ${e.toString()}');

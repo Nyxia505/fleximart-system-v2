@@ -13,10 +13,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup Flutter
+      - name: Install Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.16.0"
+          flutter-version: '3.16.0'
+          channel: 'stable'
+
+      - name: Enable Flutter Web
+        run: flutter config --enable-web
 
       - name: Install dependencies
         run: flutter pub get
@@ -31,4 +35,3 @@ jobs:
           firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_FLEXIMART_SYSTEM }}"
           channelId: live
           projectId: fleximart-system
-

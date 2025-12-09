@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:typed_data';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 class ChatService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -352,12 +353,33 @@ class ChatService {
     return {'userId': otherUserId, 'userName': otherUserName};
   }
 
+  /// Fix common email typos (e.g., gamil -> gmail)
+  String _fixEmailTypo(String email) {
+    if (email.contains('@gamil.com')) {
+      return email.replaceAll('@gamil.com', '@gmail.com');
+    }
+    return email;
+  }
+
   /// Get user name from users collection
   Future<String> _getUserName(String userId) async {
     try {
       final userDoc = await _firestore.collection('users').doc(userId).get();
-      final userData = userDoc.data() ?? {};
-      return userData['fullName'] ?? userData['email'] ?? 'Unknown';
+      if (userDoc.exists) {
+        final userData = userDoc.data() ?? {};
+        // Prioritize fullName first (matches customer profile), then name, then customerName, then email
+        final name = (userData['fullName'] as String?) ??
+            (userData['name'] as String?) ??
+            (userData['customerName'] as String?) ??
+            (userData['email'] as String?) ??
+            'Unknown';
+        // Fix email typos if the name is an email address
+        if (name.contains('@')) {
+          return _fixEmailTypo(name);
+        }
+        return name;
+      }
+      return 'Unknown';
     } catch (e) {
       return 'Unknown';
     }
@@ -461,6 +483,78 @@ class ChatService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
+  }
+
+  /// Delete a chat conversation
+  ///
+  /// This deletes:
+  /// - All messages in the chat subcollection
+  /// - The chat document itself
+  /// - Associated images from Storage (if any)
+  ///
+  /// Parameters:
+  /// - [chatId]: The chat room ID to delete
+  /// - [userId]: The UID of the user trying to delete (must be a participant)
+  ///
+  /// Throws:
+  /// - Exception if user is not a participant or chat doesn't exist
+  Future<void> deleteChat(String chatId, String userId) async {
+    final chatRef = _firestore.collection('chats').doc(chatId);
+    final chatDoc = await chatRef.get();
+    
+    if (!chatDoc.exists) {
+      throw Exception('Chat not found');
+    }
+    
+    final chatData = chatDoc.data() ?? {};
+    final participants = (chatData['participants'] as List<dynamic>?) ?? [];
+    
+    // Verify user is a participant
+    if (!participants.contains(userId)) {
+      throw Exception('You can only delete conversations you are part of');
+    }
+    
+    // Delete all messages in the chat
+    final messagesRef = chatRef.collection('messages');
+    final messagesSnapshot = await messagesRef.get();
+    
+    // Delete images from Storage if any
+    final storage = FirebaseStorage.instance;
+    final batch = _firestore.batch();
+    
+    for (var messageDoc in messagesSnapshot.docs) {
+      final messageData = messageDoc.data();
+      final imageUrl = messageData['imageUrl'] as String?;
+      
+      // Delete image from Storage if it exists
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        try {
+          // Extract the path from the URL
+          final uri = Uri.parse(imageUrl);
+          final pathSegments = uri.pathSegments;
+          // Firebase Storage URLs have format: /v0/b/{bucket}/o/{path}
+          // We need to extract the path after 'o/'
+          final pathIndex = pathSegments.indexOf('o');
+          if (pathIndex != -1 && pathIndex < pathSegments.length - 1) {
+            final storagePath = pathSegments.sublist(pathIndex + 1).join('/');
+            final decodedPath = Uri.decodeComponent(storagePath);
+            await storage.ref(decodedPath).delete();
+          }
+        } catch (e) {
+          // Log error but continue deleting other messages
+          debugPrint('Error deleting image from Storage: $e');
+        }
+      }
+      
+      // Add message deletion to batch
+      batch.delete(messageDoc.reference);
+    }
+    
+    // Delete the chat document
+    batch.delete(chatRef);
+    
+    // Commit all deletions
+    await batch.commit();
   }
 
   /// Generate a consistent chatId from two UIDs

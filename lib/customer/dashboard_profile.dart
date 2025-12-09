@@ -3360,8 +3360,7 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
       height: widget.height,
       fit: BoxFit.cover,
       key: ValueKey('profile_image_${_currentImageUrl}_${widget.userId}_$_cacheBustToken'),
-      cacheWidth: widget.width.toInt(),
-      cacheHeight: widget.height.toInt(),
+      // Removed cacheWidth and cacheHeight to prevent blurring - let image load at full resolution
       headers: {
         'Cache-Control': 'no-cache',
       },

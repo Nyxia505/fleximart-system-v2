@@ -413,7 +413,8 @@ class _OrderCard extends StatelessWidget {
     }
     
     // Use correct Firestore fields with null safety
-    final customerName = orderData['customerName'] as String? ?? 'Customer';
+    final fallbackCustomerName = orderData['customerName'] as String? ?? 'Customer';
+    final customerId = orderData['customerId'] as String?;
     final customerEmail = orderData['customerEmail'] as String?;
     final createdAt = orderData['createdAt'] as Timestamp?; // Use correct field, no fallback to 'date'
     final status = (orderData['status'] as String?) ?? 'pending_payment';
@@ -513,13 +514,31 @@ class _OrderCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              customerName,
-                              style: AppTextStyles.bodyMedium(
-                                color: AppColors.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: FutureBuilder<DocumentSnapshot>(
+                              future: customerId != null
+                                  ? FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(customerId)
+                                      .get()
+                                  : null,
+                              builder: (context, snapshot) {
+                                String displayName = fallbackCustomerName;
+                                if (snapshot.hasData && snapshot.data!.exists) {
+                                  final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                                  displayName = (userData?['fullName'] as String?) ??
+                                      (userData?['name'] as String?) ??
+                                      (userData?['customerName'] as String?) ??
+                                      fallbackCustomerName;
+                                }
+                                return Text(
+                                  displayName,
+                                  style: AppTextStyles.bodyMedium(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
                             ),
                           ),
                         ],
@@ -1084,7 +1103,8 @@ class _QuotationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customerName = quotationData['customerName'] as String? ?? 'Customer';
+    final fallbackCustomerName = quotationData['customerName'] as String? ?? 'Customer';
+    final customerId = quotationData['customerId'] as String?;
     final customerEmail = quotationData['customerEmail'] as String?;
     final productName = quotationData['productName'] as String? ?? 'Unknown Product';
     final productImage = quotationData['productImage'] as String?;
@@ -1188,13 +1208,31 @@ class _QuotationCard extends StatelessWidget {
                           ),
                           const SizedBox(width: 4),
                           Expanded(
-                            child: Text(
-                              customerName,
-                              style: AppTextStyles.bodyMedium(
-                                color: AppColors.textSecondary,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                            child: FutureBuilder<DocumentSnapshot>(
+                              future: customerId != null
+                                  ? FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(customerId)
+                                      .get()
+                                  : null,
+                              builder: (context, snapshot) {
+                                String displayName = fallbackCustomerName;
+                                if (snapshot.hasData && snapshot.data!.exists) {
+                                  final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                                  displayName = (userData?['fullName'] as String?) ??
+                                      (userData?['name'] as String?) ??
+                                      (userData?['customerName'] as String?) ??
+                                      fallbackCustomerName;
+                                }
+                                return Text(
+                                  displayName,
+                                  style: AppTextStyles.bodyMedium(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                );
+                              },
                             ),
                           ),
                         ],

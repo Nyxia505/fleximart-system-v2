@@ -357,6 +357,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ? snapshot.data!.data() as Map<String, dynamic>?
             : null;
         final userName =
+            (userData?['fullName'] as String?) ??
             (userData?['name'] as String?) ??
             (userData?['customerName'] as String?) ??
             user?.email?.split('@')[0] ??
@@ -446,6 +447,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ? snapshot.data!.data() as Map<String, dynamic>?
             : null;
         final userName =
+            (userData?['fullName'] as String?) ??
             (userData?['name'] as String?) ??
             (userData?['customerName'] as String?) ??
             user?.email?.split('@')[0] ??
@@ -1644,16 +1646,34 @@ class _RecentOrdersTable extends StatelessWidget {
                     ),
                   ),
                   DataCell(
-                    Text(
-                      customerName,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14, // Increased for clarity
-                        color: Color(
-                          0xFF1D3B53,
-                        ), // Dark blue for better readability
-                        letterSpacing: 0.1,
-                      ),
+                    FutureBuilder<DocumentSnapshot>(
+                      future: (order['customerId'] as String?) != null
+                          ? FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(order['customerId'] as String)
+                              .get()
+                          : null,
+                      builder: (context, snapshot) {
+                        String displayName = customerName; // Fallback to order customerName
+                        if (snapshot.hasData && snapshot.data!.exists) {
+                          final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                          displayName = (userData?['fullName'] as String?) ??
+                              (userData?['name'] as String?) ??
+                              (userData?['customerName'] as String?) ??
+                              customerName;
+                        }
+                        return Text(
+                          displayName,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14, // Increased for clarity
+                            color: Color(
+                              0xFF1D3B53,
+                            ), // Dark blue for better readability
+                            letterSpacing: 0.1,
+                          ),
+                        );
+                      },
                     ),
                   ),
                   DataCell(
@@ -2048,11 +2068,12 @@ class _TopCustomersList extends StatelessWidget {
 
         for (var doc in snapshot.docs) {
           final data = doc.data();
+          // Prioritize fullName first (matches customer profile), then name, then customerName
           final name =
-              data['name'] as String? ??
               data['fullName'] as String? ??
+              data['name'] as String? ??
               data['customerName'] as String?;
-          if (name != null) {
+          if (name != null && name.isNotEmpty) {
             customerData.add({'id': doc.id, 'name': name});
           }
         }
@@ -4263,7 +4284,8 @@ class _PosPage extends StatelessWidget {
                   final doc = orders[index];
                   final data = doc.data() as Map<String, dynamic>;
                   final orderId = doc.id;
-                  final customerName = data['customerName'] ?? 'Unknown';
+                  final fallbackCustomerName = data['customerName'] ?? 'Unknown';
+                  final customerId = data['customerId'] as String?;
                   // Get totalPrice from Firestore, or compute from items if missing
                   // Read totalPrice with null safety: default to 0 if missing
                   final items = (data['items'] as List?) ?? [];
@@ -4322,12 +4344,30 @@ class _PosPage extends StatelessWidget {
                                       ),
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      customerName,
-                                      style: TextStyle(
-                                        color: AppColors.textSecondary,
-                                        fontSize: 13,
-                                      ),
+                                    FutureBuilder<DocumentSnapshot>(
+                                      future: customerId != null
+                                          ? FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(customerId)
+                                              .get()
+                                          : null,
+                                      builder: (context, snapshot) {
+                                        String displayName = fallbackCustomerName;
+                                        if (snapshot.hasData && snapshot.data!.exists) {
+                                          final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                                          displayName = (userData?['fullName'] as String?) ??
+                                              (userData?['name'] as String?) ??
+                                              (userData?['customerName'] as String?) ??
+                                              fallbackCustomerName;
+                                        }
+                                        return Text(
+                                          displayName,
+                                          style: TextStyle(
+                                            color: AppColors.textSecondary,
+                                            fontSize: 13,
+                                          ),
+                                        );
+                                      },
                                     ),
                                   ],
                                 ),
@@ -5707,7 +5747,8 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
     bool isMobile = false,
   }) {
     final status = (order['status'] as String?) ?? 'pending';
-    final customerName = (order['customerName'] as String?) ?? 'Unknown';
+    final fallbackCustomerName = (order['customerName'] as String?) ?? 'Unknown';
+    final customerId = order['customerId'] as String?;
     final items = (order['items'] as List<dynamic>?) ?? [];
     final createdAt = order['createdAt'] as Timestamp?;
     final assignedStaffId = order['assignedStaffId'] as String?;
@@ -5862,12 +5903,30 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        'Customer: $customerName',
-                        style: TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 14,
-                        ),
+                      FutureBuilder<DocumentSnapshot>(
+                        future: customerId != null
+                            ? FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(customerId)
+                                .get()
+                            : null,
+                        builder: (context, snapshot) {
+                          String displayName = fallbackCustomerName;
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                            displayName = (userData?['fullName'] as String?) ??
+                                (userData?['name'] as String?) ??
+                                (userData?['customerName'] as String?) ??
+                                fallbackCustomerName;
+                          }
+                          return Text(
+                            'Customer: $displayName',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 14,
+                            ),
+                          );
+                        },
                       ),
                       if (createdAt != null) ...[
                         const SizedBox(height: 2),
@@ -7062,11 +7121,11 @@ class _FeedbackPage extends StatelessWidget {
         ratingImageUrl = null;
       }
     }
-    final customerName =
+    final fallbackCustomerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
         'Unknown Customer';
-    // Get customerId to fetch profile picture
+    // Get customerId to fetch profile picture and name
     final customerId = orderData['customerId'] as String?;
     final createdAt = orderData['createdAt'] as Timestamp?;
     final orderDate = createdAt != null
@@ -7118,13 +7177,31 @@ class _FeedbackPage extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        customerName,
-                        style: TextStyle(
-                          fontSize: isMobile ? 14 : 16,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.textPrimary,
-                        ),
+                      FutureBuilder<DocumentSnapshot>(
+                        future: customerId != null && customerId.isNotEmpty
+                            ? FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(customerId)
+                                .get()
+                            : null,
+                        builder: (context, snapshot) {
+                          String displayName = fallbackCustomerName;
+                          if (snapshot.hasData && snapshot.data!.exists) {
+                            final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                            displayName = (userData?['fullName'] as String?) ??
+                                (userData?['name'] as String?) ??
+                                (userData?['customerName'] as String?) ??
+                                fallbackCustomerName;
+                          }
+                          return Text(
+                            displayName,
+                            style: TextStyle(
+                              fontSize: isMobile ? 14 : 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textPrimary,
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(height: 2),
                       Text(
@@ -7694,8 +7771,28 @@ class _SettingsPage extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
-    final nameController = TextEditingController(text: user.displayName ?? '');
+    // Load current name from Firestore
+    final nameController = TextEditingController();
     final emailController = TextEditingController(text: user.email ?? '');
+
+    // Fetch current name from Firestore
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .get()
+        .then((doc) {
+      if (doc.exists) {
+        final userData = doc.data() ?? {};
+        final currentName = (userData['fullName'] as String?) ??
+            (userData['name'] as String?) ??
+            (userData['customerName'] as String?) ??
+            user.displayName ??
+            '';
+        nameController.text = currentName;
+      } else {
+        nameController.text = user.displayName ?? '';
+      }
+    });
 
     showDialog(
       context: context,
@@ -7709,6 +7806,7 @@ class _SettingsPage extends StatelessWidget {
               decoration: const InputDecoration(
                 labelText: 'Full Name',
                 border: OutlineInputBorder(),
+                hintText: 'Enter your full name',
               ),
             ),
             const SizedBox(height: 16),
@@ -7730,15 +7828,44 @@ class _SettingsPage extends StatelessWidget {
           ElevatedButton(
             onPressed: () async {
               if (nameController.text.trim().isNotEmpty) {
-                await user.updateDisplayName(nameController.text.trim());
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(user.uid)
-                    .update({'name': nameController.text.trim()});
+                try {
+                  final newName = nameController.text.trim();
+                  // Update Firebase Auth display name
+                  await user.updateDisplayName(newName);
+                  // Update Firestore with both fullName and name fields
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .update({
+                    'fullName': newName,
+                    'name': newName,
+                  });
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Profile updated successfully'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Error updating profile: $e'),
+                        backgroundColor: AppColors.error,
+                      ),
+                    );
+                  }
+                }
+              } else {
                 if (context.mounted) {
-                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated')),
+                    const SnackBar(
+                      content: Text('Please enter your name'),
+                      backgroundColor: AppColors.error,
+                    ),
                   );
                 }
               }

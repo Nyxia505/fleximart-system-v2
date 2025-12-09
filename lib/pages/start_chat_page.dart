@@ -3,11 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import 'chat_detail_page.dart';
-import '../utils/role_helper.dart';
 
 class StartChatPage extends StatefulWidget {
-  final String? userRole; // 'customer' or 'staff' or 'admin'
-  const StartChatPage({super.key, this.userRole});
+  final String userRole;
+
+  const StartChatPage({
+    super.key,
+    required this.userRole,
+  });
 
   @override
   State<StartChatPage> createState() => _StartChatPageState();
@@ -16,31 +19,6 @@ class StartChatPage extends StatefulWidget {
 class _StartChatPageState extends State<StartChatPage> {
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  String? _currentUserRole;
-  bool _isLoadingRole = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadUserRole();
-  }
-
-  Future<void> _loadUserRole() async {
-    // Use provided role or fetch from Firestore
-    if (widget.userRole != null) {
-      setState(() {
-        _currentUserRole = widget.userRole;
-        _isLoadingRole = false;
-      });
-    } else {
-      // Fetch role from Firestore
-      final role = await RoleHelper.getUserRole();
-      setState(() {
-        _currentUserRole = role;
-        _isLoadingRole = false;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -79,30 +57,17 @@ class _StartChatPageState extends State<StartChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Show loading while fetching role
-    if (_isLoadingRole) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Start Chat'),
-          backgroundColor: AppColors.secondary,
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    // Determine who to show based on role
     String? targetRole;
     String title;
     
-    if (_currentUserRole == 'customer') {
-      targetRole = 'staff'; // Customer chats with staff
+    if (widget.userRole == 'customer') {
+      targetRole = 'staff';
       title = 'Start Chat with Staff';
-    } else if (_currentUserRole == 'staff' || _currentUserRole == 'admin') {
-      targetRole = 'customer'; // Staff/Admin chats with customers
+    } else if (widget.userRole == 'staff' || widget.userRole == 'admin') {
+      targetRole = 'customer';
       title = 'Start Chat with Customer';
     } else {
-      targetRole = 'staff'; // Default
+      targetRole = 'staff';
       title = 'Start Chat';
     }
 
@@ -114,42 +79,8 @@ class _StartChatPageState extends State<StartChatPage> {
       ),
       body: Column(
         children: [
-          // Info banner for customers
-          if (_currentUserRole == 'customer' && targetRole == 'staff')
-            Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: AppColors.primary.withOpacity(0.2),
-                  width: 1,
-                ),
-              ),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info_outline,
-                    color: AppColors.primary,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Select a staff member below to start chatting. They can help you with orders, products, and support.',
-                      style: TextStyle(
-                        color: AppColors.textPrimary,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          // Search bar
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
@@ -173,7 +104,6 @@ class _StartChatPageState extends State<StartChatPage> {
               },
             ),
           ),
-          // Users list
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -208,21 +138,18 @@ class _StartChatPageState extends State<StartChatPage> {
                           style: TextStyle(
                             color: AppColors.textPrimary,
                             fontSize: 18,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 32),
-                          child: Text(
-                            targetRole == 'staff'
-                                ? 'There are currently no staff members available. Please check back later or contact support.'
-                                : 'There are currently no customers available.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 14,
-                            ),
+                        Text(
+                          targetRole == 'staff'
+                              ? 'There are currently no staff members available.'
+                              : 'There are currently no customers available.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: AppColors.textSecondary,
+                            fontSize: 14,
                           ),
                         ),
                       ],
@@ -233,9 +160,14 @@ class _StartChatPageState extends State<StartChatPage> {
                 final users = snapshot.data!.docs.where((doc) {
                   if (_searchQuery.isEmpty) return true;
                   final data = doc.data() as Map<String, dynamic>;
-                  final name = (data['fullName'] ?? '').toString().toLowerCase();
+                  final fullName = (data['fullName'] ?? '').toString().toLowerCase();
+                  final name = (data['name'] ?? '').toString().toLowerCase();
+                  final customerName = (data['customerName'] ?? '').toString().toLowerCase();
                   final email = (data['email'] ?? '').toString().toLowerCase();
-                  return name.contains(_searchQuery) || email.contains(_searchQuery);
+                  return fullName.contains(_searchQuery) ||
+                      name.contains(_searchQuery) ||
+                      customerName.contains(_searchQuery) ||
+                      email.contains(_searchQuery);
                 }).toList();
 
                 if (users.isEmpty) {
@@ -254,8 +186,19 @@ class _StartChatPageState extends State<StartChatPage> {
                     final userDoc = users[index];
                     final userData = userDoc.data() as Map<String, dynamic>;
                     final userId = userDoc.id;
-                    final userName = userData['fullName'] ?? userData['email'] ?? 'Unknown';
-                    final userEmail = userData['email'] ?? 'No email';
+                    final userName = (userData['fullName'] as String?) ??
+                        (userData['name'] as String?) ??
+                        (userData['customerName'] as String?) ??
+                        (userData['email'] as String?) ??
+                        'Unknown';
+                    // Fix email typos (e.g., gamil -> gmail)
+                    final fixedUserName = userName.contains('@') && userName.contains('@gamil.com')
+                        ? userName.replaceAll('@gamil.com', '@gmail.com')
+                        : userName;
+                    final userEmailRaw = userData['email'] ?? 'No email';
+                    final userEmail = userEmailRaw.contains('@gamil.com')
+                        ? userEmailRaw.replaceAll('@gamil.com', '@gmail.com')
+                        : userEmailRaw;
                     final userRole = userData['role'] ?? targetRole ?? '';
 
                     return Card(
@@ -269,20 +212,19 @@ class _StartChatPageState extends State<StartChatPage> {
                         ),
                       ),
                       child: InkWell(
-                        onTap: () => _startChat(userId, userName),
+                        onTap: () => _startChat(userId, fixedUserName),
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
                             children: [
-                              // Avatar with role indicator
                               Stack(
                                 children: [
                                   CircleAvatar(
                                     radius: 28,
                                     backgroundColor: AppColors.secondary,
                                     child: Text(
-                                      userName.isNotEmpty ? userName[0].toUpperCase() : '?',
+                                      fixedUserName.isNotEmpty ? fixedUserName[0].toUpperCase() : '?',
                                       style: const TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.bold,
@@ -315,103 +257,36 @@ class _StartChatPageState extends State<StartChatPage> {
                                 ],
                               ),
                               const SizedBox(width: 16),
-                              // Name and details
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: Text(
-                                            userName,
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 16,
-                                              color: AppColors.textPrimary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                        if (userRole == 'staff')
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primary.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              'Staff',
-                                              style: TextStyle(
-                                                color: AppColors.primary,
-                                                fontSize: 12, // Increased for clarity
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                        if (userRole == 'admin')
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange.withOpacity(0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: const Text(
-                                              'Admin',
-                                              style: TextStyle(
-                                                color: Colors.orange,
-                                                fontSize: 12, // Increased for clarity
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
+                                    Text(
+                                      fixedUserName,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: AppColors.textPrimary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                     const SizedBox(height: 4),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.email_outlined,
-                                          size: 14,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Expanded(
-                                          child: Text(
-                                            userEmail,
-                                            style: TextStyle(
-                                              fontSize: 13,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      ],
+                                    Text(
+                                      userEmail,
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              // Chat icon
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppColors.secondary.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  Icons.chat_bubble_outline,
-                                  color: AppColors.secondary,
-                                  size: 20,
-                                ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: AppColors.textSecondary,
                               ),
                             ],
                           ),
@@ -427,6 +302,5 @@ class _StartChatPageState extends State<StartChatPage> {
       ),
     );
   }
-
 }
 

@@ -1,30 +1,61 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/profile_picture_placeholder.dart';
 import 'chat_detail_page.dart';
 import 'start_chat_page.dart';
 
+/// Fix common email typos (e.g., gamil -> gmail)
+String _fixEmailTypo(String email) {
+  if (email.contains('@gamil.com')) {
+    return email.replaceAll('@gamil.com', '@gmail.com');
+  }
+  return email;
+}
+
 /// Get user name from users collection if not available in participantNames
 Future<String> _getUserNameFromUsers(String userId, String existingName) async {
-  // If we already have a valid name, return it
-  if (existingName.isNotEmpty && existingName != 'Unknown') {
-    return existingName;
-  }
-
-  // Otherwise, fetch from users collection
+  // Always fetch from users collection to get the latest name
   try {
     final userDoc = await FirebaseFirestore.instance
         .collection('users')
         .doc(userId)
         .get();
-    final userData = userDoc.data() ?? {};
-    return userData['fullName'] ?? userData['email'] ?? 'Unknown';
+    if (userDoc.exists) {
+      final userData = userDoc.data() ?? {};
+      // Prioritize fullName first (matches customer profile), then name, then customerName, then email
+      final name =
+          (userData['fullName'] as String?) ??
+          (userData['name'] as String?) ??
+          (userData['customerName'] as String?) ??
+          (userData['email'] as String?);
+
+      // If we got a valid name from Firebase, use it (even if it's email)
+      if (name != null && name.isNotEmpty) {
+        // Fix email typos if the name is an email address
+        if (name.contains('@')) {
+          return _fixEmailTypo(name);
+        }
+        return name;
+      }
+    }
   } catch (e) {
-    return existingName.isNotEmpty ? existingName : 'Unknown';
+    debugPrint('Error fetching user name for $userId: $e');
+    // Fallback to existing name if fetch fails
   }
+  // Only use existingName if it's not empty and not "Unknown"
+  if (existingName.isNotEmpty && existingName != 'Unknown') {
+    // Fix email typos if the existing name is an email address
+    if (existingName.contains('@')) {
+      return _fixEmailTypo(existingName);
+    }
+    return existingName;
+  }
+  // Last resort: try to get email from userId if available
+  return 'Unknown';
 }
 
 /// Get profile picture URL from users collection
@@ -57,7 +88,8 @@ class ChatListPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final chatService = ChatService();
-    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final currentUserId = currentUser?.uid;
 
     return Scaffold(
       appBar: AppBar(
@@ -125,6 +157,7 @@ class ChatListPage extends StatelessWidget {
           : StreamBuilder<QuerySnapshot>(
               stream: chatService.getChatsStream(),
               builder: (context, snapshot) {
+                final userId = currentUserId; // Non-null here
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -299,6 +332,8 @@ class ChatListPage extends StatelessWidget {
                           lastMessageTime,
                           userUnreadCount,
                           profilePicUrl: profilePicUrl,
+                          chatService: chatService,
+                          currentUserId: userId,
                         );
                       },
                     );
@@ -318,6 +353,8 @@ class ChatListPage extends StatelessWidget {
     Timestamp? lastMessageTime,
     int unreadCount, {
     String? profilePicUrl,
+    required ChatService chatService,
+    required String currentUserId,
   }) {
     String timeText = 'Now';
     if (lastMessageTime != null) {
@@ -338,22 +375,14 @@ class ChatListPage extends StatelessWidget {
       }
     }
 
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ChatDetailPage(
-              chatId: chatId,
-              otherUserId: otherUserId,
-              otherUserName: otherUserName,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    return Dismissible(
+      key: Key(chatId),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
+          color: Colors.red,
           border: Border(
             bottom: BorderSide(
               color: AppColors.border.withOpacity(0.5),
@@ -361,86 +390,161 @@ class ChatListPage extends StatelessWidget {
             ),
           ),
         ),
-        child: Row(
-          children: [
-            // Avatar with profile picture
-            profilePicUrl != null && profilePicUrl.isNotEmpty
-                ? CircleAvatar(
-                    radius: 28,
-                    backgroundColor: AppColors.secondary,
-                    backgroundImage: NetworkImage(profilePicUrl),
-                  )
-                : const CompactProfilePicturePlaceholder(size: 56),
-            const SizedBox(width: 16),
-            // Name and message
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          otherUserName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      Text(
-                        timeText,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lastMessage ?? 'No messages yet',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppColors.textSecondary,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      if (unreadCount > 0) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.secondary,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+        child: const Icon(Icons.delete, color: Colors.white, size: 28),
+      ),
+      confirmDismiss: (direction) async {
+        // Show confirmation dialog
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Delete Conversation'),
+            content: Text(
+              'Are you sure you want to delete this conversation with $otherUserName? This action cannot be undone.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Delete'),
+              ),
+            ],
+          ),
+        );
+        return confirmed ?? false;
+      },
+      onDismissed: (direction) async {
+        try {
+          await chatService.deleteChat(chatId, currentUserId);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Conversation deleted'),
+                backgroundColor: AppColors.success,
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error deleting conversation: ${e.toString()}'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
+      },
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ChatDetailPage(
+                chatId: chatId,
+                otherUserId: otherUserId,
+                otherUserName: otherUserName,
+              ),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: AppColors.border.withOpacity(0.5),
+                width: 0.5,
+              ),
+            ),
+          ),
+          child: Row(
+            children: [
+              // Avatar with profile picture
+              profilePicUrl != null && profilePicUrl.isNotEmpty
+                  ? CircleAvatar(
+                      radius: 28,
+                      backgroundColor: AppColors.secondary,
+                      backgroundImage: NetworkImage(profilePicUrl),
+                    )
+                  : const CompactProfilePicturePlaceholder(size: 56),
+              const SizedBox(width: 16),
+              // Name and message
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
                           child: Text(
-                            '$unreadCount',
+                            otherUserName,
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Text(
+                          timeText,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
                           ),
                         ),
                       ],
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lastMessage ?? 'No messages yet',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: AppColors.textSecondary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (unreadCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppColors.secondary,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '$unreadCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/profile_picture_service.dart';
+import '../utils/image_url_helper.dart';
 
 /// Profile Picture Upload Button Widget
 /// 
@@ -107,20 +109,60 @@ class _ProfilePictureUploadButtonState
       onTap: _uploading ? null : _handleUpload,
       child: Stack(
         children: [
-          CircleAvatar(
-            radius: size / 2,
-            backgroundColor: Colors.grey.shade200,
-            backgroundImage: _imageUrl != null && _imageUrl!.isNotEmpty
-                ? NetworkImage(_imageUrl!)
-                : null,
-            child: _imageUrl == null || _imageUrl!.isEmpty
-                ? Icon(
+          _imageUrl != null && _imageUrl!.isNotEmpty
+              ? (kIsWeb
+                  ? ClipOval(
+                      child: Container(
+                        width: size,
+                        height: size,
+                        color: Colors.grey.shade200,
+                        child: Image.network(
+                          ImageUrlHelper.encodeUrl(_imageUrl!),
+                          width: size,
+                          height: size,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.person,
+                              size: size / 2,
+                              color: Colors.grey.shade600,
+                            );
+                          },
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    )
+                  : CircleAvatar(
+                      radius: size / 2,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: NetworkImage(
+                        ImageUrlHelper.encodeUrl(_imageUrl!),
+                      ),
+                      onBackgroundImageError: (exception, stackTrace) {
+                        // Error handled by errorBuilder in web version
+                      },
+                      child: null,
+                    ))
+              : CircleAvatar(
+                  radius: size / 2,
+                  backgroundColor: Colors.grey.shade200,
+                  child: Icon(
                     Icons.person,
                     size: size / 2,
                     color: Colors.grey.shade600,
-                  )
-                : null,
-          ),
+                  ),
+                ),
           if (_uploading)
             Positioned.fill(
               child: Container(

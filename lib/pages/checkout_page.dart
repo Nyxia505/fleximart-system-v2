@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/image_url_helper.dart';
 
 class CheckoutPage extends StatelessWidget {
   final Map<String, String> product;
@@ -24,10 +26,28 @@ class CheckoutPage extends StatelessWidget {
               leading: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.network(
-                  product["img"]!,
+                  ImageUrlHelper.encodeUrl(product["img"]!),
                   width: 60,
                   height: 60,
                   fit: BoxFit.cover,
+                  cacheWidth: kIsWeb ? null : 120,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 60,
+                      height: 60,
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    );
+                  },
                   errorBuilder: (context, error, stackTrace) => Container(
                     color: Colors.grey[200],
                     child: const Icon(Icons.image, size: 36),

@@ -368,7 +368,8 @@ class ChatService {
       if (userDoc.exists) {
         final userData = userDoc.data() ?? {};
         // Prioritize fullName first (matches customer profile), then name, then customerName, then email
-        final name = (userData['fullName'] as String?) ??
+        final name =
+            (userData['fullName'] as String?) ??
             (userData['name'] as String?) ??
             (userData['customerName'] as String?) ??
             (userData['email'] as String?) ??
@@ -470,7 +471,7 @@ class ChatService {
       final lastMessage = messagesSnapshot.docs.first.data();
       final lastMessageText = lastMessage['text'] as String? ?? '';
       final lastMessageType = lastMessage['type'] as String?;
-      
+
       await chatRef.update({
         'lastMessage': lastMessageType == 'image' ? '[Photo]' : lastMessageText,
         'lastMessageTime': lastMessage['createdAt'],
@@ -501,31 +502,31 @@ class ChatService {
   Future<void> deleteChat(String chatId, String userId) async {
     final chatRef = _firestore.collection('chats').doc(chatId);
     final chatDoc = await chatRef.get();
-    
+
     if (!chatDoc.exists) {
       throw Exception('Chat not found');
     }
-    
+
     final chatData = chatDoc.data() ?? {};
     final participants = (chatData['participants'] as List<dynamic>?) ?? [];
-    
+
     // Verify user is a participant
     if (!participants.contains(userId)) {
       throw Exception('You can only delete conversations you are part of');
     }
-    
+
     // Delete all messages in the chat
     final messagesRef = chatRef.collection('messages');
     final messagesSnapshot = await messagesRef.get();
-    
+
     // Delete images from Storage if any
     final storage = FirebaseStorage.instance;
     final batch = _firestore.batch();
-    
+
     for (var messageDoc in messagesSnapshot.docs) {
       final messageData = messageDoc.data();
       final imageUrl = messageData['imageUrl'] as String?;
-      
+
       // Delete image from Storage if it exists
       if (imageUrl != null && imageUrl.isNotEmpty) {
         try {
@@ -545,14 +546,14 @@ class ChatService {
           debugPrint('Error deleting image from Storage: $e');
         }
       }
-      
+
       // Add message deletion to batch
       batch.delete(messageDoc.reference);
     }
-    
+
     // Delete the chat document
     batch.delete(chatRef);
-    
+
     // Commit all deletions
     await batch.commit();
   }

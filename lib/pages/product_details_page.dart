@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../constants/app_colors.dart';
 import '../widgets/product_base64_image.dart';
 import '../screen/proceed_to_buy_page.dart';
 import '../screen/request_quotation_screen.dart';
 import '../utils/price_formatter.dart';
+import '../utils/image_url_helper.dart';
 
 class ProductDetailsPage extends StatelessWidget {
   final Map<String, dynamic> product;
@@ -212,8 +214,24 @@ class ProductDetailsPage extends StatelessWidget {
     } else {
       // Use network image for URLs
       return Image.network(
-        imageString,
+        ImageUrlHelper.encodeUrl(imageString),
         fit: BoxFit.cover,
+        cacheWidth: kIsWeb ? null : 800,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            color: Colors.grey[200],
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                strokeWidth: 2,
+              ),
+            ),
+          );
+        },
         errorBuilder: (c, e, s) => Container(
           color: Colors.grey[200],
           child: const Icon(Icons.image, size: 56),

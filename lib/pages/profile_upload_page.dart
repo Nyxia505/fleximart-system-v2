@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,9 +7,10 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
+import '../utils/image_url_helper.dart';
 
 /// Profile Upload Page
-/// 
+///
 /// A dedicated page for uploading profile images and editing profile information
 class ProfileUploadPage extends StatefulWidget {
   const ProfileUploadPage({super.key});
@@ -21,7 +23,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  
+
   String? _profileImageUrl;
   bool _loading = false;
   bool _uploadingImage = false;
@@ -56,7 +58,8 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
 
       if (userDoc.exists) {
         final data = userDoc.data() as Map<String, dynamic>;
-        _nameController.text = data['fullName'] as String? ?? user.displayName ?? '';
+        _nameController.text =
+            data['fullName'] as String? ?? user.displayName ?? '';
         _phoneController.text = data['phone'] as String? ?? '';
         _emailController.text = data['email'] as String? ?? user.email ?? '';
         _profileImageUrl = data['profileImageUrl'] as String?;
@@ -97,13 +100,8 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
     final ImageSource? source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          'Select Image Source',
-          style: AppTextStyles.heading3(),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Select Image Source', style: AppTextStyles.heading3()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -120,10 +118,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                   size: 24,
                 ),
               ),
-              title: Text(
-                'Gallery',
-                style: AppTextStyles.bodyLarge(),
-              ),
+              title: Text('Gallery', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             const Divider(),
@@ -140,10 +135,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                   size: 24,
                 ),
               ),
-              title: Text(
-                'Camera',
-                style: AppTextStyles.bodyLarge(),
-              ),
+              title: Text('Camera', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
           ],
@@ -184,7 +176,9 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
           const Duration(seconds: 5),
           onTimeout: () {
             // Timeout is OK, file might not exist
-            debugPrint('⚠️ Timeout deleting old image (this is OK if file doesn\'t exist)');
+            debugPrint(
+              '⚠️ Timeout deleting old image (this is OK if file doesn\'t exist)',
+            );
           },
         );
       } catch (e) {
@@ -217,10 +211,9 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
       }
 
       // Update Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({'profileImageUrl': downloadUrl});
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {'profileImageUrl': downloadUrl},
+      );
 
       // Update local state
       if (mounted) {
@@ -246,14 +239,14 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
       debugPrint('❌ Profile Image Upload Error:');
       debugPrint('   Error: $e');
       debugPrint('   StackTrace: $stackTrace');
-      
+
       if (mounted) {
         setState(() => _uploadingImage = false);
 
         String errorMessage = 'Error uploading image';
         String detailedError = e.toString();
-        
-        if (detailedError.contains('permission') || 
+
+        if (detailedError.contains('permission') ||
             detailedError.contains('403') ||
             detailedError.contains('unauthorized') ||
             detailedError.contains('Permission denied')) {
@@ -262,7 +255,8 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
         } else if (detailedError.contains('network') ||
             detailedError.contains('timeout') ||
             detailedError.contains('SocketException')) {
-          errorMessage = 'Network error. Please check your internet connection.';
+          errorMessage =
+              'Network error. Please check your internet connection.';
         } else if (detailedError.contains('storage/object-not-found')) {
           errorMessage = 'File not found. This is normal for first upload.';
         } else {
@@ -294,10 +288,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  errorMessage,
-                  style: AppTextStyles.bodyLarge(),
-                ),
+                Text(errorMessage, style: AppTextStyles.bodyLarge()),
                 const SizedBox(height: 16),
                 Text(
                   'Details:',
@@ -333,19 +324,14 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                   '• Make sure Firebase Storage rules are deployed\n'
                   '• Check your internet connection\n'
                   '• Try again in a few moments',
-                  style: AppTextStyles.caption(
-                    color: AppColors.textHint,
-                  ),
+                  style: AppTextStyles.caption(color: AppColors.textHint),
                 ),
               ],
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: Text(
-                  'OK',
-                  style: TextStyle(color: AppColors.primary),
-                ),
+                child: Text('OK', style: TextStyle(color: AppColors.primary)),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -396,11 +382,11 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
           .collection('users')
           .doc(user.uid)
           .update({
-        'fullName': _nameController.text.trim(),
-        'phone': _phoneController.text.trim(),
-        'email': _emailController.text.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+            'fullName': _nameController.text.trim(),
+            'phone': _phoneController.text.trim(),
+            'email': _emailController.text.trim(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
 
       // Update Firebase Auth display name
       await user.updateDisplayName(_nameController.text.trim());
@@ -462,9 +448,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
       ),
       body: _loading && _profileImageUrl == null
           ? const Center(
-              child: CircularProgressIndicator(
-                color: AppColors.primary,
-              ),
+              child: CircularProgressIndicator(color: AppColors.primary),
             )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(20),
@@ -472,7 +456,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 20),
-                  
+
                   // Profile Image Section
                   Center(
                     child: Stack(
@@ -505,55 +489,61 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                                     ),
                                   )
                                 : _profileImageUrl != null &&
-                                        _profileImageUrl!.isNotEmpty
-                                    ? Image.network(
-                                        _profileImageUrl!,
-                                        width: 140,
-                                        height: 140,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return Container(
-                                            color: AppColors.background,
-                                            child: const Icon(
-                                              Icons.person,
-                                              size: 60,
-                                              color: AppColors.textSecondary,
-                                            ),
-                                          );
-                                        },
-                                        loadingBuilder: (context, child, loadingProgress) {
-                                          if (loadingProgress == null) return child;
-                                          return Container(
-                                            color: AppColors.background,
-                                            child: Center(
-                                              child: CircularProgressIndicator(
-                                                value: loadingProgress.expectedTotalBytes != null
-                                                    ? loadingProgress.cumulativeBytesLoaded /
-                                                        loadingProgress.expectedTotalBytes!
-                                                    : null,
-                                                color: AppColors.primary,
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      )
-                                    : Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              AppColors.primary,
-                                              AppColors.primary.withOpacity(0.7),
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          ),
-                                        ),
+                                      _profileImageUrl!.isNotEmpty
+                                ? Image.network(
+                                    ImageUrlHelper.encodeUrl(_profileImageUrl!),
+                                    width: 140,
+                                    height: 140,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: kIsWeb ? null : 280,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        color: AppColors.background,
                                         child: const Icon(
                                           Icons.person,
                                           size: 60,
-                                          color: Colors.white,
+                                          color: AppColors.textSecondary,
                                         ),
+                                      );
+                                    },
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: AppColors.background,
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value:
+                                                loadingProgress
+                                                        .expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                : null,
+                                            color: AppColors.primary,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  )
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [
+                                          AppColors.primary,
+                                          AppColors.primary.withOpacity(0.7),
+                                        ],
+                                        begin: Alignment.topLeft,
+                                        end: Alignment.bottomRight,
                                       ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.person,
+                                      size: 60,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
                         ),
                         Positioned(
@@ -601,28 +591,24 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 16),
-                  
+
                   Center(
                     child: Text(
                       'Tap camera icon to change photo',
-                      style: AppTextStyles.caption(
-                        color: AppColors.textHint,
-                      ),
+                      style: AppTextStyles.caption(color: AppColors.textHint),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Name Field
                   Text(
                     'Full Name',
                     style: AppTextStyles.bodyMedium(
                       color: AppColors.textPrimary,
-                    ).copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    ).copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -664,17 +650,15 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Phone Field
                   Text(
                     'Phone Number',
                     style: AppTextStyles.bodyMedium(
                       color: AppColors.textPrimary,
-                    ).copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    ).copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -717,17 +701,15 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   // Email Field (read-only)
                   Text(
                     'Email Address',
                     style: AppTextStyles.bodyMedium(
                       color: AppColors.textPrimary,
-                    ).copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    ).copyWith(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -765,9 +747,9 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                       ),
                     ),
                   ),
-                  
+
                   const SizedBox(height: 40),
-                  
+
                   // Save Button
                   ElevatedButton(
                     onPressed: _loading ? null : _saveProfile,
@@ -796,7 +778,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                             ),
                           ),
                   ),
-                  
+
                   const SizedBox(height: 20),
                 ],
               ),
@@ -804,4 +786,3 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
     );
   }
 }
-

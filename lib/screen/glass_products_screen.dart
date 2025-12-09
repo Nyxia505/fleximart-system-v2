@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../constants/app_colors.dart';
 import '../utils/price_formatter.dart';
+import '../utils/image_url_helper.dart';
 
 class GlassProductsScreen extends StatefulWidget {
   const GlassProductsScreen({super.key});
@@ -253,9 +255,27 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
                 bottomRight: Radius.circular(20),
               ),
               child: Image.network(
-                'https://images.unsplash.com/photo-1540518614846-7eded433c457?w=400',
+                ImageUrlHelper.encodeUrl('https://images.unsplash.com/photo-1540518614846-7eded433c457?w=400'),
                 width: 160,
                 fit: BoxFit.cover,
+                cacheWidth: kIsWeb ? null : 320,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    width: 160,
+                    color: AppColors.primary,
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    ),
+                  );
+                },
                 errorBuilder: (context, error, stackTrace) =>
                     Container(width: 160, color: AppColors.primary),
               ),
@@ -394,10 +414,27 @@ class _GlassProductsScreenState extends State<GlassProductsScreen> {
           ClipRRect(
             borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             child: Image.network(
-              service['image'] as String,
+              ImageUrlHelper.encodeUrl(service['image'] as String),
               height: 120,
               width: double.infinity,
               fit: BoxFit.cover,
+              cacheHeight: kIsWeb ? null : 240,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Container(
+                  height: 120,
+                  color: Colors.grey[200],
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                );
+              },
               errorBuilder: (context, error, stackTrace) => Container(
                 height: 120,
                 color: Colors.grey[200],

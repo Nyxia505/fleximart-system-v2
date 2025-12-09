@@ -1,14 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
 import '../utils/price_formatter.dart';
 import '../dialogs/delivery_schedule_dialog.dart';
 import '../utils/role_helper.dart';
 import '../services/order_service.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
+import '../utils/image_url_helper.dart';
 
 class OrderDetailPage extends StatefulWidget {
   final String orderId;
@@ -372,10 +371,27 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(8),
                               child: Image.network(
-                                productImage,
+                                ImageUrlHelper.encodeUrl(productImage),
                                 width: double.infinity,
                                 height: 200,
                                 fit: BoxFit.cover,
+                                cacheHeight: kIsWeb ? null : 400,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    height: 200,
+                                    color: AppColors.border,
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                                loadingProgress.expectedTotalBytes!
+                                            : null,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  );
+                                },
                                 errorBuilder: (context, error, stackTrace) =>
                                     Container(
                                   height: 200,
@@ -704,9 +720,6 @@ class _RatingFormState extends State<_RatingForm> {
   int _selectedStars = 0;
   final _commentController = TextEditingController();
   bool _isSubmitting = false;
-  bool _isPickingImage = false;
-  Uint8List? _selectedImageBytes;
-  String? _imageName;
 
   @override
   void dispose() {
@@ -714,52 +727,11 @@ class _RatingFormState extends State<_RatingForm> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    setState(() => _isPickingImage = true);
-    try {
-      final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-      if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          _selectedImageBytes = bytes;
-          _imageName = pickedFile.name;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick image: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isPickingImage = false);
-      }
-    }
-  }
-
   Future<void> _submitRating() async {
     if (_selectedStars == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Please select a rating'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
-    if (_selectedImageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please upload a product photo'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -774,8 +746,6 @@ class _RatingFormState extends State<_RatingForm> {
         orderId: widget.orderRef.id,
         rating: _selectedStars,
         review: _commentController.text.trim(),
-        imageBytes: _selectedImageBytes!,
-        imageName: _imageName,
       );
 
       if (mounted) {
@@ -844,46 +814,6 @@ class _RatingFormState extends State<_RatingForm> {
             border: OutlineInputBorder(),
             filled: true,
             fillColor: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 16),
-        const Text(
-          'Upload product photo (required)',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (_selectedImageBytes != null) ...[
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.memory(
-              _selectedImageBytes!,
-              height: 160,
-              width: double.infinity,
-              fit: BoxFit.cover,
-            ),
-          ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: () => setState(() => _selectedImageBytes = null),
-            icon: const Icon(Icons.delete_outline),
-            label: const Text('Remove photo'),
-          ),
-          const SizedBox(height: 12),
-        ],
-        OutlinedButton.icon(
-          onPressed: _isPickingImage ? null : _pickImage,
-          icon: _isPickingImage
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.photo_camera_back_outlined),
-          label: Text(
-            _selectedImageBytes == null ? 'Choose Photo' : 'Change Photo',
           ),
         ),
         const SizedBox(height: 16),

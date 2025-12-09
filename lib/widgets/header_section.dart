@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
+import '../utils/image_url_helper.dart';
 
 /// Header Section Widget
 /// 
@@ -150,8 +152,25 @@ class HeaderSection extends StatelessWidget {
                           child: profileImageUrl != null && profileImageUrl.isNotEmpty
                               ? ClipOval(
                                   child: Image.network(
-                                    profileImageUrl,
+                                    ImageUrlHelper.encodeUrl(profileImageUrl),
                                     fit: BoxFit.cover,
+                                    cacheWidth: kIsWeb ? null : 80,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Container(
+                                        color: Colors.white.withOpacity(0.2),
+                                        child: Center(
+                                          child: CircularProgressIndicator(
+                                            value: loadingProgress.expectedTotalBytes != null
+                                                ? loadingProgress.cumulativeBytesLoaded /
+                                                    loadingProgress.expectedTotalBytes!
+                                                : null,
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      );
+                                    },
                                     errorBuilder: (context, error, stackTrace) {
                                       return Container(
                                         color: Colors.white.withOpacity(0.2),

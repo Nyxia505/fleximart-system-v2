@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../pages/order_detail_page.dart';
 import '../utils/price_formatter.dart';
-import '../widgets/rating_image_widget.dart';
+import '../services/order_service.dart';
 
 class OrderHistoryPage extends StatelessWidget {
   const OrderHistoryPage({super.key});
@@ -39,6 +38,56 @@ class OrderHistoryPage extends StatelessWidget {
     return orderId.length >= 8
         ? orderId.substring(0, 8).toUpperCase()
         : orderId.toUpperCase();
+  }
+
+  Future<void> _deleteRating(BuildContext context, String orderId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Rating'),
+        content: const Text(
+          'Are you sure you want to delete your rating? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final orderService = OrderService();
+        await orderService.deleteOrderRating(orderId: orderId);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rating deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting rating: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
   }
 
   double _getTotalPriceFromOrder(Map<String, dynamic> orderData) {
@@ -385,26 +434,6 @@ class OrderHistoryPage extends StatelessWidget {
                 // Get rating data
                 final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
                 final review = orderData['review'] as String? ?? '';
-                String? ratingImageUrl =
-                    (orderData['ratingImageUrl'] as String?) ??
-                    (orderData['rating_image_url'] as String?) ??
-                    (orderData['imageUrl'] as String?) ??
-                    (orderData['image_url'] as String?);
-                
-                // Clean and validate the URL
-                if (ratingImageUrl != null) {
-                  ratingImageUrl = ratingImageUrl.trim();
-                  if (ratingImageUrl.isEmpty) {
-                    ratingImageUrl = null;
-                  } else if (!ratingImageUrl.startsWith('http://') && 
-                             !ratingImageUrl.startsWith('https://')) {
-                    // Invalid URL format
-                    if (kDebugMode) {
-                      debugPrint('⚠️ Invalid rating image URL format: $ratingImageUrl');
-                    }
-                    ratingImageUrl = null;
-                  }
-                }
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 16),
@@ -595,7 +624,8 @@ class OrderHistoryPage extends StatelessWidget {
                                     ),
                                   ),
                                   child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Icon(
                                         Icons.format_quote,
@@ -613,22 +643,24 @@ class OrderHistoryPage extends StatelessWidget {
                                   ),
                                 ),
                               ],
-                              if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: RatingImageWidget(
-                                    imageUrl: ratingImageUrl.trim(),
-                                    width: double.infinity,
-                                    height: 200,
-                                    fit: BoxFit.cover,
-                                    borderRadius: BorderRadius.circular(8),
-                                    backgroundColor: Colors.grey[200],
-                                    primaryColor: AppColors.primary,
-                                    orderId: orderId,
+                              const SizedBox(height: 12),
+                              // Delete rating button
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  onPressed: () => _deleteRating(context, orderId),
+                                  icon: const Icon(
+                                    Icons.delete_outline,
+                                    size: 18,
+                                  ),
+                                  label: const Text('Delete Rating'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.error,
+                                    side: const BorderSide(color: AppColors.error),
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
                                   ),
                                 ),
-                              ],
+                              ),
                             ],
                           ],
                         ),
@@ -641,233 +673,6 @@ class OrderHistoryPage extends StatelessWidget {
           );
         },
       ),
-    );
-  }
-}
-
-/// Widget to handle rating image loading with retry logic
-class _RatingImageWidget extends StatefulWidget {
-  final String imageUrl;
-  
-  const _RatingImageWidget({required this.imageUrl});
-  
-  @override
-  State<_RatingImageWidget> createState() => _RatingImageWidgetState();
-}
-
-class _RatingImageWidgetState extends State<_RatingImageWidget> {
-  int _retryCount = 0;
-  static const int _maxRetries = 2;
-  bool _hasError = false;
-  String? _currentImageUrl;
-  
-  @override
-  void initState() {
-    super.initState();
-    _currentImageUrl = null;
-  }
-  
-  Future<String?> _regenerateDownloadUrl(String oldUrl) async {
-    try {
-      // Extract storage path from URL
-      // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
-      final uri = Uri.parse(oldUrl);
-      final pathMatch = RegExp(r'/o/(.+)\?').firstMatch(uri.path);
-      if (pathMatch == null) {
-        debugPrint('❌ Could not extract path from URL: $oldUrl');
-        return null;
-      }
-      
-      final encodedPath = pathMatch.group(1)!;
-      final decodedPath = Uri.decodeComponent(encodedPath);
-      debugPrint('🔄 Extracted storage path: $decodedPath');
-      
-      // Get reference to the file
-      final storageRef = FirebaseStorage.instance.ref().child(decodedPath);
-      
-      // Regenerate download URL
-      final newUrl = await storageRef.getDownloadURL();
-      debugPrint('✅ Regenerated URL: $newUrl');
-      return newUrl;
-    } catch (e) {
-      debugPrint('❌ Failed to regenerate URL: $e');
-      return null;
-    }
-  }
-  
-  @override
-  Widget build(BuildContext context) {
-    if (_hasError && _retryCount >= _maxRetries) {
-      return Container(
-        height: 200,
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.broken_image,
-              size: 48,
-              color: Colors.grey[400],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Image unavailable',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-    
-    return Image.network(
-      _currentImageUrl ?? widget.imageUrl,
-      width: double.infinity,
-      height: 200,
-      fit: BoxFit.cover,
-      headers: const {
-        'Cache-Control': 'no-cache',
-      },
-      errorBuilder: (context, error, stackTrace) {
-        if (kDebugMode) {
-          debugPrint('❌ Rating image load error (attempt ${_retryCount + 1}): $error');
-          debugPrint('❌ Image URL that failed: ${_currentImageUrl ?? widget.imageUrl}');
-        }
-        
-        // On first error, try to regenerate the URL
-        if (_retryCount == 0 && _currentImageUrl == null) {
-          _regenerateDownloadUrl(widget.imageUrl).then((newUrl) {
-            if (newUrl != null && mounted) {
-              // Extract orderId from path to update Firestore
-              final pathMatch = RegExp(r'order_ratings/([^/]+)/').firstMatch(widget.imageUrl);
-              if (pathMatch != null) {
-                final orderId = pathMatch.group(1);
-                if (orderId != null) {
-                  // Update Firestore with new URL
-                  FirebaseFirestore.instance
-                      .collection('orders')
-                      .doc(orderId)
-                      .update({'ratingImageUrl': newUrl})
-                      .then((_) {
-                    debugPrint('✅ Firestore updated with new URL');
-                  }).catchError((e) {
-                    debugPrint('⚠️ Failed to update Firestore: $e');
-                  });
-                }
-              }
-              
-              // Update state with new URL and retry
-              setState(() {
-                _currentImageUrl = newUrl;
-                _retryCount = 0; // Reset retry count
-                _hasError = false;
-              });
-              return;
-            }
-          });
-        }
-        
-        // Check error type
-        final errorString = error.toString().toLowerCase();
-        final isNotFound = errorString.contains('404') || 
-                           errorString.contains('not found');
-        final isPermissionDenied = errorString.contains('403') ||
-                                   errorString.contains('permission');
-        final isNetworkError = errorString.contains('statuscode: 0') ||
-                              errorString.contains('network') ||
-                              errorString.contains('failed');
-        
-        // Retry if we haven't exceeded max retries and it's not a permanent error
-        if (_retryCount < _maxRetries && !isNotFound && !isPermissionDenied) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Future.delayed(Duration(milliseconds: 500 * (_retryCount + 1)), () {
-              if (mounted) {
-                setState(() {
-                  _retryCount++;
-                  _hasError = false;
-                });
-              }
-            });
-          });
-        } else {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                _hasError = true;
-              });
-            }
-          });
-        }
-        
-        return Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (_retryCount < _maxRetries && !isNotFound && !isPermissionDenied) ...[
-                CircularProgressIndicator(
-                  color: AppColors.primary,
-                  strokeWidth: 2,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isNetworkError ? 'Regenerating URL...' : 'Retrying...',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ] else ...[
-                Icon(
-                  Icons.broken_image,
-                  size: 48,
-                  color: Colors.grey[400],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isNotFound 
-                    ? 'Image file not found'
-                    : isPermissionDenied
-                      ? 'Image access denied'
-                      : 'Image unavailable',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        );
-      },
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          height: 200,
-          decoration: BoxDecoration(
-            color: Colors.grey[200],
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
-                  : null,
-              color: AppColors.primary,
-            ),
-          ),
-        );
-      },
     );
   }
 }

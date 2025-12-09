@@ -1,5 +1,6 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
+import '../utils/image_url_helper.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -12,8 +13,8 @@ import '../pages/order_detail_page.dart';
 import '../pages/chat_list_page.dart';
 import '../utils/price_formatter.dart';
 import '../services/notification_service.dart';
+import '../services/order_service.dart';
 import '../utils/role_helper.dart';
-import '../widgets/rating_image_widget.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
 
@@ -22,19 +23,21 @@ import '../widgets/customer_profile_avatar.dart';
 class StaffThemeColors {
   StaffThemeColors._();
   // Dark maroon palette (matching admin theme)
-  static const Color primaryRed = Color(0xFF8B2E2E);      // Dark maroon
-  static const Color deepRed = Color(0xFF6B1F1F);         // Darker maroon
-  static const Color darkRed = Color(0xFF4A1515);         // Darkest maroon
+  static const Color primaryRed = Color(0xFF8B2E2E); // Dark maroon
+  static const Color deepRed = Color(0xFF6B1F1F); // Darker maroon
+  static const Color darkRed = Color(0xFF4A1515); // Darkest maroon
 
   // Navigation colors
   static const Color navActive = Color(0xFF8B2E2E);
-  static const Color navActiveBg = Color(0x426B1F1F); // Dark maroon with opacity
-  
+  static const Color navActiveBg = Color(
+    0x426B1F1F,
+  ); // Dark maroon with opacity
+
   // Legacy names for compatibility
   static const Color crimsonRed = Color(0xFF8B2E2E);
   static const Color deepBerryRed = Color(0xFF6B1F1F);
   static const Color darkWinePurple = Color(0xFF4A1515);
-  
+
   // Alias for primary
   static const Color primaryBlue = Color(0xFF8B2E2E); // Keep for compatibility
 }
@@ -166,7 +169,8 @@ class _StaffDashboardState extends State<StaffDashboard> {
 
     // Use a more stable breakpoint to prevent layout shifts when resizing
     final screenWidth = MediaQuery.of(context).size.width;
-    final isMobileLayout = screenWidth < 900; // Increased from 768 to prevent flickering
+    final isMobileLayout =
+        screenWidth < 900; // Increased from 768 to prevent flickering
     final isWebLayout = !isMobileLayout;
 
     return Scaffold(
@@ -256,10 +260,7 @@ class _StaffDashboardState extends State<StaffDashboard> {
           ],
         ),
         border: Border(
-          right: BorderSide(
-            color: Colors.white.withOpacity(0.3),
-            width: 2,
-          ),
+          right: BorderSide(color: Colors.white.withOpacity(0.3), width: 2),
         ),
         boxShadow: [
           BoxShadow(
@@ -333,27 +334,27 @@ class _StaffDashboardState extends State<StaffDashboard> {
             Expanded(
               child: SingleChildScrollView(
                 child: Padding(
-                padding: const EdgeInsets.symmetric(
+                  padding: const EdgeInsets.symmetric(
                     horizontal: 4,
-                  vertical: 12,
-                ),
+                    vertical: 12,
+                  ),
                   child: Column(
                     children: List.generate(_navItems.length, (index) {
-                  final item = _navItems[index];
-                  final selected = _selectedIndex == index;
-                  return _NavTile(
-                    icon: item['icon'] as IconData,
-                    label: item['label'] as String,
-                    selected: selected,
-                    collapsed: _sidebarCollapsed,
-                    onTap: () {
-                      if (mounted) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                      }
-                    },
-                  );
+                      final item = _navItems[index];
+                      final selected = _selectedIndex == index;
+                      return _NavTile(
+                        icon: item['icon'] as IconData,
+                        label: item['label'] as String,
+                        selected: selected,
+                        collapsed: _sidebarCollapsed,
+                        onTap: () {
+                          if (mounted) {
+                            setState(() {
+                              _selectedIndex = index;
+                            });
+                          }
+                        },
+                      );
                     }),
                   ),
                 ),
@@ -400,69 +401,69 @@ class _StaffDashboardState extends State<StaffDashboard> {
         final userEmail = user?.email ?? '';
 
         return Row(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                  child: CircleAvatar(
-                    radius: _sidebarCollapsed ? 18 : 24,
-                    backgroundColor: Colors.white,
-                    child: CircleAvatar(
-                      radius: _sidebarCollapsed ? 16 : 22,
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: CircleAvatar(
+                radius: _sidebarCollapsed ? 18 : 24,
+                backgroundColor: Colors.white,
+                child: CircleAvatar(
+                  radius: _sidebarCollapsed ? 16 : 22,
                   backgroundColor: StaffThemeColors.primaryRed,
-                    child: Text(
-                      userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: _sidebarCollapsed ? 16 : 20,
-                      ),
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: _sidebarCollapsed ? 16 : 20,
                     ),
                   ),
                 ),
               ),
-              if (!_sidebarCollapsed) ...[
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        userName,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
+            ),
+            if (!_sidebarCollapsed) ...[
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      userName,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
                         color: Colors.white.withOpacity(0.95),
-                          letterSpacing: 0.2,
-                        ),
-                        maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                        letterSpacing: 0.2,
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        userEmail,
-                        style: TextStyle(
-                          fontSize: 12,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      userEmail,
+                      style: TextStyle(
+                        fontSize: 12,
                         color: Colors.white.withOpacity(0.8),
-                          letterSpacing: 0.1,
-                        ),
-                        maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                        letterSpacing: 0.1,
                       ),
-                    ],
-                  ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ],
+          ],
         );
       },
     );
@@ -480,16 +481,16 @@ class _StaffDashboardState extends State<StaffDashboard> {
               Color(0xFF4A1515), // Darkest maroon end
             ],
           ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
               blurRadius: 12,
               offset: const Offset(4, 0),
               spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: SafeArea(
+            ),
+          ],
+        ),
+        child: SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.max,
             children: [
@@ -512,13 +513,13 @@ class _StaffDashboardState extends State<StaffDashboard> {
                   children: [
                     const Expanded(
                       child: Text(
-                      'FlexiMart',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        letterSpacing: 0.5,
-                      ),
+                        'FlexiMart',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                          letterSpacing: 0.5,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -526,23 +527,23 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(8),
-                    ),
+                      ),
                       child: IconButton(
-                      icon: const Icon(Icons.menu_open, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Close',
+                        icon: const Icon(Icons.menu_open, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                        tooltip: 'Close',
                         padding: const EdgeInsets.all(8),
                         constraints: const BoxConstraints(
                           minWidth: 36,
                           minHeight: 36,
+                        ),
+                      ),
                     ),
+                  ],
                 ),
               ),
-                  ],
-            ),
-              ),
               // Navigation Items - Scrollable with Expanded
-            Expanded(
+              Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
@@ -556,36 +557,36 @@ class _StaffDashboardState extends State<StaffDashboard> {
                         return _NavTile(
                           icon: item['icon'] as IconData,
                           label: item['label'] as String,
-                      selected: selected,
+                          selected: selected,
                           collapsed: false,
-                      onTap: () {
-                        if (mounted) {
-                          setState(() {
-                            _selectedIndex = index;
-                          });
-                          Navigator.pop(context);
-                        }
-                      },
-                  );
+                          onTap: () {
+                            if (mounted) {
+                              setState(() {
+                                _selectedIndex = index;
+                              });
+                              Navigator.pop(context);
+                            }
+                          },
+                        );
                       }),
-              ),
-            ),
+                    ),
+                  ),
                 ),
               ),
               // Profile Section - Pinned at bottom with proper spacing
-            Container(
+              Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
                 ),
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
+                decoration: BoxDecoration(
+                  border: Border(
+                    top: BorderSide(
                       color: Colors.white.withOpacity(0.1),
-                    width: 1,
+                      width: 1,
+                    ),
                   ),
                 ),
-              ),
                 child: _buildMobileProfileSection(context),
               ),
             ],
@@ -599,25 +600,25 @@ class _StaffDashboardState extends State<StaffDashboard> {
     final user = FirebaseAuth.instance.currentUser;
     return StreamBuilder<DocumentSnapshot>(
       stream: user != null
-                    ? FirebaseFirestore.instance
-                          .collection('users')
+          ? FirebaseFirestore.instance
+                .collection('users')
                 .doc(user.uid)
-                          .snapshots()
-                    : null,
-                builder: (context, snapshot) {
-                  final userData = snapshot.hasData && snapshot.data!.exists
-                      ? snapshot.data!.data() as Map<String, dynamic>?
-                      : null;
-                  final userName =
-                      (userData?['fullName'] as String?) ??
+                .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        final userData = snapshot.hasData && snapshot.data!.exists
+            ? snapshot.data!.data() as Map<String, dynamic>?
+            : null;
+        final userName =
+            (userData?['fullName'] as String?) ??
             (userData?['name'] as String?) ??
             (userData?['customerName'] as String?) ??
-                      user?.email?.split('@')[0] ??
-                      'Staff';
+            user?.email?.split('@')[0] ??
+            'Staff';
         final userEmail = user?.email ?? '';
 
-                  return Row(
-                    children: [
+        return Row(
+          children: [
             Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
@@ -630,56 +631,56 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 ],
               ),
               child: CircleAvatar(
-                        radius: 24,
+                radius: 24,
                 backgroundColor: Colors.white,
                 child: CircleAvatar(
                   radius: 22,
-                        backgroundColor: StaffThemeColors.primaryRed,
-                        child: Text(
-                          userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 20,
+                  backgroundColor: StaffThemeColors.primaryRed,
+                  child: Text(
+                    userName.isNotEmpty ? userName[0].toUpperCase() : 'S',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
                     ),
                   ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              userName,
+                children: [
+                  Text(
+                    userName,
                     style: TextStyle(
                       fontSize: 15,
-                                fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.bold,
                       color: Colors.white.withOpacity(0.95),
                       letterSpacing: 0.2,
-                              ),
+                    ),
                     maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
                     userEmail,
-                              style: TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                                color: Colors.white.withOpacity(0.8),
+                      color: Colors.white.withOpacity(0.8),
                       letterSpacing: 0.1,
-                              ),
+                    ),
                     maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -1047,7 +1048,9 @@ class _StaffKpiCard extends StatelessWidget {
           color: Colors.white, // White card background
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
           border: Border.all(
-            color: const Color(0xFF8B2E2E).withOpacity(0.3), // Bright red border matching theme
+            color: const Color(
+              0xFF8B2E2E,
+            ).withOpacity(0.3), // Bright red border matching theme
             width: 2,
           ),
           boxShadow: [
@@ -1079,7 +1082,9 @@ class _StaffKpiCard extends StatelessWidget {
                       title,
                       style: const TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF1D3B53), // Dark blue for better readability
+                        color: Color(
+                          0xFF1D3B53,
+                        ), // Dark blue for better readability
                         fontWeight: FontWeight.w600,
                         letterSpacing: 0.3,
                       ),
@@ -1099,7 +1104,9 @@ class _StaffKpiCard extends StatelessWidget {
                       subtitle,
                       style: TextStyle(
                         fontSize: 13,
-                        color: const Color(0xFF1D3B53).withOpacity(0.9), // Darker for better readability
+                        color: const Color(
+                          0xFF1D3B53,
+                        ).withOpacity(0.9), // Darker for better readability
                         fontWeight: FontWeight.w400,
                         letterSpacing: 0.2,
                       ),
@@ -1139,7 +1146,9 @@ class _StaffPanel extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(0xFF8B2E2E).withOpacity(0.3), // Bright red border matching theme
+            color: const Color(
+              0xFF8B2E2E,
+            ).withOpacity(0.3), // Bright red border matching theme
             width: 2,
           ),
           boxShadow: [
@@ -1165,7 +1174,9 @@ class _StaffPanel extends StatelessWidget {
                     ),
                     child: Icon(
                       icon,
-                      color: const Color(0xFF8B2E2E), // Bright red icon for staff
+                      color: const Color(
+                        0xFF8B2E2E,
+                      ), // Bright red icon for staff
                       size: 20,
                     ),
                   ),
@@ -1985,8 +1996,24 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
               ),
               child: imageUrl != null && imageUrl.isNotEmpty
                   ? Image.network(
-                      imageUrl,
+                      ImageUrlHelper.encodeUrl(imageUrl),
                       fit: BoxFit.cover,
+                      cacheWidth: kIsWeb ? null : 400,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          color: AppColors.border,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        );
+                      },
                       errorBuilder: (context, error, stackTrace) => Container(
                         color: AppColors.border,
                         child: Icon(
@@ -3205,7 +3232,8 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                         MaterialPageRoute(
                           builder: (context) => const MapComingSoonPlaceholder(
                             title: 'Delivery Locations Map',
-                            message: 'Map view of all delivery locations is coming soon!',
+                            message:
+                                'Map view of all delivery locations is coming soon!',
                           ),
                         ),
                       );
@@ -3535,7 +3563,8 @@ class _OrdersViewPageState extends State<_OrdersViewPage> {
                         MaterialPageRoute(
                           builder: (context) => const MapComingSoonPlaceholder(
                             title: 'Order Location',
-                            message: 'Map view for order delivery location is coming soon!',
+                            message:
+                                'Map view for order delivery location is coming soon!',
                           ),
                         ),
                       );
@@ -3783,6 +3812,56 @@ class _FeedbackSupportPage extends StatelessWidget {
     );
   }
 
+  static Future<void> _deleteRating(BuildContext context, String orderId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Rating'),
+        content: const Text(
+          'Are you sure you want to delete this customer rating? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final orderService = OrderService();
+        await orderService.deleteOrderRating(orderId: orderId);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rating deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting rating: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildFeedbackCard(
     BuildContext context,
     QueryDocumentSnapshot orderDoc,
@@ -3792,25 +3871,6 @@ class _FeedbackSupportPage extends StatelessWidget {
     final orderId = orderDoc.id;
     final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
     final review = orderData['review'] as String? ?? '';
-    // Check multiple possible field names for image URL
-    String? ratingImageUrl =
-        (orderData['ratingImageUrl'] as String?) ??
-        (orderData['rating_image_url'] as String?) ??
-        (orderData['imageUrl'] as String?) ??
-        (orderData['image_url'] as String?);
-    
-    // Clean up the URL - remove any whitespace
-    if (ratingImageUrl != null) {
-      ratingImageUrl = ratingImageUrl.trim();
-      if (ratingImageUrl.isEmpty) {
-        ratingImageUrl = null;
-      }
-    }
-    
-    // Debug: Print image URL if available
-    if (kDebugMode && ratingImageUrl != null) {
-      debugPrint('📸 Feedback image URL for order $orderId: $ratingImageUrl');
-    }
     final customerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
@@ -3845,14 +3905,15 @@ class _FeedbackSupportPage extends StatelessWidget {
                         size: isMobile ? 40 : 48,
                       )
                     : CircleAvatar(
-                  radius: isMobile ? 20 : 24,
-                  backgroundColor: StaffThemeColors.primaryBlue.withOpacity(0.1),
-                  child: Icon(
-                    Icons.person,
-                    size: isMobile ? 20 : 24,
-                    color: StaffThemeColors.primaryRed,
-                  ),
-                ),
+                        radius: isMobile ? 20 : 24,
+                        backgroundColor: StaffThemeColors.primaryBlue
+                            .withOpacity(0.1),
+                        child: Icon(
+                          Icons.person,
+                          size: isMobile ? 20 : 24,
+                          color: StaffThemeColors.primaryRed,
+                        ),
+                      ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -3909,110 +3970,25 @@ class _FeedbackSupportPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            // Rating image (responsive)
-            if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Builder(
-                builder: (context) {
-                  // Create local non-nullable variable since we've already checked
-                  final imageUrl = ratingImageUrl!;
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Calculate responsive image size
-                      final screenHeight = MediaQuery.of(context).size.height;
-                      
-                      // For card thumbnail: responsive height based on screen size
-                      final thumbnailHeight = isMobile
-                          ? (screenHeight * 0.2).clamp(120.0, 200.0) // Mobile: 120-200px
-                          : (screenHeight * 0.25).clamp(150.0, 250.0); // Desktop: 150-250px
-                      
-                  return GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (dialogContext) => Dialog(
-                              backgroundColor: Colors.transparent,
-                              insetPadding: EdgeInsets.all(isMobile ? 16 : 24),
-                              child: LayoutBuilder(
-                                builder: (context, dialogConstraints) {
-                                  final dialogScreenWidth = MediaQuery.of(dialogContext).size.width;
-                                  final dialogScreenHeight = MediaQuery.of(dialogContext).size.height;
-                                  
-                                  // Responsive full-screen image dimensions
-                                  final responsiveFullWidth = isMobile
-                                      ? dialogScreenWidth - 32 // Mobile: account for padding
-                                      : (dialogScreenWidth * 0.85).clamp(400.0, 1200.0); // Desktop: 400-1200px
-                                  
-                                  final responsiveFullHeight = isMobile
-                                      ? dialogScreenHeight * 0.8 // Mobile: 80% of height
-                                      : (dialogScreenHeight * 0.85).clamp(400.0, 900.0); // Desktop: 400-900px
-                                  
-                                  return Stack(
-                                children: [
-                                  Center(
-                                child: RatingImageWidget(
-                                  imageUrl: imageUrl,
-                              fit: BoxFit.contain,
-                                          height: responsiveFullHeight,
-                                          width: responsiveFullWidth,
-                                  primaryColor: StaffThemeColors.primaryRed,
-                                  orderId: orderId,
-                            ),
-                          ),
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.black54,
-                                            shape: BoxShape.circle,
-                                          ),
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.close,
-                                color: Colors.white,
-                                              size: 24,
-                              ),
-                                            onPressed: () => Navigator.pop(dialogContext),
-                                            tooltip: 'Close',
-                              ),
-                            ),
-                          ),
-                        ],
-                                  );
-                                },
-                      ),
-                    ),
-                  );
-                },
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: StaffThemeColors.primaryRed.withOpacity(0.2),
-                        width: 1,
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                      child: RatingImageWidget(
-                        imageUrl: imageUrl,
-                      width: double.infinity,
-                              height: thumbnailHeight,
-                      fit: BoxFit.cover,
-                        borderRadius: BorderRadius.circular(8),
-                        backgroundColor: Colors.grey[200],
-                        primaryColor: StaffThemeColors.primaryRed,
-                        orderId: orderId,
-                            ),
-                              ),
-                    ),
-                      );
-                    },
-                  );
-                },
+            // Delete rating button
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _deleteRating(context, orderId),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                ),
+                label: const Text('Delete Rating'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
-            ],
+            ),
+            const SizedBox(height: 12),
             // Order info
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -4083,7 +4059,7 @@ class _StaffProfilePage extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                  color: StaffThemeColors.primaryRed,
+                color: StaffThemeColors.primaryRed,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(

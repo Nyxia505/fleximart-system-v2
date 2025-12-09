@@ -46,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '201166763483',
     projectId: 'fleximart-system',
     authDomain: 'fleximart-system.firebaseapp.com',
+    databaseURL: 'https://fleximart-system-default-rtdb.firebaseio.com',
     storageBucket: 'fleximart-system.firebasestorage.app',
     measurementId: 'G-G3CFDKWNW7',
   );
@@ -55,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:201166763483:android:d98914bf1dd8eadf41e3fe',
     messagingSenderId: '201166763483',
     projectId: 'fleximart-system',
+    databaseURL: 'https://fleximart-system-default-rtdb.firebaseio.com',
     storageBucket: 'fleximart-system.firebasestorage.app',
   );
 
@@ -63,7 +65,10 @@ class DefaultFirebaseOptions {
     appId: '1:201166763483:ios:a62d5cd34ec6cdec41e3fe',
     messagingSenderId: '201166763483',
     projectId: 'fleximart-system',
+    databaseURL: 'https://fleximart-system-default-rtdb.firebaseio.com',
     storageBucket: 'fleximart-system.firebasestorage.app',
+    androidClientId: '201166763483-msn2jgeqr6k6obi2vnehs153akderfut.apps.googleusercontent.com',
+    iosClientId: '201166763483-cetgc2vmr6gaa27suesfeitisqcnlr4u.apps.googleusercontent.com',
     iosBundleId: 'com.example.fleximart',
   );
 
@@ -82,6 +87,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '201166763483',
     projectId: 'fleximart-system',
     authDomain: 'fleximart-system.firebaseapp.com',
+    databaseURL: 'https://fleximart-system-default-rtdb.firebaseio.com',
     storageBucket: 'fleximart-system.firebasestorage.app',
     measurementId: 'G-JXXE93QWHC',
   );

@@ -1,7 +1,4 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 
@@ -22,41 +19,6 @@ class RatingDialog extends StatefulWidget {
 class _RatingDialogState extends State<RatingDialog> {
   int _rating = 0;
   final _reviewController = TextEditingController();
-  Uint8List? _selectedImage;
-  String? _imageName;
-  bool _isPickingImage = false;
-
-  Future<void> _pickImage() async {
-    setState(() => _isPickingImage = true);
-    try {
-      final picker = ImagePicker();
-      final XFile? pickedFile = await picker.pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 80,
-      );
-
-      if (pickedFile != null) {
-        final bytes = await pickedFile.readAsBytes();
-        setState(() {
-          _selectedImage = bytes;
-          _imageName = pickedFile.name;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to pick image: $e'),
-            backgroundColor: AppColors.error,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isPickingImage = false);
-      }
-    }
-  }
 
   @override
   void dispose() {
@@ -69,7 +31,9 @@ class _RatingDialogState extends State<RatingDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       child: Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.8,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -103,10 +67,7 @@ class _RatingDialogState extends State<RatingDialog> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      widget.productName,
-                      style: AppTextStyles.heading3(),
-                    ),
+                    Text(widget.productName, style: AppTextStyles.heading3()),
                     const SizedBox(height: 24),
                     const Text(
                       'How would you rate this product?',
@@ -124,7 +85,9 @@ class _RatingDialogState extends State<RatingDialog> {
                           child: Icon(
                             index < _rating ? Icons.star : Icons.star_border,
                             size: 48,
-                            color: index < _rating ? AppColors.primary : Colors.grey,
+                            color: index < _rating
+                                ? AppColors.primary
+                                : Colors.grey,
                           ),
                         );
                       }),
@@ -151,68 +114,14 @@ class _RatingDialogState extends State<RatingDialog> {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Upload product photo (required)',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_selectedImage != null) ...[
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.memory(
-                          _selectedImage!,
-                          height: 180,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      TextButton.icon(
-                        onPressed: () =>
-                            setState(() => _selectedImage = null),
-                        icon: const Icon(Icons.delete_outline),
-                        label: const Text('Remove photo'),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-                    OutlinedButton.icon(
-                      onPressed: _isPickingImage ? null : _pickImage,
-                      icon: _isPickingImage
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.photo_camera_back_outlined),
-                      label: Text(_selectedImage == null
-                          ? 'Choose Photo'
-                          : 'Change Photo'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 14,
-                          horizontal: 16,
-                        ),
-                        side: BorderSide(
-                          color: _selectedImage == null
-                              ? Colors.grey.shade400
-                              : AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _rating > 0 && _selectedImage != null
+                        onPressed: _rating > 0
                             ? () {
                                 Navigator.pop(context, {
                                   'rating': _rating,
                                   'review': _reviewController.text.trim(),
-                                  'imageBytes': _selectedImage,
-                                  'imageName': _imageName,
                                 });
                               }
                             : null,
@@ -243,4 +152,3 @@ class _RatingDialogState extends State<RatingDialog> {
     );
   }
 }
-

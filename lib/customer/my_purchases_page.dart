@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -657,16 +655,10 @@ class _ToRateTab extends StatelessWidget {
     );
 
     if (result != null) {
-      final imageBytes = result['imageBytes'] as Uint8List?;
       try {
-        if (imageBytes == null) {
-          throw Exception('Rating photo is required.');
-        }
         await orderService.updateOrderRating(
           orderId: orderId,
           rating: result['rating'] as int,
-          imageBytes: imageBytes,
-          imageName: result['imageName'] as String?,
           review: result['review'] as String?,
         );
 

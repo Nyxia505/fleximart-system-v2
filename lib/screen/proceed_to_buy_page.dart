@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
@@ -7,6 +8,7 @@ import '../services/order_service.dart';
 import '../services/phone_verification_service.dart';
 import '../utils/price_formatter.dart';
 import '../dialogs/delivery_address_dialog.dart';
+import '../utils/image_url_helper.dart';
 import 'phone_verification_input_page.dart';
 
 /// Proceed to Buy Page
@@ -440,10 +442,36 @@ class _ProceedToBuyPageState extends State<ProceedToBuyPage> {
                             ClipRRect(
                               borderRadius: BorderRadius.circular(12),
                               child: Image.network(
-                                productImage,
+                                ImageUrlHelper.encodeUrl(productImage),
                                 width: 80,
                                 height: 80,
                                 fit: BoxFit.cover,
+                                cacheWidth: kIsWeb ? null : 160,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: Colors.grey[200],
+                                    child: Center(
+                                      child: CircularProgressIndicator(
+                                        value: loadingProgress.expectedTotalBytes != null
+                                            ? loadingProgress.cumulativeBytesLoaded /
+                                                loadingProgress.expectedTotalBytes!
+                                            : null,
+                                        strokeWidth: 2,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 80,
+                                    height: 80,
+                                    color: Colors.grey[200],
+                                    child: const Icon(Icons.image_not_supported, size: 32),
+                                  );
+                                },
                               ),
                             ),
                           const SizedBox(width: 16),

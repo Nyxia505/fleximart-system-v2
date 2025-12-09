@@ -1,6 +1,6 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/image_url_helper.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -318,11 +318,6 @@ class _OrdersList extends StatelessWidget {
                     // Get rating data
                     final rating = (data['rating'] as num?)?.toInt() ?? 0;
                     final review = data['review'] as String? ?? '';
-                    final ratingImageUrl =
-                        (data['ratingImageUrl'] as String?) ??
-                        (data['rating_image_url'] as String?) ??
-                        (data['imageUrl'] as String?) ??
-                        (data['image_url'] as String?);
                     
                     // Get order quantity - sum all item quantities
                     int totalQuantity = 0;
@@ -449,10 +444,31 @@ class _OrdersList extends StatelessWidget {
                                     ClipRRect(
                                       borderRadius: BorderRadius.circular(12),
                                       child: Image.network(
-                                        productImage.toString(),
+                                        ImageUrlHelper.encodeUrl(productImage.toString()),
                                         width: 100,
                                         height: 100,
                                         fit: BoxFit.cover,
+                                        cacheWidth: kIsWeb ? null : 200,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Container(
+                                            width: 100,
+                                            height: 100,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                value: loadingProgress.expectedTotalBytes != null
+                                                    ? loadingProgress.cumulativeBytesLoaded /
+                                                        loadingProgress.expectedTotalBytes!
+                                                    : null,
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          );
+                                        },
                                         errorBuilder: (context, error, stackTrace) {
                                           return Container(
                                             width: 100,
@@ -758,42 +774,24 @@ class _OrdersList extends StatelessWidget {
                                         ),
                                       ),
                                     ],
-                                    if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      ClipRRect(
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Image.network(
-                                          ratingImageUrl,
-                                          width: double.infinity,
-                                          height: 150,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return Container(
-                                              height: 150,
-                                              color: Colors.grey[200],
-                                              child: const Center(
-                                                child: Icon(Icons.broken_image, size: 32),
-                                              ),
-                                            );
-                                          },
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null) return child;
-                                            return Container(
-                                              height: 150,
-                                              color: Colors.grey[200],
-                                              child: Center(
-                                                child: CircularProgressIndicator(
-                                                  value: loadingProgress.expectedTotalBytes != null
-                                                      ? loadingProgress.cumulativeBytesLoaded /
-                                                          loadingProgress.expectedTotalBytes!
-                                                      : null,
-                                                ),
-                                              ),
-                                            );
-                                          },
+                                    const SizedBox(height: 12),
+                                    // Delete rating button
+                                    SizedBox(
+                                      width: double.infinity,
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _deleteRating(context, doc.id),
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Delete Rating'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.error,
+                                          side: const BorderSide(color: AppColors.error),
+                                          padding: const EdgeInsets.symmetric(vertical: 12),
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1128,17 +1126,11 @@ class _OrdersList extends StatelessWidget {
         );
 
         if (result != null) {
-          final imageBytes = result['imageBytes'] as Uint8List?;
           try {
             final orderService = OrderService();
-            if (imageBytes == null) {
-              throw Exception('Rating photo is required.');
-            }
             await orderService.updateOrderRating(
               orderId: orderRef.id,
               rating: result['rating'] as int,
-              imageBytes: imageBytes,
-              imageName: result['imageName'] as String?,
               review: result['review'] as String?,
             );
 
@@ -1182,6 +1174,56 @@ class _OrdersList extends StatelessWidget {
           ),
         ),
       );
+    }
+  }
+
+  Future<void> _deleteRating(BuildContext context, String orderId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Rating'),
+        content: const Text(
+          'Are you sure you want to delete your rating? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final orderService = OrderService();
+        await orderService.deleteOrderRating(orderId: orderId);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rating deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting rating: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
     }
   }
 }

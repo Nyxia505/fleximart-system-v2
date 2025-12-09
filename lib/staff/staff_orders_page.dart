@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/order_service.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../utils/price_formatter.dart';
+import '../utils/image_url_helper.dart';
 
 class StaffOrdersTheme {
   StaffOrdersTheme._();
@@ -384,10 +385,28 @@ class _OrderCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                   child: productImage != null && productImage.isNotEmpty
                       ? Image.network(
-                          productImage,
+                          ImageUrlHelper.encodeUrl(productImage),
                           width: 70,
                           height: 70,
                           fit: BoxFit.cover,
+                          cacheWidth: kIsWeb ? null : 140,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Container(
+                              width: 70,
+                              height: 70,
+                              color: Colors.grey[200],
+                              child: Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes != null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth: 2,
+                                ),
+                              ),
+                            );
+                          },
                           errorBuilder: (context, error, stackTrace) =>
                               _buildPlaceholderImage(),
                         )

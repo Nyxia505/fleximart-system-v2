@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../utils/image_url_helper.dart';
 
 class ProductVariantSheet extends StatefulWidget {
   final Map<String, String> product;
@@ -31,7 +33,38 @@ class _ProductVariantSheetState extends State<ProductVariantSheet> {
             contentPadding: EdgeInsets.zero,
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: Image.network(widget.product["img"]!, width: 60, height: 60, fit: BoxFit.cover),
+              child: Image.network(
+                ImageUrlHelper.encodeUrl(widget.product["img"]!),
+                width: 60,
+                height: 60,
+                fit: BoxFit.cover,
+                cacheWidth: kIsWeb ? null : 120,
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Container(
+                    width: 60,
+                    height: 60,
+                    color: Colors.grey[200],
+                    child: Center(
+                      child: CircularProgressIndicator(
+                        value: loadingProgress.expectedTotalBytes != null
+                            ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
+                            : null,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  );
+                },
+                errorBuilder: (context, error, stackTrace) {
+                  return Container(
+                    width: 60,
+                    height: 60,
+                    color: Colors.grey[200],
+                    child: const Icon(Icons.image_not_supported, size: 32),
+                  );
+                },
+              ),
             ),
             title: Text(widget.product["name"]!, maxLines: 1, overflow: TextOverflow.ellipsis),
             subtitle: const Text("Stock: 999", style: TextStyle(fontSize: 13)),

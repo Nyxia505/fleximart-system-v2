@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'dart:async';
+import 'dart:typed_data';
 import '../utils/fcm_utils.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart' as app_auth;
@@ -17,13 +17,15 @@ import '../pages/chat_list_page.dart';
 import '../utils/price_formatter.dart';
 import '../services/role_service.dart';
 import '../services/notification_service.dart';
+import '../services/order_service.dart';
 import '../utils/role_helper.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
-import '../widgets/rating_image_widget.dart';
 import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
+import '../widgets/product_image_widget.dart';
+import '../services/firebase_storage_service.dart';
 import 'activity_log_page.dart';
 
 // Official theme colors - New Theme
@@ -2924,16 +2926,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                 top: Radius.circular(16),
               ),
               child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
+                  ? ProductImageWidget(
+                      imageUrl: imageUrl,
                       fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) => Container(
-                        color: AppColors.border,
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
+                      backgroundColor: AppColors.border,
                     )
                   : Container(
                       color: AppColors.border,
@@ -3427,17 +3423,18 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      final storageRef = FirebaseStorage
-                                          .instance
-                                          .ref()
-                                          .child('products')
-                                          .child(
-                                            '${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg',
-                                          );
+                                      // Read image as bytes (works on both web and mobile)
+                                      final Uint8List imageBytes = await _selectedImage!.readAsBytes();
+                                      
+                                      // Generate storage path
+                                      final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg';
 
-                                      await storageRef.putFile(_selectedImage!);
-                                      finalImageUrl = await storageRef
-                                          .getDownloadURL();
+                                      // Use centralized service that works on both web and mobile
+                                      finalImageUrl = await FirebaseStorageService.uploadImageBytes(
+                                        imageBytes: imageBytes,
+                                        storagePath: storagePath,
+                                        contentType: 'image/jpeg',
+                                      );
 
                                       setDialogState(() {
                                         _uploadingImage = false;
@@ -3779,14 +3776,9 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                _existingImageUrl!,
+                              child: ProductImageWidget(
+                                imageUrl: _existingImageUrl!,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Center(
-                                    child: Icon(Icons.broken_image, size: 48),
-                                  );
-                                },
                               ),
                             ),
                           ),
@@ -3983,17 +3975,18 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      final storageRef = FirebaseStorage
-                                          .instance
-                                          .ref()
-                                          .child('products')
-                                          .child(
-                                            '${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg',
-                                          );
+                                      // Read image as bytes (works on both web and mobile)
+                                      final Uint8List imageBytes = await _selectedImage!.readAsBytes();
+                                      
+                                      // Generate storage path
+                                      final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg';
 
-                                      await storageRef.putFile(_selectedImage!);
-                                      finalImageUrl = await storageRef
-                                          .getDownloadURL();
+                                      // Use centralized service that works on both web and mobile
+                                      finalImageUrl = await FirebaseStorageService.uploadImageBytes(
+                                        imageBytes: imageBytes,
+                                        storagePath: storagePath,
+                                        contentType: 'image/jpeg',
+                                      );
 
                                       setDialogState(() {
                                         _uploadingImage = false;
@@ -7098,6 +7091,56 @@ class _FeedbackPage extends StatelessWidget {
     );
   }
 
+  static Future<void> _deleteRating(BuildContext context, String orderId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Rating'),
+        content: const Text(
+          'Are you sure you want to delete this customer rating? This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.error,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        final orderService = OrderService();
+        await orderService.deleteOrderRating(orderId: orderId);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rating deleted successfully'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deleting rating: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   Widget _buildFeedbackCard(
     BuildContext context,
     QueryDocumentSnapshot orderDoc,
@@ -7107,20 +7150,6 @@ class _FeedbackPage extends StatelessWidget {
     final orderId = orderDoc.id;
     final rating = (orderData['rating'] as num?)?.toInt() ?? 0;
     final review = orderData['review'] as String? ?? '';
-    // Check multiple possible field names for image URL
-    String? ratingImageUrl =
-        (orderData['ratingImageUrl'] as String?) ??
-        (orderData['rating_image_url'] as String?) ??
-        (orderData['imageUrl'] as String?) ??
-        (orderData['image_url'] as String?);
-
-    // Clean up the URL - remove any whitespace
-    if (ratingImageUrl != null) {
-      ratingImageUrl = ratingImageUrl.trim();
-      if (ratingImageUrl.isEmpty) {
-        ratingImageUrl = null;
-      }
-    }
     final fallbackCustomerName =
         orderData['customerName'] as String? ??
         orderData['customer_name'] as String? ??
@@ -7136,25 +7165,10 @@ class _FeedbackPage extends StatelessWidget {
         (orderData['price'] as num?)?.toDouble() ??
         0.0;
 
-    return Container(
-      margin: EdgeInsets.only(bottom: isMobile ? 12 : 0),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF5F5), // Light pink background
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: const Color(
-            0xFFCD5656,
-          ).withOpacity(0.3), // Red border matching theme
-          width: 2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Card(
+      margin: EdgeInsets.only(bottom: isMobile ? 12 : 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
         padding: EdgeInsets.all(isMobile ? 12 : 16),
         child: Column(
@@ -7232,12 +7246,8 @@ class _FeedbackPage extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFFF5F5), // Light pink background
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0xFF8B2E2E).withOpacity(0.2),
-                    width: 1,
-                  ),
                 ),
                 child: Text(
                   review,
@@ -7250,131 +7260,25 @@ class _FeedbackPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
             ],
-            // Rating image (responsive)
-            if (ratingImageUrl != null && ratingImageUrl.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Builder(
-                builder: (context) {
-                  // Create local non-nullable variable since we've already checked
-                  final imageUrl =
-                      ratingImageUrl!; // Non-null assertion since we checked above
-                  return LayoutBuilder(
-                    builder: (context, constraints) {
-                      // Calculate responsive image size
-                      final screenHeight = MediaQuery.of(context).size.height;
-
-                      // For card thumbnail: responsive height based on screen size
-                      final thumbnailHeight = isMobile
-                          ? (screenHeight * 0.2).clamp(
-                              120.0,
-                              200.0,
-                            ) // Mobile: 120-200px
-                          : (screenHeight * 0.25).clamp(
-                              150.0,
-                              250.0,
-                            ); // Desktop: 150-250px
-
-                      return GestureDetector(
-                        onTap: () {
-                          showDialog(
-                            context: context,
-                            builder: (dialogContext) => Dialog(
-                              backgroundColor: Colors.transparent,
-                              insetPadding: EdgeInsets.all(isMobile ? 16 : 24),
-                              child: LayoutBuilder(
-                                builder: (context, dialogConstraints) {
-                                  final dialogScreenWidth = MediaQuery.of(
-                                    dialogContext,
-                                  ).size.width;
-                                  final dialogScreenHeight = MediaQuery.of(
-                                    dialogContext,
-                                  ).size.height;
-
-                                  // Responsive full-screen image dimensions
-                                  final responsiveFullWidth = isMobile
-                                      ? dialogScreenWidth -
-                                            32 // Mobile: account for padding
-                                      : (dialogScreenWidth * 0.85).clamp(
-                                          400.0,
-                                          1200.0,
-                                        ); // Desktop: 400-1200px
-
-                                  final responsiveFullHeight = isMobile
-                                      ? dialogScreenHeight *
-                                            0.8 // Mobile: 80% of height
-                                      : (dialogScreenHeight * 0.85).clamp(
-                                          400.0,
-                                          900.0,
-                                        ); // Desktop: 400-900px
-
-                                  return Stack(
-                                    children: [
-                                      Center(
-                                        child: RatingImageWidget(
-                                          imageUrl: imageUrl,
-                                          fit: BoxFit.contain,
-                                          height: responsiveFullHeight,
-                                          width: responsiveFullWidth,
-                                          primaryColor: AppColors.primary,
-                                          orderId: orderId,
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.black54,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: IconButton(
-                                            icon: const Icon(
-                                              Icons.close,
-                                              color: Colors.white,
-                                              size: 24,
-                                            ),
-                                            onPressed: () =>
-                                                Navigator.pop(dialogContext),
-                                            tooltip: 'Close',
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                            ),
-                          );
-                        },
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: const Color(0xFF8B2E2E).withOpacity(0.2),
-                              width: 1,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
-                            child: RatingImageWidget(
-                              imageUrl: imageUrl,
-                              width: double.infinity,
-                              height: thumbnailHeight,
-                              fit: BoxFit.cover,
-                              borderRadius: BorderRadius.circular(8),
-                              backgroundColor: const Color(0xFFFFF5F5),
-                              primaryColor: AppColors.primary,
-                              orderId: orderId,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  );
-                },
+            // Delete rating button
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _deleteRating(context, orderId),
+                icon: const Icon(
+                  Icons.delete_outline,
+                  size: 18,
+                ),
+                label: const Text('Delete Rating'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
-              const SizedBox(height: 12),
-            ],
+            ),
+            const SizedBox(height: 12),
             // Order info
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

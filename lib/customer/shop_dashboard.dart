@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../pages/product_details_page.dart';
 import '../widgets/product_base64_image.dart';
 import '../utils/price_formatter.dart';
 import '../services/cart_service.dart';
+import '../utils/image_url_helper.dart';
 
 class ShopDashboard extends StatefulWidget {
   const ShopDashboard({super.key});
@@ -808,8 +809,9 @@ class _ProductCard extends StatelessWidget {
       return ProductBase64Image(base64String: imageString);
     } else {
       return Image.network(
-        imageString,
+        ImageUrlHelper.encodeUrl(imageString),
         fit: BoxFit.cover,
+        cacheWidth: kIsWeb ? null : 400,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
           return Container(

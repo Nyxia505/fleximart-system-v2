@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../models/product_model.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../utils/price_formatter.dart';
+import '../utils/image_url_helper.dart';
 
 /// Featured Product Card Widget
 /// 
@@ -52,8 +54,12 @@ class FeaturedProductCard extends StatelessWidget {
                 ),
                 child: product.imageUrl.isNotEmpty
                     ? Image.network(
-                        product.imageUrl,
+                        ImageUrlHelper.encodeUrl(product.imageUrl),
                         fit: BoxFit.cover,
+                        // Only use cacheWidth on mobile, not on web
+                        cacheWidth: kIsWeb
+                            ? null
+                            : (160 * 2).round().clamp(200, 800),
                         loadingBuilder: (context, child, loadingProgress) {
                           if (loadingProgress == null) {
                             return child;

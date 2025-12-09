@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/profile_picture_placeholder.dart';
+import '../widgets/profile_picture_widget.dart';
 import 'chat_detail_page.dart';
 import 'start_chat_page.dart';
 
@@ -468,10 +469,13 @@ class ChatListPage extends StatelessWidget {
             children: [
               // Avatar with profile picture
               profilePicUrl != null && profilePicUrl.isNotEmpty
-                  ? CircleAvatar(
-                      radius: 28,
+                  ? ProfilePictureWidget(
+                      imageUrl: profilePicUrl,
+                      size: 56,
                       backgroundColor: AppColors.secondary,
-                      backgroundImage: NetworkImage(profilePicUrl),
+                      placeholder: const CompactProfilePicturePlaceholder(
+                        size: 56,
+                      ),
                     )
                   : const CompactProfilePicturePlaceholder(size: 56),
               const SizedBox(width: 16),

@@ -5,9 +5,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
 import '../widgets/profile_picture_placeholder.dart';
+import '../widgets/profile_picture_widget.dart';
+import '../widgets/chat_image_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'dart:typed_data';
+import '../utils/image_url_helper.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -437,18 +440,13 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
         title: Row(
           children: [
             _otherUserProfilePic != null && _otherUserProfilePic!.isNotEmpty
-                ? CircleAvatar(
-                    radius: 18,
+                ? ProfilePictureWidget(
+                    imageUrl: _otherUserProfilePic!,
+                    size: 36,
                     backgroundColor: Colors.white,
-                    backgroundImage: NetworkImage(_otherUserProfilePic!),
-                    onBackgroundImageError: (exception, stackTrace) {
-                      // Handle image load error by clearing the profile pic
-                      if (mounted) {
-                        setState(() {
-                          _otherUserProfilePic = null;
-                        });
-                      }
-                    },
+                    placeholder: const CompactProfilePicturePlaceholder(
+                      size: 36,
+                    ),
                   )
                 : const CompactProfilePicturePlaceholder(size: 36),
             const SizedBox(width: 12),
@@ -862,11 +860,12 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                     child:
                         _otherUserProfilePic != null &&
                             _otherUserProfilePic!.isNotEmpty
-                        ? CircleAvatar(
-                            radius: 16,
+                        ? ProfilePictureWidget(
+                            imageUrl: _otherUserProfilePic!,
+                            size: 32,
                             backgroundColor: Colors.white,
-                            backgroundImage: NetworkImage(
-                              _otherUserProfilePic!,
+                            placeholder: const CompactProfilePicturePlaceholder(
+                              size: 32,
                             ),
                           )
                         : const CompactProfilePicturePlaceholder(size: 32),
@@ -997,89 +996,15 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                                     borderRadius: BorderRadius.circular(12),
                                     child: Stack(
                                       children: [
-                                        Image.network(
-                                          imageUrl,
+                                        ChatImageWidget(
+                                          imageUrl: imageUrl,
                                           width: responsiveWidth,
-                                          fit: BoxFit
-                                              .contain, // Changed from cover to contain for better display
-                                          headers: const {
-                                            'Cache-Control': 'max-age=31536000',
-                                          },
-                                          cacheWidth: (responsiveWidth * 2)
-                                              .round()
-                                              .clamp(200, 800),
-                                          loadingBuilder: (context, child, loadingProgress) {
-                                            if (loadingProgress == null)
-                                              return child;
-                                            return Container(
-                                              width: responsiveWidth,
-                                              height: responsiveHeight * 0.7,
-                                              color: Colors.grey[200],
-                                              child: Center(
-                                                child: CircularProgressIndicator(
-                                                  value:
-                                                      loadingProgress
-                                                              .expectedTotalBytes !=
-                                                          null
-                                                      ? loadingProgress
-                                                                .cumulativeBytesLoaded /
-                                                            loadingProgress
-                                                                .expectedTotalBytes!
-                                                      : null,
-                                                  color: isMe
-                                                      ? Colors.white70
-                                                      : AppColors.secondary,
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                          errorBuilder:
-                                              (context, error, stackTrace) {
-                                                if (kDebugMode) {
-                                                  debugPrint(
-                                                    '❌ Image load error: $error',
-                                                  );
-                                                  debugPrint(
-                                                    '📸 Image URL: $imageUrl',
-                                                  );
-                                                }
-                                                return Container(
-                                                  width: responsiveWidth,
-                                                  height:
-                                                      responsiveHeight * 0.7,
-                                                  color: Colors.grey[200],
-                                                  child: Column(
-                                                    mainAxisAlignment:
-                                                        MainAxisAlignment
-                                                            .center,
-                                                    children: [
-                                                      Icon(
-                                                        Icons.broken_image,
-                                                        size: 48,
-                                                        color: Colors.grey[400],
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      Text(
-                                                        'Failed to load image',
-                                                        style: TextStyle(
-                                                          fontSize: 12,
-                                                          color:
-                                                              Colors.grey[600],
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        'Tap to retry',
-                                                        style: TextStyle(
-                                                          fontSize: 10,
-                                                          color:
-                                                              Colors.grey[500],
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                );
-                                              },
+                                          height: responsiveHeight,
+                                          fit: BoxFit.contain,
+                                          backgroundColor: Colors.grey[200],
+                                          loadingColor: isMe
+                                              ? Colors.white70
+                                              : AppColors.secondary,
                                         ),
                                         // Photo indicator overlay
                                         Positioned(
@@ -1246,7 +1171,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                   minScale: 0.5,
                   maxScale: 4.0,
                   child: Image.network(
-                    imageUrl,
+                    ImageUrlHelper.encodeUrl(imageUrl),
                     fit: BoxFit.contain,
                     loadingBuilder: (context, child, loadingProgress) {
                       if (loadingProgress == null) return child;
@@ -1294,6 +1219,17 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                               textAlign: TextAlign.center,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                                _showFullImage(imageUrl);
+                              },
+                              child: const Text(
+                                'Retry',
+                                style: TextStyle(color: Colors.white),
+                              ),
                             ),
                           ],
                         ),

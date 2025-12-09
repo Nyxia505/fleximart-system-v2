@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../constants/app_colors.dart';
+import '../utils/image_url_helper.dart';
 
 class CheckoutScreen extends StatefulWidget {
   final Map<String, String> product;
@@ -75,7 +77,38 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.network(widget.product['img']!, width: 65, height: 65, fit: BoxFit.cover),
+                child: Image.network(
+                  ImageUrlHelper.encodeUrl(widget.product['img']!),
+                  width: 65,
+                  height: 65,
+                  fit: BoxFit.cover,
+                  cacheWidth: kIsWeb ? null : 130,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      width: 65,
+                      height: 65,
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                          strokeWidth: 2,
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 65,
+                      height: 65,
+                      color: Colors.grey[200],
+                      child: const Icon(Icons.image_not_supported, size: 32),
+                    );
+                  },
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

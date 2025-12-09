@@ -1,7 +1,4 @@
-import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'notification_service.dart';
 import 'phone_verification_service.dart';
@@ -11,7 +8,6 @@ import 'phone_verification_service.dart';
 /// Handles order operations with Firestore using the specified schema
 class OrderService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
   final NotificationService _notificationService = NotificationService.instance;
 
   /// Create a new order in Firestore
@@ -316,33 +312,9 @@ class OrderService {
   Future<void> updateOrderRating({
     required String orderId,
     required int rating,
-    required Uint8List imageBytes,
-    String? imageName,
     String? review,
   }) async {
     try {
-      if (imageBytes.isEmpty) {
-        throw Exception('Rating image is required.');
-      }
-
-      // Upload image to Firebase Storage
-      final sanitizedName = (imageName ?? 'rating_photo')
-          .replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
-      final fileName =
-          'rating_${DateTime.now().millisecondsSinceEpoch}_$sanitizedName';
-      final storageRef = _storage
-          .ref()
-          .child('order_ratings')
-          .child(orderId)
-          .child(fileName);
-
-      await storageRef.putData(
-        imageBytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
-
-      final imageUrl = await storageRef.getDownloadURL();
-
       // Store rating in subcollection
       await _firestore
           .collection('orders')
@@ -351,27 +323,16 @@ class OrderService {
           .add({
         'stars': rating,
         'comment': review?.trim(),
-        'imageUrl': imageUrl,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
       // Also update order document with rating for quick access
-      final updateData = <String, dynamic>{
+      await _firestore.collection('orders').doc(orderId).update({
         'rating': rating,
-        if (review != null && review.trim().isNotEmpty) 'review': review.trim(),
-        'ratingImageUrl': imageUrl,
+        'review': review?.trim(),
         'hasRating': true,
-      };
-
-      // Optionally update status to delivered if previously completed
-      final orderDoc = await _firestore.collection('orders').doc(orderId).get();
-      final currentStatus = (orderDoc.data() as Map<String, dynamic>)['status'] as String?;
-      
-      if (currentStatus == 'completed') {
-        updateData['status'] = 'delivered';
-      }
-
-      await _firestore.collection('orders').doc(orderId).update(updateData);
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
 
       if (kDebugMode) {
         print('✅ Order rating updated: $orderId');
@@ -381,6 +342,49 @@ class OrderService {
         print('❌ Error updating order rating: $e');
       }
       throw Exception('Failed to update order rating: $e');
+    }
+  }
+
+  /// Delete order rating and review
+  /// 
+  /// Parameters:
+  /// - [orderId]: The order document ID
+  /// 
+  /// Deletes all rating documents from subcollection: orders/{orderId}/rating
+  /// Also removes rating fields from the main order document
+  Future<void> deleteOrderRating({
+    required String orderId,
+  }) async {
+    try {
+      // Delete all rating documents from subcollection
+      final ratingSnapshot = await _firestore
+          .collection('orders')
+          .doc(orderId)
+          .collection('rating')
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in ratingSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Remove rating fields from main order document
+      await _firestore.collection('orders').doc(orderId).update({
+        'rating': FieldValue.delete(),
+        'review': FieldValue.delete(),
+        'hasRating': false,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      if (kDebugMode) {
+        print('✅ Order rating deleted: $orderId');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ Error deleting order rating: $e');
+      }
+      throw Exception('Failed to delete order rating: $e');
     }
   }
 

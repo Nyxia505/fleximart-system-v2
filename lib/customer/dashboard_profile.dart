@@ -6,12 +6,15 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/auth_provider.dart' as app_auth;
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../pages/chat_list_page.dart';
 import '../screen/payment_methods_screen.dart';
 import '../utils/price_formatter.dart';
+import '../widgets/profile_picture_widget.dart';
+import '../utils/image_url_helper.dart';
 import 'home_purchases_ui.dart';
 
 class DashboardProfile extends StatefulWidget {
@@ -22,10 +25,9 @@ class DashboardProfile extends StatefulWidget {
 }
 
 class _DashboardProfileState extends State<DashboardProfile> {
-
   Future<void> _pickProfileImage(String userId) async {
     debugPrint('📸 _pickProfileImage called with userId: $userId');
-    
+
     if (userId.isEmpty) {
       debugPrint('❌ User ID is empty');
       if (mounted) {
@@ -45,7 +47,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
     }
 
     debugPrint('✅ Showing image source dialog');
-    
+
     try {
       // Show dialog to choose image source - use Navigator.of to ensure proper context
       final ImageSource? source = await showDialog<ImageSource>(
@@ -59,77 +61,74 @@ class _DashboardProfileState extends State<DashboardProfile> {
             type: MaterialType.transparency,
             child: Center(
               child: AlertDialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
-            title: Text(
-              'Select Image Source',
-              style: AppTextStyles.heading3(),
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                InkWell(
-                  onTap: () {
-                    debugPrint('📷 Gallery selected');
-                    Navigator.pop(dialogContext, ImageSource.gallery);
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.photo_library,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      'Gallery',
-                      style: AppTextStyles.bodyLarge(),
-                    ),
-                  ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
                 ),
-                const Divider(),
-                InkWell(
-                  onTap: () {
-                    debugPrint('📸 Camera selected');
-                    Navigator.pop(dialogContext, ImageSource.camera);
-                  },
-                  borderRadius: BorderRadius.circular(10),
-                  child: ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        color: AppColors.primary,
-                        size: 24,
-                      ),
-                    ),
-                    title: Text(
-                      'Camera',
-                      style: AppTextStyles.bodyLarge(),
-                    ),
-                  ),
+                title: Text(
+                  'Select Image Source',
+                  style: AppTextStyles.heading3(),
                 ),
-              ],
-            ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        debugPrint('📷 Gallery selected');
+                        Navigator.pop(dialogContext, ImageSource.gallery);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.photo_library,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text(
+                          'Gallery',
+                          style: AppTextStyles.bodyLarge(),
+                        ),
+                      ),
+                    ),
+                    const Divider(),
+                    InkWell(
+                      onTap: () {
+                        debugPrint('📸 Camera selected');
+                        Navigator.pop(dialogContext, ImageSource.camera);
+                      },
+                      borderRadius: BorderRadius.circular(10),
+                      child: ListTile(
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt,
+                            color: AppColors.primary,
+                            size: 24,
+                          ),
+                        ),
+                        title: Text('Camera', style: AppTextStyles.bodyLarge()),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
         },
       );
-      
+
       debugPrint('📸 Dialog returned with source: $source');
-      
+
       if (source == null) {
         debugPrint('❌ No image source selected (user cancelled)');
         return;
@@ -142,7 +141,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
         debugPrint('❌ Widget not mounted before showing loading');
         return;
       }
-      
+
       BuildContext? loadingDialogContext;
       showDialog(
         context: context,
@@ -165,13 +164,15 @@ class _DashboardProfileState extends State<DashboardProfile> {
         if (user == null) {
           throw Exception('User not logged in');
         }
-        
+
         // Refresh the user's authentication token to ensure it's valid
         try {
           await user.reload();
           final refreshedUser = FirebaseAuth.instance.currentUser;
           if (refreshedUser == null) {
-            throw Exception('User authentication expired. Please log in again.');
+            throw Exception(
+              'User authentication expired. Please log in again.',
+            );
           }
           debugPrint('✅ User authentication verified: ${refreshedUser.uid}');
         } catch (authError) {
@@ -180,24 +181,28 @@ class _DashboardProfileState extends State<DashboardProfile> {
         }
 
         // Pick image
-        debugPrint('📷 Picking image from ${source == ImageSource.gallery ? "gallery" : "camera"}...');
+        debugPrint(
+          '📷 Picking image from ${source == ImageSource.gallery ? "gallery" : "camera"}...',
+        );
         final ImagePicker picker = ImagePicker();
-        
+
         // Add a small delay to ensure dialog is fully closed
         await Future.delayed(const Duration(milliseconds: 300));
-        
-        final XFile? image = await picker.pickImage(
-          source: source,
-          maxWidth: 512,
-          maxHeight: 512,
-          imageQuality: 85,
-        ).timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            debugPrint('❌ Image picker timeout');
-            throw Exception('Image picker timed out. Please try again.');
-          },
-        );
+
+        final XFile? image = await picker
+            .pickImage(
+              source: source,
+              maxWidth: 512,
+              maxHeight: 512,
+              imageQuality: 85,
+            )
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                debugPrint('❌ Image picker timeout');
+                throw Exception('Image picker timed out. Please try again.');
+              },
+            );
 
         if (image == null) {
           // User cancelled
@@ -236,7 +241,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
                 );
               },
             );
-        
+
         debugPrint('✅ Upload completed, getting download URL...');
         // Get download URL
         final downloadUrl = await storageRef.getDownloadURL().timeout(
@@ -258,11 +263,11 @@ class _DashboardProfileState extends State<DashboardProfile> {
             .collection('users')
             .doc(user.uid)
             .update({
-          'profilePic': downloadUrl,
-          'profileImageUrl': downloadUrl, // Keep for backward compatibility
-        });
+              'profilePic': downloadUrl,
+              'profileImageUrl': downloadUrl, // Keep for backward compatibility
+            });
         debugPrint('✅ Firestore updated with image URL');
-        
+
         // Verify the update was successful
         final verifyDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -272,7 +277,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
         debugPrint('🔍 Verifying Firestore update:');
         debugPrint('   profilePic: ${verifyData?['profilePic']}');
         debugPrint('   profileImageUrl: ${verifyData?['profileImageUrl']}');
-        
+
         // Force a rebuild by calling setState
         if (mounted) {
           setState(() {});
@@ -306,22 +311,31 @@ class _DashboardProfileState extends State<DashboardProfile> {
           Navigator.pop(loadingDialogContext!);
         }
         if (!mounted) return;
-        
+
         // Provide user-friendly error messages
         String errorMessage = 'Failed to upload profile picture';
         final errorString = e.toString().toLowerCase();
-        
-        if (errorString.contains('unauthorized') || errorString.contains('permission denied')) {
-          errorMessage = 'Permission denied. Please make sure you are logged in and try again.';
-          debugPrint('🔐 Authorization error detected - user may not be authenticated properly');
-        } else if (errorString.contains('network') || errorString.contains('connection')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
+
+        if (errorString.contains('unauthorized') ||
+            errorString.contains('permission denied')) {
+          errorMessage =
+              'Permission denied. Please make sure you are logged in and try again.';
+          debugPrint(
+            '🔐 Authorization error detected - user may not be authenticated properly',
+          );
+        } else if (errorString.contains('network') ||
+            errorString.contains('connection')) {
+          errorMessage =
+              'Network error. Please check your internet connection and try again.';
         } else if (errorString.contains('timeout')) {
-          errorMessage = 'Upload timeout. Please check your connection and try again.';
-        } else if (errorString.contains('storage') || errorString.contains('firebase')) {
-          errorMessage = 'Storage error. Please check Firebase Storage rules and try again.';
+          errorMessage =
+              'Upload timeout. Please check your connection and try again.';
+        } else if (errorString.contains('storage') ||
+            errorString.contains('firebase')) {
+          errorMessage =
+              'Storage error. Please check Firebase Storage rules and try again.';
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
@@ -389,14 +403,15 @@ class _DashboardProfileState extends State<DashboardProfile> {
             user.email?.split('@')[0] ??
             'User';
         final userEmail = user.email ?? 'No email';
-        final userPhone = userData['phoneNumber'] as String? ??
+        final userPhone =
+            userData['phoneNumber'] as String? ??
             userData['phone'] as String? ??
             'No phone number';
-      final profileImageUrl =
-          (userData['profilePic'] as String?) ??
-          (userData['profileImageUrl'] as String?);
-      
-      debugPrint('📸 Profile image URL from Firestore: $profileImageUrl');
+        final profileImageUrl =
+            (userData['profilePic'] as String?) ??
+            (userData['profileImageUrl'] as String?);
+
+        debugPrint('📸 Profile image URL from Firestore: $profileImageUrl');
 
         return _buildProfileContent(
           context,
@@ -457,7 +472,9 @@ class _DashboardProfileState extends State<DashboardProfile> {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            debugPrint('👆 Profile picture tapped, userId: $userId');
+                            debugPrint(
+                              '👆 Profile picture tapped, userId: $userId',
+                            );
                             _pickProfileImage(userId);
                           },
                           child: Container(
@@ -484,8 +501,12 @@ class _DashboardProfileState extends State<DashboardProfile> {
                             child: Stack(
                               children: [
                                 ClipOval(
-                                  key: ValueKey('profile_avatar_${userId}_$profileImageUrl'),
-                                  child: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                                  key: ValueKey(
+                                    'profile_avatar_${userId}_$profileImageUrl',
+                                  ),
+                                  child:
+                                      (profileImageUrl != null &&
+                                          profileImageUrl.isNotEmpty)
                                       ? _ProfileImageWidget(
                                           imageUrl: profileImageUrl,
                                           userId: userId,
@@ -523,7 +544,8 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.primary.withOpacity(0.4),
+                                            color: AppColors.primary
+                                                .withOpacity(0.4),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
                                           ),
@@ -568,7 +590,8 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                     child: Text(
                                       userEmail,
                                       style: const TextStyle(
-                                        color: Colors.white, // Pure white (#FFFFFF)
+                                        color: Colors
+                                            .white, // Pure white (#FFFFFF)
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -591,7 +614,8 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                     child: Text(
                                       userPhone,
                                       style: const TextStyle(
-                                        color: Colors.white, // Pure white (#FFFFFF)
+                                        color: Colors
+                                            .white, // Pure white (#FFFFFF)
                                         fontSize: 14,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -647,7 +671,6 @@ class _DashboardProfileState extends State<DashboardProfile> {
       ),
     );
   }
-
 }
 
 // Settings Screen
@@ -657,7 +680,7 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
-    
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -701,16 +724,20 @@ class SettingsScreen extends StatelessWidget {
             child: StreamBuilder<DocumentSnapshot>(
               stream: user != null
                   ? FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .snapshots()
+                        .collection('users')
+                        .doc(user.uid)
+                        .snapshots()
                   : null,
               builder: (context, snapshot) {
                 final userData = snapshot.data?.data() as Map<String, dynamic>?;
-                final fullName = userData?['fullName'] as String? ?? user?.displayName ?? 'User';
-                final email = userData?['email'] as String? ?? user?.email ?? 'No email';
+                final fullName =
+                    userData?['fullName'] as String? ??
+                    user?.displayName ??
+                    'User';
+                final email =
+                    userData?['email'] as String? ?? user?.email ?? 'No email';
                 final profileImageUrl = userData?['profileImageUrl'] as String?;
-                
+
                 return InkWell(
                   onTap: () {
                     final phone = userData?['phone'] as String? ?? '';
@@ -746,11 +773,14 @@ class SettingsScreen extends StatelessWidget {
                             width: 1.5,
                           ),
                         ),
-                        child: profileImageUrl != null && profileImageUrl.isNotEmpty
+                        child:
+                            profileImageUrl != null &&
+                                profileImageUrl.isNotEmpty
                             ? ClipOval(
                                 child: Image.network(
-                                  profileImageUrl,
+                                  ImageUrlHelper.encodeUrl(profileImageUrl),
                                   fit: BoxFit.cover,
+                                  cacheWidth: kIsWeb ? null : 200,
                                   errorBuilder: (context, error, stackTrace) {
                                     return Icon(
                                       Icons.person,
@@ -758,19 +788,26 @@ class SettingsScreen extends StatelessWidget {
                                       color: AppColors.primary,
                                     );
                                   },
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes != null
-                                            ? loadingProgress.cumulativeBytesLoaded /
-                                                loadingProgress.expectedTotalBytes!
-                                            : null,
-                                        strokeWidth: 2,
-                                        color: AppColors.primary,
-                                      ),
-                                    );
-                                  },
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                        if (loadingProgress == null)
+                                          return child;
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            value:
+                                                loadingProgress
+                                                        .expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                : null,
+                                            strokeWidth: 2,
+                                            color: AppColors.primary,
+                                          ),
+                                        );
+                                      },
                                 ),
                               )
                             : Icon(
@@ -785,10 +822,7 @@ class SettingsScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              fullName,
-                              style: AppTextStyles.heading3(),
-                            ),
+                            Text(fullName, style: AppTextStyles.heading3()),
                             const SizedBox(height: 4),
                             Text(
                               email,
@@ -1006,10 +1040,7 @@ class SettingsScreen extends StatelessWidget {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      title: Text(
-                        'Logout',
-                        style: AppTextStyles.heading3(),
-                      ),
+                      title: Text('Logout', style: AppTextStyles.heading3()),
                       content: const Text('Are you sure you want to logout?'),
                       actions: [
                         TextButton(
@@ -1041,10 +1072,7 @@ class SettingsScreen extends StatelessWidget {
                   style: AppTextStyles.buttonMedium(color: AppColors.error),
                 ),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(
-                    color: AppColors.error,
-                    width: 2,
-                  ),
+                  side: BorderSide(color: AppColors.error, width: 2),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -1111,9 +1139,7 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        children: children,
-      ),
+      child: Column(children: children),
     );
   }
 
@@ -1131,29 +1157,16 @@ class SettingsScreen extends StatelessWidget {
         height: 42,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              color.withOpacity(0.15),
-              color.withOpacity(0.08),
-            ],
+            colors: [color.withOpacity(0.15), color.withOpacity(0.08)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: color.withOpacity(0.2),
-            width: 1,
-          ),
+          border: Border.all(color: color.withOpacity(0.2), width: 1),
         ),
-        child: Icon(
-          icon,
-          color: color,
-          size: 22,
-        ),
+        child: Icon(icon, color: color, size: 22),
       ),
-      title: Text(
-        title,
-        style: AppTextStyles.bodyLarge(),
-      ),
+      title: Text(title, style: AppTextStyles.bodyLarge()),
       trailing: Icon(
         Icons.arrow_forward_ios,
         size: 16,
@@ -1162,7 +1175,6 @@ class SettingsScreen extends StatelessWidget {
       onTap: onTap,
     );
   }
-
 }
 
 // Edit Username Screen
@@ -1229,13 +1241,8 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
     final ImageSource? source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Text(
-          'Select Image Source',
-          style: AppTextStyles.heading3(),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Select Image Source', style: AppTextStyles.heading3()),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1252,10 +1259,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                   size: 24,
                 ),
               ),
-              title: Text(
-                'Gallery',
-                style: AppTextStyles.bodyLarge(),
-              ),
+              title: Text('Gallery', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             const Divider(),
@@ -1272,10 +1276,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                   size: 24,
                 ),
               ),
-              title: Text(
-                'Camera',
-                style: AppTextStyles.bodyLarge(),
-              ),
+              title: Text('Camera', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
           ],
@@ -1350,13 +1351,12 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
       }
 
       // Update Firestore - save to both profilePic (primary) and profileImageUrl (backward compatibility)
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-        'profilePic': downloadUrl,
-        'profileImageUrl': downloadUrl, // Keep for backward compatibility
-      });
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
+        {
+          'profilePic': downloadUrl,
+          'profileImageUrl': downloadUrl, // Keep for backward compatibility
+        },
+      );
 
       // Update local state
       if (mounted) {
@@ -1494,9 +1494,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
       appBar: AppBar(
         title: const Text('Edit Profile'),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: AppColors.mainGradient,
-          ),
+          decoration: const BoxDecoration(gradient: AppColors.mainGradient),
         ),
         foregroundColor: Colors.white,
       ),
@@ -1509,26 +1507,29 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             Center(
               child: Stack(
                 children: [
-                  // Profile Picture - Use Container with conditional CircleAvatar
+                  // Profile Picture - Use ProfilePictureWidget
                   _profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                      ? CircleAvatar(
-                    radius: 50,
-                    backgroundColor: Colors.grey[300],
-                          backgroundImage: NetworkImage(_profileImageUrl!),
-                    onBackgroundImageError: (exception, stackTrace) {
-                      // Handle image load error
-                      if (mounted) {
-                        setState(() {
-                          _profileImageUrl = null;
-                        });
-                      }
-                    },
-                          child: _uploadingImage
-                              ? const CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                )
-                              : null,
-                        )
+                      ? _uploadingImage
+                            ? SizedBox(
+                                width: 100,
+                                height: 100,
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              )
+                            : ProfilePictureWidget(
+                                imageUrl: _profileImageUrl!,
+                                size: 100,
+                                backgroundColor: Colors.grey[300],
+                                placeholder: Container(
+                                  width: 100,
+                                  height: 100,
+                                  color: Colors.grey[300],
+                                  child: const Icon(Icons.person, size: 50),
+                                ),
+                              )
                       : CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.grey[300],
@@ -1541,7 +1542,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                                   size: 50,
                                   color: Colors.grey,
                                 ),
-                  ),
+                        ),
                   Positioned(
                     bottom: 0,
                     right: 0,
@@ -1692,9 +1693,7 @@ class PurchaseHistoryScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Purchase History'),
         flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: AppColors.mainGradient,
-          ),
+          decoration: const BoxDecoration(gradient: AppColors.mainGradient),
         ),
         foregroundColor: Colors.white,
       ),
@@ -1708,30 +1707,32 @@ class PurchaseHistoryScreen extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-            strokeWidth: 3,
-          ),
-        );
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 3,
+                    ),
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return const Center(child: Text('No purchase history found'));
                 }
-                
+
                 // Sort by createdAt in memory (descending - newest first)
-                final docs = List<QueryDocumentSnapshot>.from(snapshot.data!.docs);
+                final docs = List<QueryDocumentSnapshot>.from(
+                  snapshot.data!.docs,
+                );
                 docs.sort((a, b) {
                   final aData = a.data() as Map<String, dynamic>;
                   final bData = b.data() as Map<String, dynamic>;
                   final aCreated = aData['createdAt'] as Timestamp?;
                   final bCreated = bData['createdAt'] as Timestamp?;
-                  
+
                   if (aCreated == null && bCreated == null) return 0;
                   if (aCreated == null) return 1;
                   if (bCreated == null) return -1;
                   return bCreated.compareTo(aCreated); // Descending
                 });
-                
+
                 return ListView.builder(
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
@@ -1826,11 +1827,11 @@ class OrdersFilterScreen extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-            strokeWidth: 3,
-          ),
-        );
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 3,
+                    ),
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
@@ -1854,25 +1855,27 @@ class OrdersFilterScreen extends StatelessWidget {
                     ),
                   );
                 }
-                
+
                 // Filter orders by status in memory (to avoid composite index requirements)
                 final allDocs = snapshot.data!.docs;
                 final filteredDocs = _filterOrdersByStatus(allDocs);
-                
+
                 // Sort by createdAt in memory (descending - newest first)
-                final sortedDocs = List<QueryDocumentSnapshot>.from(filteredDocs);
+                final sortedDocs = List<QueryDocumentSnapshot>.from(
+                  filteredDocs,
+                );
                 sortedDocs.sort((a, b) {
                   final aData = a.data() as Map<String, dynamic>;
                   final bData = b.data() as Map<String, dynamic>;
                   final aCreated = aData['createdAt'] as Timestamp?;
                   final bCreated = bData['createdAt'] as Timestamp?;
-                  
+
                   if (aCreated == null && bCreated == null) return 0;
                   if (aCreated == null) return 1;
                   if (bCreated == null) return -1;
                   return bCreated.compareTo(aCreated); // Descending
                 });
-                
+
                 if (sortedDocs.isEmpty) {
                   return Center(
                     child: Column(
@@ -1895,7 +1898,7 @@ class OrdersFilterScreen extends StatelessWidget {
                     ),
                   );
                 }
-                
+
                 return ListView.builder(
                   itemCount: sortedDocs.length,
                   itemBuilder: (context, index) {
@@ -2094,11 +2097,11 @@ class MyAddressesScreen extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-            strokeWidth: 3,
-          ),
-        );
+                    child: CircularProgressIndicator(
+                      color: AppColors.primary,
+                      strokeWidth: 3,
+                    ),
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                   return Center(
@@ -3036,10 +3039,7 @@ class ProfileDetailsScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text(
           'Profile Details',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
-          ),
+          style: TextStyle(fontWeight: FontWeight.w600, letterSpacing: 0.3),
         ),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
@@ -3068,8 +3068,9 @@ class ProfileDetailsScreen extends StatelessWidget {
               child: profileImageUrl != null && profileImageUrl!.isNotEmpty
                   ? ClipOval(
                       child: Image.network(
-                        profileImageUrl!,
+                        ImageUrlHelper.encodeUrl(profileImageUrl!),
                         fit: BoxFit.cover,
+                        cacheWidth: kIsWeb ? null : 400,
                         errorBuilder: (context, error, stackTrace) {
                           return Icon(
                             Icons.person,
@@ -3083,7 +3084,7 @@ class ProfileDetailsScreen extends StatelessWidget {
                             child: CircularProgressIndicator(
                               value: loadingProgress.expectedTotalBytes != null
                                   ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
+                                        loadingProgress.expectedTotalBytes!
                                   : null,
                               strokeWidth: 3,
                               color: Colors.pink[300],
@@ -3092,11 +3093,7 @@ class ProfileDetailsScreen extends StatelessWidget {
                         },
                       ),
                     )
-                  : Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Colors.pink[300],
-                    ),
+                  : Icon(Icons.person, size: 60, color: Colors.pink[300]),
             ),
             const SizedBox(height: 32),
             // Profile Information Card
@@ -3196,11 +3193,7 @@ class ProfileDetailsScreen extends StatelessWidget {
               color: AppColors.primary.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: AppColors.primary,
-              size: 20,
-            ),
+            child: Icon(icon, color: AppColors.primary, size: 20),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -3283,7 +3276,7 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
           .ref()
           .child('profile_images')
           .child('${widget.userId}.jpg');
-      
+
       // Get fresh download URL
       final newUrl = await storageRef.getDownloadURL();
       debugPrint('✅ Regenerated download URL for profile image');
@@ -3303,34 +3296,31 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
 
     _isRetrying = true;
     _retryCount++;
-    
+
     debugPrint('🔄 Retrying image load (attempt $_retryCount/$_maxRetries)...');
-    
+
     // Wait a bit before retrying
     await Future.delayed(Duration(milliseconds: 500 * _retryCount));
-    
+
     // Try to regenerate the URL
     final newUrl = await _regenerateDownloadUrl();
-    
+
     if (mounted && newUrl != null && newUrl != _currentImageUrl) {
       setState(() {
         _currentImageUrl = newUrl;
       });
-      
+
       // Update Firestore with new URL
       try {
         await FirebaseFirestore.instance
             .collection('users')
             .doc(widget.userId)
-            .update({
-          'profilePic': newUrl,
-          'profileImageUrl': newUrl,
-        });
+            .update({'profilePic': newUrl, 'profileImageUrl': newUrl});
       } catch (e) {
         debugPrint('⚠️ Failed to update Firestore with new URL: $e');
       }
     }
-    
+
     _isRetrying = false;
   }
 
@@ -3353,17 +3343,22 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
     final imageUrlWithCacheBust = _currentImageUrl!.contains('?')
         ? '$_currentImageUrl&_t=$_cacheBustToken'
         : '$_currentImageUrl?_t=$_cacheBustToken';
-    
+
+    // Encode URL for safe web loading
+    final safeImageUrl = Uri.encodeFull(imageUrlWithCacheBust);
+
     return Image.network(
-      imageUrlWithCacheBust,
+      safeImageUrl,
       width: widget.width,
       height: widget.height,
       fit: BoxFit.cover,
-      key: ValueKey('profile_image_${_currentImageUrl}_${widget.userId}_$_cacheBustToken'),
-      // Removed cacheWidth and cacheHeight to prevent blurring - let image load at full resolution
-      headers: {
-        'Cache-Control': 'no-cache',
-      },
+      key: ValueKey(
+        'profile_image_${_currentImageUrl}_${widget.userId}_$_cacheBustToken',
+      ),
+      // Only use cacheWidth/cacheHeight on mobile, not on web
+      cacheWidth: kIsWeb ? null : (widget.width * 2).round().clamp(200, 800),
+      cacheHeight: kIsWeb ? null : (widget.height * 2).round().clamp(200, 800),
+      headers: kIsWeb ? null : {'Cache-Control': 'no-cache'},
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded || frame != null) {
           return child;
@@ -3385,7 +3380,7 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _handleImageError(error);
         });
-        
+
         return Container(
           width: widget.width,
           height: widget.height,
@@ -3409,7 +3404,7 @@ class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null
                   ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
+                        loadingProgress.expectedTotalBytes!
                   : null,
               strokeWidth: 2,
               color: AppColors.primary,

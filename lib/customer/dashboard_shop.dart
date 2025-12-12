@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../pages/product_details_page.dart';
 import '../constants/app_colors.dart';
 import '../widgets/product_base64_image.dart';
+import '../services/product_service.dart';
 import '../utils/image_url_helper.dart';
 
 class DashboardShop extends StatefulWidget {
@@ -551,6 +552,49 @@ class _DashboardShopState extends State<DashboardShop> {
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                         const SizedBox(height: 4),
+                                        // Sold Count Badge - More prominent display
+                                        StreamBuilder<int>(
+                                          stream: ProductService().getSoldCountStream(productId),
+                                          builder: (context, snapshot) {
+                                            final soldCount = snapshot.data ?? 0;
+                                            return Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 8,
+                                                vertical: 3,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: AppColors.primary.withOpacity(0.12),
+                                                borderRadius: BorderRadius.circular(10),
+                                                border: Border.all(
+                                                  color: AppColors.primary.withOpacity(0.4),
+                                                  width: 1,
+                                                ),
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(
+                                                    Icons.shopping_bag_outlined,
+                                                    size: 12,
+                                                    color: AppColors.primary,
+                                                  ),
+                                                  const SizedBox(width: 4),
+                                                  Text(
+                                                    '$soldCount sold',
+                                                    style: TextStyle(
+                                                      fontSize: 10,
+                                                      fontWeight: FontWeight.w700,
+                                                      color: AppColors.primary,
+                                                      letterSpacing: 0.2,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(height: 4),
+                                        // Price
                                         Text(
                                           productData['price'] as String? ?? '₱0.00',
                                           style: TextStyle(

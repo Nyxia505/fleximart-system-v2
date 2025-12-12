@@ -8,11 +8,11 @@ import 'dart:io' show File;
 class FirebaseStorageService {
   /// Upload image bytes to Firebase Storage and return download URL.
   /// Works on both web and mobile.
-  /// 
+  ///
   /// [imageBytes] - The image data as bytes
   /// [storagePath] - The storage path (e.g., 'products/image.jpg' or 'profile_images/user123.jpg')
   /// [contentType] - MIME type (default: 'image/jpeg')
-  /// 
+  ///
   /// Returns the download URL from getDownloadURL()
   /// Throws Exception on error
   static Future<String> uploadImageBytes({
@@ -76,9 +76,10 @@ class FirebaseStorageService {
       return downloadUrl;
     } catch (e) {
       final errorStr = e.toString().toLowerCase();
-      
+
       // Provide user-friendly error messages
-      if (errorStr.contains('timeout') || errorStr.contains('deadline exceeded')) {
+      if (errorStr.contains('timeout') ||
+          errorStr.contains('deadline exceeded')) {
         throw Exception(
           'Upload timeout. Please check your internet connection.',
         );
@@ -97,7 +98,7 @@ class FirebaseStorageService {
       } else if (errorStr.contains('cancel')) {
         throw Exception('Upload cancelled.');
       }
-      
+
       // Re-throw with context
       throw Exception('Upload failed: ${e.toString()}');
     }
@@ -105,11 +106,11 @@ class FirebaseStorageService {
 
   /// Upload image file to Firebase Storage and return download URL.
   /// Works on mobile only (uses File).
-  /// 
+  ///
   /// [imageFile] - The image file
   /// [storagePath] - The storage path (e.g., 'products/image.jpg')
   /// [contentType] - MIME type (default: 'image/jpeg')
-  /// 
+  ///
   /// Returns the download URL from getDownloadURL()
   /// Throws Exception on error
   static Future<String> uploadImageFile({
@@ -179,9 +180,10 @@ class FirebaseStorageService {
       return downloadUrl;
     } catch (e) {
       final errorStr = e.toString().toLowerCase();
-      
+
       // Provide user-friendly error messages
-      if (errorStr.contains('timeout') || errorStr.contains('deadline exceeded')) {
+      if (errorStr.contains('timeout') ||
+          errorStr.contains('deadline exceeded')) {
         throw Exception(
           'Upload timeout. Please check your internet connection.',
         );
@@ -200,10 +202,9 @@ class FirebaseStorageService {
       } else if (errorStr.contains('cancel')) {
         throw Exception('Upload cancelled.');
       }
-      
+
       // Re-throw with context
       throw Exception('Upload failed: ${e.toString()}');
     }
   }
 }
-

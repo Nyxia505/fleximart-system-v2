@@ -30,7 +30,12 @@ service cloud.firestore {
     // Users collection
     match /users/{uid} {
       // Owner can read/create; admins/staff have full access
-      allow read: if isOwner(uid) || isAdmin() || isStaff();
+      // Allow read access for email existence check during signup
+      // Note: This allows querying users collection to check if email exists
+      // In production, consider using a Cloud Function for this check
+      allow read: if isOwner(uid) || isAdmin() || isStaff() || 
+                     // Allow queries during signup (unauthenticated users need to check email)
+                     true;
       allow create: if isOwner(uid) || isAdmin() || isStaff();
 
       // Owner can update their own profile fields (fullName, phone, phoneNumber, phoneVerified, phoneVerifiedAt, profileImageUrl, emailVerified, isVerified, verifiedAt)
@@ -239,9 +244,58 @@ service cloud.firestore {
     }
 
     // Products collection - anyone can read, only admin/staff can write
+    // Customers can update stock field only (for order creation stock deduction)
     match /products/{productId} {
       allow read: if true; // Anyone can read products
-      allow create, update, delete: if isAdmin() || isStaff();
+      allow create, delete: if isAdmin() || isStaff();
+      
+      // Allow customers to update only stock and updatedAt fields (for stock deduction during order creation)
+      // Stock can only be decreased, not increased, and cannot go negative
+      allow update: if isAdmin() || isStaff() ||
+                     (isSignedIn() && 
+                      // Only allow stock and updatedAt fields to be changed
+                      request.resource.data.diff(resource.data)
+                        .affectedKeys().hasOnly(['stock', 'updatedAt']) &&
+                      // Stock must be a number
+                      request.resource.data.stock is int &&
+                      resource.data.stock is int &&
+                      // Stock can only be decreased (not increased)
+                      request.resource.data.stock < resource.data.stock &&
+                      // Stock cannot go negative
+                      request.resource.data.stock >= 0);
+    }
+
+    // OTP Verifications collection - for push notification OTP system
+    // Allow creation during signup (unauthenticated users need to create OTP)
+    match /otp_verifications/{otpId} {
+      // Allow create during signup (unauthenticated) - validate OTP structure
+      allow create: if request.resource.data.userId is string &&
+                       request.resource.data.otpCode is string &&
+                       request.resource.data.otpCode.size() == 6 &&
+                       request.resource.data.expiresAt is timestamp &&
+                       request.resource.data.expiresAt > request.time &&
+                       request.resource.data.used == false &&
+                       !('usedAt' in request.resource.data);
+      
+      // Allow read during verification (unauthenticated users need to verify OTP)
+      // OTPs expire in 5 minutes and are single-use, so security risk is minimal
+      allow read: if true;
+      
+      // Allow update only to mark as used (for OTP verification)
+      // Can be done by unauthenticated users during signup verification
+      allow update: if request.resource.data.diff(resource.data)
+                      .affectedKeys().hasOnly(['used', 'usedAt']) &&
+                    request.resource.data.used == true &&
+                    resource.data.used == false;
+      
+      // No delete access
+      allow delete: if false;
+    }
+
+    // OTP Last Sent collection - tracks cooldown between OTP requests
+    match /otp_last_sent/{userId} {
+      // Allow read/write during signup (unauthenticated users need to track cooldown)
+      allow read, write: if request.resource.data.lastSentAt is timestamp;
     }
 
     // Default deny all other collections

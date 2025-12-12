@@ -7,6 +7,7 @@ import '../pages/product_details_page.dart';
 import '../widgets/product_base64_image.dart';
 import '../utils/price_formatter.dart';
 import '../services/cart_service.dart';
+import '../services/product_service.dart';
 import '../utils/image_url_helper.dart';
 
 class ShopDashboard extends StatefulWidget {
@@ -433,6 +434,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                           price: price,
                           category: category,
                           productData: productData,
+                          productId: productId,
                           onImageTap: () {
                             Navigator.push(
                               context,
@@ -501,6 +503,7 @@ class _ProductCard extends StatelessWidget {
   final String category;
   final Map<String, dynamic> productData;
   final VoidCallback onImageTap;
+  final String productId;
 
   const _ProductCard({
     required this.title,
@@ -509,6 +512,7 @@ class _ProductCard extends StatelessWidget {
     required this.category,
     required this.productData,
     required this.onImageTap,
+    required this.productId,
   });
 
   Future<void> _addToCartAndNavigate(BuildContext context) async {
@@ -690,7 +694,49 @@ class _ProductCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 4),
+                  // Sold Count Badge - More prominent display
+                  StreamBuilder<int>(
+                    stream: ProductService().getSoldCountStream(productId),
+                    builder: (context, snapshot) {
+                      final soldCount = snapshot.data ?? 0;
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: AppColors.primary.withOpacity(0.4),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.shopping_bag_outlined,
+                              size: 12,
+                              color: AppColors.primary,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '$soldCount sold',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: AppColors.primary,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 4),
                   // Price
                   Text(
                     PriceFormatter.formatPrice(price),

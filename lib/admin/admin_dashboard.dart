@@ -25,6 +25,7 @@ import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
 import '../widgets/product_image_widget.dart';
 import '../services/firebase_storage_service.dart';
+import '../services/product_service.dart';
 import 'activity_log_page.dart';
 
 // Official theme colors - New Theme
@@ -2985,6 +2986,48 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 8),
+                // Sold Count Badge
+                StreamBuilder<int>(
+                  stream: ProductService().getSoldCountStream(productId),
+                  builder: (context, snapshot) {
+                    final soldCount = snapshot.data ?? 0;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.4),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.shopping_bag_outlined,
+                            size: 12,
+                            color: AppColors.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '$soldCount sold',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(height: 8),
                 // Price and Stock Badge

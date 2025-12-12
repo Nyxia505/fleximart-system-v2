@@ -84,6 +84,8 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
   }
 
   /// Pick and upload profile image
+  // DISABLED: Profile picture upload - managed by admin
+  // ignore: unused_element
   Future<void> _pickAndUploadImage() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -550,7 +552,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
                           bottom: 0,
                           right: 0,
                           child: GestureDetector(
-                            onTap: _uploadingImage ? null : _pickAndUploadImage,
+                            onTap: null, // Disabled - profile pictures are managed by admin
                             child: Container(
                               width: 48,
                               height: 48,
@@ -596,7 +598,7 @@ class _ProfileUploadPageState extends State<ProfileUploadPage> {
 
                   Center(
                     child: Text(
-                      'Tap camera icon to change photo',
+                      'Profile pictures are managed by admin',
                       style: AppTextStyles.caption(color: AppColors.textHint),
                     ),
                   ),

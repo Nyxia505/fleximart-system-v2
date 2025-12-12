@@ -32,7 +32,7 @@ class _AdminQuotationScreenState extends State<AdminQuotationScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -70,55 +70,13 @@ class _AdminQuotationScreenState extends State<AdminQuotationScreen>
           tabs: const [
             Tab(text: 'All'),
             Tab(text: 'Pending'),
-            Tab(text: 'In Progress'),
-            Tab(text: 'Done'),
+            Tab(text: 'Quoted'),
           ],
         ),
         actions: [
-          // Notification badge
-          StreamBuilder<QuerySnapshot>(
-            stream: _notificationService.getNotificationsForUser(user.uid),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.hasData
-                  ? snapshot.data!.docs
-                      .where((doc) => (doc.data() as Map)['read'] != true)
-                      .length
-                  : 0;
-
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () => _showNotifications(context, user.uid),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          unreadCount > 9 ? '9+' : '$unreadCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12, // Increased for clarity
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => _showNotifications(context, user.uid),
           ),
         ],
       ),
@@ -226,20 +184,17 @@ class _AdminQuotationScreenState extends State<AdminQuotationScreen>
             children: [
               _buildQuotationList(allQuotations, user.uid),
               _buildQuotationList(
-                allQuotations.where((q) => q.status == 'pending').toList(),
+                allQuotations.where((q) {
+                  final status = q.status.toLowerCase();
+                  return status == 'pending';
+                }).toList(),
                 user.uid,
               ),
               _buildQuotationList(
-                allQuotations
-                    .where((q) => q.status == 'in-progress' || q.status == 'in_progress')
-                    .toList(),
-                user.uid,
-              ),
-              _buildQuotationList(
-                allQuotations
-                    .where((q) =>
-                        q.status == 'approved' || q.status == 'rejected')
-                    .toList(),
+                allQuotations.where((q) {
+                  final status = q.status.toLowerCase();
+                  return status == 'quoted';
+                }).toList(),
                 user.uid,
               ),
             ],

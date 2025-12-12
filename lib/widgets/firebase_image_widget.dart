@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:firebase_storage/firebase_storage.dart';
 import '../utils/image_url_helper.dart';
 

@@ -72,6 +72,61 @@ class OrderService {
         throw Exception('PHONE_NOT_VERIFIED: Please verify your phone number before placing an order.');
       }
 
+      // Deduct stock from product using transaction for atomicity
+      try {
+        if (kDebugMode) {
+          print('🔄 Starting stock deduction for product: $productId, quantity: $quantity');
+        }
+        
+        await _firestore.runTransaction((transaction) async {
+          final productRef = _firestore.collection('products').doc(productId);
+          final productDoc = await transaction.get(productRef);
+          
+          if (!productDoc.exists) {
+            throw Exception('Product not found: $productId');
+          }
+          
+          final productData = productDoc.data() as Map<String, dynamic>;
+          final currentStock = (productData['stock'] as num?)?.toInt() ?? 0;
+          
+          if (kDebugMode) {
+            print('📊 Current stock: $currentStock, Requested quantity: $quantity');
+          }
+          
+          // Check if there's enough stock
+          if (currentStock < quantity) {
+            throw Exception('INSUFFICIENT_STOCK: Only $currentStock items available. Requested: $quantity');
+          }
+          
+          // Calculate new stock
+          final newStock = currentStock - quantity;
+          
+          if (kDebugMode) {
+            print('💾 Updating stock: $currentStock -> $newStock');
+          }
+          
+          // Update product stock within transaction
+          transaction.update(productRef, {
+            'stock': newStock,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+          
+          return newStock;
+        });
+        
+        if (kDebugMode) {
+          print('✅ Stock deducted successfully: $productId (quantity: $quantity)');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error deducting stock: $e');
+          print('   Product ID: $productId');
+          print('   Quantity: $quantity');
+        }
+        // Re-throw the error so order creation fails if stock deduction fails
+        throw Exception('Failed to deduct stock: $e');
+      }
+
       // Create items array with product details
       final item = <String, dynamic>{
         'productId': productId,

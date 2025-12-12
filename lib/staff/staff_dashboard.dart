@@ -192,6 +192,42 @@ class _StaffDashboardState extends State<StaffDashboard> {
 
   /// Simple logout handler for the main StaffDashboard (mobile app bar menu).
   void _handleLogout(BuildContext context) async {
+    // Log logout activity before signing out
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final userName = (userData['name'] as String?) ??
+              (userData['fullName'] as String?) ??
+              (userData['customerName'] as String?) ??
+              (userData['email'] as String?) ??
+              'Unknown User';
+          
+          await FirebaseFirestore.instance.collection('activity_logs').add({
+            'userId': user.uid,
+            'userName': userName,
+            'actionType': 'Logout',
+            'description': 'User logged out',
+            'timestamp': FieldValue.serverTimestamp(),
+            'metadata': {
+              'role': userData['role'] as String? ?? 'unknown',
+              'logoutTime': DateTime.now().toIso8601String(),
+            },
+          });
+        }
+      }
+    } catch (e) {
+      // Don't fail logout if activity logging fails
+      if (kDebugMode) {
+        debugPrint('Error logging logout activity: $e');
+      }
+    }
+    
     await context.read<app_auth.AuthProvider>().signOut();
     if (!context.mounted) return;
     Navigator.pushReplacementNamed(context, '/login');
@@ -2110,503 +2146,6 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                 const SizedBox.shrink(),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAddProductDialog(BuildContext context) {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final priceController = TextEditingController();
-    final stockController = TextEditingController(text: '0');
-    final minStockController = TextEditingController(text: '10');
-    final imageUrlController = TextEditingController();
-    String selectedCategory = 'Glass';
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Add New Product',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Product Title *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: priceController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Price *',
-                          border: OutlineInputBorder(),
-                          prefixText: '₱',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Category *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Glass',
-                            child: Text('Glass'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Doors',
-                            child: Text('Doors'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Windows',
-                            child: Text('Windows'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) selectedCategory = value;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: stockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Initial Stock *',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: minStockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Min Stock *',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: imageUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Image URL',
-                    border: OutlineInputBorder(),
-                    hintText: 'https://example.com/image.jpg',
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (titleController.text.isEmpty ||
-                            priceController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please fill required fields'),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final price = double.tryParse(priceController.text);
-                        final stock = int.tryParse(stockController.text) ?? 0;
-                        final minStock =
-                            int.tryParse(minStockController.text) ?? 10;
-
-                        if (price == null || price <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter a valid price'),
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.pop(context);
-
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('products')
-                              .add({
-                                'title': titleController.text,
-                                'description': descriptionController.text,
-                                'price': price,
-                                'stock': stock,
-                                'minStock': minStock,
-                                'category': selectedCategory,
-                                'imageUrl': imageUrlController.text.isEmpty
-                                    ? null
-                                    : imageUrlController.text,
-                                'createdAt': FieldValue.serverTimestamp(),
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              });
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Product added successfully'),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error adding product: $e'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: StaffThemeColors.primaryRed,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Add Product'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showEditProductDialog(
-    BuildContext context,
-    String productId,
-    Map<String, dynamic> product,
-  ) {
-    final titleController = TextEditingController(text: product['title'] ?? '');
-    final descriptionController = TextEditingController(
-      text: product['description'] ?? '',
-    );
-    final priceController = TextEditingController(
-      text: (product['price'] as num?)?.toString() ?? '0',
-    );
-    final stockController = TextEditingController(
-      text: (product['stock'] as num?)?.toString() ?? '0',
-    );
-    final minStockController = TextEditingController(
-      text: (product['minStock'] as num?)?.toString() ?? '10',
-    );
-    final imageUrlController = TextEditingController(
-      text: product['imageUrl'] ?? '',
-    );
-    String selectedCategory = product['category'] as String? ?? 'Glass';
-
-    showDialog(
-      context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 500),
-          padding: const EdgeInsets.all(24),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Edit Product',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: titleController,
-                  decoration: const InputDecoration(
-                    labelText: 'Product Title *',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Description',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: priceController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Price *',
-                          border: OutlineInputBorder(),
-                          prefixText: '₱',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<String>(
-                        value: selectedCategory,
-                        decoration: const InputDecoration(
-                          labelText: 'Category *',
-                          border: OutlineInputBorder(),
-                        ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'Glass',
-                            child: Text('Glass'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Doors',
-                            child: Text('Doors'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'Windows',
-                            child: Text('Windows'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value != null) selectedCategory = value;
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: stockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Stock *',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: minStockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Min Stock *',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: imageUrlController,
-                  decoration: const InputDecoration(
-                    labelText: 'Image URL',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                    const SizedBox(width: 8),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (titleController.text.isEmpty ||
-                            priceController.text.isEmpty) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please fill required fields'),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final price = double.tryParse(priceController.text);
-                        final stock = int.tryParse(stockController.text) ?? 0;
-                        final minStock =
-                            int.tryParse(minStockController.text) ?? 10;
-
-                        if (price == null || price <= 0) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please enter a valid price'),
-                            ),
-                          );
-                          return;
-                        }
-
-                        Navigator.pop(context);
-
-                        try {
-                          await FirebaseFirestore.instance
-                              .collection('products')
-                              .doc(productId)
-                              .update({
-                                'title': titleController.text,
-                                'description': descriptionController.text,
-                                'price': price,
-                                'stock': stock,
-                                'minStock': minStock,
-                                'category': selectedCategory,
-                                'imageUrl': imageUrlController.text.isEmpty
-                                    ? null
-                                    : imageUrlController.text,
-                                'updatedAt': FieldValue.serverTimestamp(),
-                              });
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Product updated successfully'),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error updating product: $e'),
-                              ),
-                            );
-                          }
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: StaffThemeColors.primaryRed,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Update Product'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showRestockDialog(
-    BuildContext context,
-    String productId,
-    Map<String, dynamic> product,
-  ) {
-    final currentStock = (product['stock'] as num?)?.toInt() ?? 0;
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restock Product'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Current stock: $currentStock'),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Quantity to add',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final quantity = int.tryParse(controller.text);
-              if (quantity != null && quantity > 0) {
-                Navigator.pop(context);
-                await FirebaseFirestore.instance
-                    .collection('products')
-                    .doc(productId)
-                    .update({
-                      'stock': FieldValue.increment(quantity),
-                      'updatedAt': FieldValue.serverTimestamp(),
-                    });
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Restocked $quantity units')),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: StaffThemeColors.primaryBlue,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Restock'),
           ),
         ],
       ),
@@ -4638,6 +4177,42 @@ class _StaffProfilePage extends StatelessWidget {
     );
 
     if (shouldLogout == true && context.mounted) {
+      // Log logout activity before signing out
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            final userName = (userData['name'] as String?) ??
+                (userData['fullName'] as String?) ??
+                (userData['customerName'] as String?) ??
+                (userData['email'] as String?) ??
+                'Unknown User';
+            
+            await FirebaseFirestore.instance.collection('activity_logs').add({
+              'userId': user.uid,
+              'userName': userName,
+              'actionType': 'Logout',
+              'description': 'User logged out',
+              'timestamp': FieldValue.serverTimestamp(),
+              'metadata': {
+                'role': userData['role'] as String? ?? 'unknown',
+                'logoutTime': DateTime.now().toIso8601String(),
+              },
+            });
+          }
+        }
+      } catch (e) {
+        // Don't fail logout if activity logging fails
+        if (kDebugMode) {
+          debugPrint('Error logging logout activity: $e');
+        }
+      }
+      
       await context.read<app_auth.AuthProvider>().signOut();
       if (!context.mounted) return;
       Navigator.pushReplacementNamed(context, '/login');

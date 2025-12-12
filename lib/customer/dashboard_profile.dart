@@ -384,7 +384,41 @@ class _DashboardProfileState extends State<DashboardProfile> {
           .doc(user.uid)
           .snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        // Handle errors
+        if (snapshot.hasError) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: AppColors.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Error loading profile',
+                    style: AppTextStyles.heading3(),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    snapshot.error.toString(),
+                    style: AppTextStyles.bodyMedium(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // Show loading only on initial load, not on subsequent updates
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            !snapshot.hasData) {
           return Scaffold(
             backgroundColor: AppColors.background,
             body: Center(
@@ -393,6 +427,19 @@ class _DashboardProfileState extends State<DashboardProfile> {
                 strokeWidth: 3,
               ),
             ),
+          );
+        }
+
+        // Handle case when document doesn't exist or has no data
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          // Use default values from Firebase Auth
+          return _buildProfileContent(
+            context,
+            user.displayName ?? user.email?.split('@')[0] ?? 'User',
+            user.email ?? 'No email',
+            'No phone number',
+            user.uid,
+            null,
           );
         }
 
@@ -1062,6 +1109,40 @@ class SettingsScreen extends StatelessWidget {
                   );
 
                   if (shouldLogout == true) {
+                    // Log logout activity before signing out
+                    try {
+                      final user = FirebaseAuth.instance.currentUser;
+                      if (user != null) {
+                        final userDoc = await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(user.uid)
+                            .get();
+                        if (userDoc.exists) {
+                          final userData = userDoc.data() as Map<String, dynamic>;
+                          final userName = (userData['name'] as String?) ??
+                              (userData['fullName'] as String?) ??
+                              (userData['customerName'] as String?) ??
+                              (userData['email'] as String?) ??
+                              'Unknown User';
+                          
+                          await FirebaseFirestore.instance.collection('activity_logs').add({
+                            'userId': user.uid,
+                            'userName': userName,
+                            'actionType': 'Logout',
+                            'description': 'User logged out',
+                            'timestamp': FieldValue.serverTimestamp(),
+                            'metadata': {
+                              'role': userData['role'] as String? ?? 'unknown',
+                              'logoutTime': DateTime.now().toIso8601String(),
+                            },
+                          });
+                        }
+                      }
+                    } catch (e) {
+                      // Don't fail logout if activity logging fails
+                      debugPrint('Error logging logout activity: $e');
+                    }
+                    
                     await context.read<app_auth.AuthProvider>().signOut();
                     if (!context.mounted) return;
                     Navigator.pushReplacementNamed(context, '/login');
@@ -1223,6 +1304,47 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
     super.dispose();
   }
 
+  /// Show "Coming Soon" dialog for profile picture upload
+  void _showComingSoonDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.info_outline,
+              color: AppColors.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Coming Soon',
+              style: AppTextStyles.heading3(),
+            ),
+          ],
+        ),
+        content: Text(
+          'Profile picture upload feature is coming soon. Profile pictures are currently managed by admin.',
+          style: AppTextStyles.bodyLarge(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'OK',
+              style: TextStyle(color: AppColors.primary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // DISABLED: Profile picture upload - managed by admin
+  // ignore: unused_element
   Future<void> _pickProfileImage() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -1547,14 +1669,12 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                     bottom: 0,
                     right: 0,
                     child: GestureDetector(
-                      onTap: _uploadingImage ? null : _pickProfileImage,
+                      onTap: _showComingSoonDialog,
                       child: Container(
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: _uploadingImage
-                              ? Colors.grey
-                              : AppColors.primary,
+                          color: AppColors.primary,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 3),
                           boxShadow: [
@@ -1565,20 +1685,11 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
                             ),
                           ],
                         ),
-                        child: _uploadingImage
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.camera_alt,
-                                color: Colors.white,
-                                size: 20,
-                              ),
+                        child: const Icon(
+                          Icons.camera_alt,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
@@ -1588,7 +1699,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Tap camera icon to change photo',
+                'Profile picture managed by admin',
                 style: AppTextStyles.caption(color: AppColors.textHint),
               ),
             ),

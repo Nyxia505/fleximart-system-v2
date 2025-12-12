@@ -45,6 +45,8 @@ class _ProfilePictureUploadButtonState
     _imageUrl = widget.currentImageUrl;
   }
 
+  // DISABLED: Profile picture upload - managed by admin
+  // ignore: unused_element
   Future<void> _handleUpload() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -106,7 +108,7 @@ class _ProfilePictureUploadButtonState
     final size = widget.size ?? 100.0;
 
     return GestureDetector(
-      onTap: _uploading ? null : _handleUpload,
+      onTap: null, // Disabled - profile pictures are managed by admin
       child: Stack(
         children: [
           _imageUrl != null && _imageUrl!.isNotEmpty
@@ -177,24 +179,25 @@ class _ProfilePictureUploadButtonState
                 ),
               ),
             )
-          else
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.blue,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
-                ),
-                child: const Icon(
-                  Icons.camera_alt,
-                  color: Colors.white,
-                  size: 20,
-                ),
-              ),
-            ),
+          // Camera icon removed - profile pictures are managed by admin
+          // else
+          //   Positioned(
+          //     bottom: 0,
+          //     right: 0,
+          //     child: Container(
+          //       padding: const EdgeInsets.all(4),
+          //       decoration: BoxDecoration(
+          //         color: Colors.blue,
+          //         shape: BoxShape.circle,
+          //         border: Border.all(color: Colors.white, width: 2),
+          //       ),
+          //       child: const Icon(
+          //         Icons.camera_alt,
+          //         color: Colors.white,
+          //         size: 20,
+          //       ),
+          //     ),
+          //   ),
         ],
       ),
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
@@ -399,6 +400,38 @@ class _SignInScreenState extends State<SignInScreen> {
       // Admin and Staff can login immediately without email verification
       if (role == 'admin' || role == 'staff') {
         if (!mounted) return;
+        
+        // Log login activity
+        try {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(refreshedUser.uid)
+              .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            final userName = (userData['name'] as String?) ??
+                (userData['fullName'] as String?) ??
+                (userData['customerName'] as String?) ??
+                (userData['email'] as String?) ??
+                'Unknown User';
+            
+            await FirebaseFirestore.instance.collection('activity_logs').add({
+              'userId': refreshedUser.uid,
+              'userName': userName,
+              'actionType': 'Login',
+              'description': 'User logged in',
+              'timestamp': FieldValue.serverTimestamp(),
+              'metadata': {
+                'role': role,
+                'loginTime': DateTime.now().toIso8601String(),
+              },
+            });
+          }
+        } catch (e) {
+          // Don't fail login if activity logging fails
+          debugPrint('Error logging login activity: $e');
+        }
+        
         // Navigate based on role
         if (role == 'admin') {
           Navigator.pushReplacementNamed(context, '/admin');
@@ -416,6 +449,37 @@ class _SignInScreenState extends State<SignInScreen> {
       }
 
       if (!mounted) return;
+
+      // Log login activity
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(refreshedUser.uid)
+            .get();
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final userName = (userData['name'] as String?) ??
+              (userData['fullName'] as String?) ??
+              (userData['customerName'] as String?) ??
+              (userData['email'] as String?) ??
+              'Unknown User';
+          
+          await FirebaseFirestore.instance.collection('activity_logs').add({
+            'userId': refreshedUser.uid,
+            'userName': userName,
+            'actionType': 'Login',
+            'description': 'User logged in',
+            'timestamp': FieldValue.serverTimestamp(),
+            'metadata': {
+              'role': role,
+              'loginTime': DateTime.now().toIso8601String(),
+            },
+          });
+        }
+      } catch (e) {
+        // Don't fail login if activity logging fails
+        debugPrint('Error logging login activity: $e');
+      }
 
       // Navigate based on role
       if (role == 'customer') {

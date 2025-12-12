@@ -536,6 +536,59 @@ class QuotationCard extends StatelessWidget {
         return;
       }
 
+      // Deduct stock from products using transaction for atomicity
+      try {
+        await FirebaseFirestore.instance.runTransaction((transaction) async {
+          for (var item in items) {
+            if (item is! Map<String, dynamic>) continue;
+            
+            final productId = item['productId'] as String?;
+            final quantity = (item['quantity'] as num?)?.toInt() ?? 1;
+            
+            if (productId == null || productId.isEmpty) {
+              continue;
+            }
+            
+            final productRef = FirebaseFirestore.instance
+                .collection('products')
+                .doc(productId);
+            final productDoc = await transaction.get(productRef);
+            
+            if (!productDoc.exists) {
+              throw Exception('Product not found: $productId');
+            }
+            
+            final productData = productDoc.data() as Map<String, dynamic>;
+            final currentStock = (productData['stock'] as num?)?.toInt() ?? 0;
+            
+            // Check if there's enough stock
+            if (currentStock < quantity) {
+              throw Exception('Insufficient stock: ${item['productName'] ?? productId} only has $currentStock items available. Requested: $quantity');
+            }
+            
+            // Calculate new stock
+            final newStock = currentStock - quantity;
+            
+            // Update product stock within transaction
+            transaction.update(productRef, {
+              'stock': newStock,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        });
+      } catch (e) {
+        if (context.mounted) {
+          Navigator.pop(context); // Close loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error deducting stock: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
       // Create order document
       final orderRef = FirebaseFirestore.instance.collection('orders').doc();
       await orderRef.set({

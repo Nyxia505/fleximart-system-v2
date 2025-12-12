@@ -436,6 +436,69 @@ class QuotationService {
         print('   items count: ${orderItems.length}');
       }
       
+      // Deduct stock from products using transaction for atomicity
+      try {
+        if (kDebugMode) {
+          print('🔄 Starting stock deduction for ${orderItems.length} items');
+        }
+        
+        await _firestore.runTransaction((transaction) async {
+          for (var item in orderItems) {
+            final productId = item['productId'] as String?;
+            final quantity = (item['quantity'] as num?)?.toInt() ?? 1;
+            
+            if (productId == null || productId.isEmpty) {
+              if (kDebugMode) {
+                print('⚠️ Skipping stock deduction: productId is null or empty');
+              }
+              continue;
+            }
+            
+            final productRef = _firestore.collection('products').doc(productId);
+            final productDoc = await transaction.get(productRef);
+            
+            if (!productDoc.exists) {
+              throw Exception('Product not found: $productId');
+            }
+            
+            final productData = productDoc.data() as Map<String, dynamic>;
+            final currentStock = (productData['stock'] as num?)?.toInt() ?? 0;
+            
+            if (kDebugMode) {
+              print('📊 Product: ${item['productName'] ?? productId}, Current stock: $currentStock, Requested: $quantity');
+            }
+            
+            // Check if there's enough stock
+            if (currentStock < quantity) {
+              throw Exception('INSUFFICIENT_STOCK: Product "${item['productName'] ?? productId}" only has $currentStock items available. Requested: $quantity');
+            }
+            
+            // Calculate new stock
+            final newStock = currentStock - quantity;
+            
+            if (kDebugMode) {
+              print('💾 Updating stock: $productId - $currentStock -> $newStock');
+            }
+            
+            // Update product stock within transaction
+            transaction.update(productRef, {
+              'stock': newStock,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        });
+        
+        if (kDebugMode) {
+          print('✅ Stock deducted successfully for all items');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('❌ Error deducting stock: $e');
+        }
+        // Re-throw the error so order creation fails if stock deduction fails
+        throw Exception('Failed to deduct stock: $e');
+      }
+      
       // Create the order document
       final orderRef = await _firestore.collection('orders').add(orderData);
 

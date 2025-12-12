@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
-import '../constants/app_colors.dart';
+import 'package:flutter/foundation.dart';
 import '../utils/image_url_helper.dart';
 
 /// A responsive widget for displaying product images that works on both web and mobile.
@@ -68,21 +67,57 @@ class ProductImageWidget extends StatelessWidget {
   Widget build(BuildContext context) {
     // Show error widget if no image URL
     if (imageUrl == null || imageUrl!.isEmpty) {
+      if (kDebugMode) {
+        debugPrint('⚠️ ProductImageWidget: No image URL provided');
+      }
       return _buildErrorWidget();
     }
 
+    // Validate URL before attempting to load
+    if (!ImageUrlHelper.isValidImageUrl(imageUrl)) {
+      if (kDebugMode) {
+        debugPrint('⚠️ ProductImageWidget: Invalid image URL: $imageUrl');
+      }
+      return _buildErrorWidget();
+    }
+
+    final encodedUrl = ImageUrlHelper.encodeUrl(imageUrl!);
+    
+    if (kDebugMode) {
+      debugPrint('🖼️ ProductImageWidget: Loading image from: $encodedUrl');
+    }
+    
     Widget imageWidget = Image.network(
-      ImageUrlHelper.encodeUrl(imageUrl!),
-      fit: BoxFit.cover,
+      encodedUrl,
+      fit: fit,
       width: width,
       height: height,
       headers: const {'Cache-Control': 'no-cache'},
       loadingBuilder: (context, child, loading) {
         if (loading == null) return child;
-        return Center(child: CircularProgressIndicator());
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: backgroundColor ?? Colors.grey[200],
+            borderRadius: borderRadius,
+          ),
+          child: Center(
+            child: CircularProgressIndicator(
+              color: loadingColor,
+            ),
+          ),
+        );
       },
       errorBuilder: (context, error, stack) {
-        return Center(child: Text('Image failed to load'));
+        if (kDebugMode) {
+          debugPrint('❌ ProductImageWidget: Failed to load image');
+          debugPrint('   Original URL: $imageUrl');
+          debugPrint('   Encoded URL: $encodedUrl');
+          debugPrint('   Error: $error');
+          debugPrint('   Stack: $stack');
+        }
+        return _buildErrorWidget();
       },
     );
 

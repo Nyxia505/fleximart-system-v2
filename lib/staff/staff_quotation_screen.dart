@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/quotation_model.dart';
@@ -10,7 +10,6 @@ import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../utils/price_formatter.dart';
 import '../widgets/quotation_card.dart';
-import '../utils/image_url_helper.dart';
 
 class StaffQuotationTheme {
   StaffQuotationTheme._();
@@ -43,7 +42,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -70,11 +69,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('All Quotations'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: StaffQuotationTheme.headerGradient,
-          ),
-        ),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
         bottom: TabBar(
@@ -85,54 +80,13 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
           tabs: const [
             Tab(text: 'All'),
             Tab(text: 'Pending'),
-            Tab(text: 'In Progress'),
-            Tab(text: 'Done'),
+            Tab(text: 'Quoted'),
           ],
         ),
         actions: [
-          StreamBuilder<QuerySnapshot>(
-            stream: _notificationService.getNotificationsForUser(user.uid),
-            builder: (context, snapshot) {
-              final unreadCount = snapshot.hasData
-                  ? snapshot.data!.docs
-                      .where((doc) => (doc.data() as Map)['read'] != true)
-                      .length
-                  : 0;
-
-              return Stack(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.notifications_outlined),
-                    onPressed: () => _showNotifications(context, user.uid),
-                  ),
-                  if (unreadCount > 0)
-                    Positioned(
-                      right: 8,
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
-                          shape: BoxShape.circle,
-                        ),
-                        constraints: const BoxConstraints(
-                          minWidth: 16,
-                          minHeight: 16,
-                        ),
-                        child: Text(
-                          unreadCount > 9 ? '9+' : '$unreadCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12, // Increased for clarity
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined),
+            onPressed: () => _showNotifications(context, user.uid),
           ),
         ],
       ),
@@ -153,7 +107,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
               child: CircularProgressIndicator(
-                color: StaffQuotationTheme.accent,
+                color: AppColors.primary,
               ),
             );
           }
@@ -248,14 +202,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
               _buildQuotationList(
                 allQuotations.where((q) {
                   final status = q.status.toLowerCase();
-                  return status == 'in-progress' || status == 'in_progress' || status == 'in progress';
-                }).toList(),
-                user.uid,
-              ),
-              _buildQuotationList(
-                allQuotations.where((q) {
-                  final status = q.status.toLowerCase();
-                  return status == 'approved' || status == 'done' || status == 'rejected';
+                  return status == 'quoted';
                 }).toList(),
                 user.uid,
               ),
@@ -282,7 +229,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
       onRefresh: () async {
         setState(() {});
       },
-      color: StaffQuotationTheme.accent,
+      color: AppColors.primary,
       child: ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: quotations.length,
@@ -310,15 +257,6 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
     String staffId,
   ) async {
     try {
-      await FirebaseFirestore.instance
-          .collection('quotations')
-          .doc(quotationId)
-          .update({
-        'status': newStatus,
-        'updatedAt': FieldValue.serverTimestamp(),
-        'staffId': staffId,
-      });
-
       await _quotationService.updateQuotationStatus(
         quotationId: quotationId,
         newStatus: newStatus,
@@ -330,7 +268,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Quotation status updated to $newStatus'),
-            backgroundColor: StaffQuotationTheme.accent,
+            backgroundColor: AppColors.primary,
           ),
         );
       }
@@ -413,7 +351,7 @@ class _StaffQuotationScreenState extends State<StaffQuotationScreen>
                         leading: CircleAvatar(
                           backgroundColor: notification.read
                               ? AppColors.background
-                              : StaffQuotationTheme.accent,
+                              : AppColors.primary,
                           child: Icon(
                             Icons.notifications,
                             color: notification.read
@@ -641,6 +579,19 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
   Future<void> _savePrices() async {
     if (_isLoading) return;
 
+    // Prevent saving if quotation is already quoted
+    if (widget.quotation.status == 'quoted') {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('This quotation has already been quoted. Prices cannot be modified.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -657,20 +608,18 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
       );
 
       // Also update status to "quoted" when saving prices
-      if (widget.quotation.status != 'quoted') {
-        await _quotationService.updateQuotationStatus(
-          quotationId: widget.quotation.id,
-          newStatus: 'quoted',
-          updatedBy: _auth.currentUser?.uid ?? '',
-          updatedByRole: 'staff',
-        );
-      }
+      await _quotationService.updateQuotationStatus(
+        quotationId: widget.quotation.id,
+        newStatus: 'quoted',
+        updatedBy: _auth.currentUser?.uid ?? '',
+        updatedByRole: 'staff',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Prices saved and quotation quoted! Total: ${PriceFormatter.formatPrice(totalPrice)}'),
-            backgroundColor: StaffQuotationTheme.accent,
+            backgroundColor: AppColors.primary,
           ),
         );
         Navigator.pop(context);
@@ -749,11 +698,7 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Quotation Details'),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: StaffQuotationTheme.headerGradient,
-          ),
-        ),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           if (widget.quotation.status != 'quoted')
@@ -796,83 +741,6 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
               ),
             ),
             const SizedBox(height: 16),
-            // Uploaded Reference Image
-            if (widget.quotation.imageUrl != null && widget.quotation.imageUrl!.isNotEmpty)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Reference Image',
-                        style: AppTextStyles.heading3(),
-                      ),
-                      const SizedBox(height: 12),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
-                        child: Image.network(
-                          ImageUrlHelper.encodeUrl(widget.quotation.imageUrl!),
-                          height: 200,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          cacheHeight: kIsWeb ? null : 400,
-                          loadingBuilder: (context, child, loadingProgress) {
-                            if (loadingProgress == null) return child;
-                            return Container(
-                              height: 200,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Center(
-                                child: CircularProgressIndicator(
-                                  value: loadingProgress.expectedTotalBytes != null
-                                      ? loadingProgress.cumulativeBytesLoaded /
-                                          loadingProgress.expectedTotalBytes!
-                                      : null,
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            );
-                          },
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 200,
-                              width: double.infinity,
-                              decoration: BoxDecoration(
-                                color: Colors.grey[200],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.image_not_supported,
-                                    color: Colors.grey[400],
-                                    size: 48,
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    'Failed to load image',
-                                    style: TextStyle(
-                                      color: Colors.grey[600],
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (widget.quotation.imageUrl != null && widget.quotation.imageUrl!.isNotEmpty)
-              const SizedBox(height: 16),
             // Items and Pricing
             Card(
               child: Padding(
@@ -890,7 +758,7 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
                         if (widget.quotation.adminTotalPrice != null)
                           Text(
                             'Total: ${PriceFormatter.formatPrice(widget.quotation.adminTotalPrice!)}',
-                            style: AppTextStyles.heading3(color: StaffQuotationTheme.accent),
+                            style: AppTextStyles.heading3(color: AppColors.primary),
                           ),
                       ],
                     ),
@@ -960,15 +828,25 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
                                 labelText: 'Price per item (₱)',
                                 prefixText: '₱',
                                 border: const OutlineInputBorder(),
+                                filled: widget.quotation.status == 'quoted',
+                                fillColor: widget.quotation.status == 'quoted' 
+                                    ? AppColors.background 
+                                    : null,
+                                hintText: widget.quotation.status == 'quoted' 
+                                    ? 'Price locked - quotation already quoted' 
+                                    : null,
                               ),
                               keyboardType: TextInputType.numberWithOptions(decimal: true),
                               enabled: widget.quotation.status != 'quoted',
-                              onChanged: (_) => setState(() {}), // Update subtotal on change
+                              readOnly: widget.quotation.status == 'quoted',
+                              onChanged: widget.quotation.status != 'quoted' 
+                                  ? (_) => setState(() {}) 
+                                  : null,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               'Subtotal: ${PriceFormatter.formatPrice((double.tryParse(_priceControllers[index].text) ?? 0.0) * quantity)}',
-                              style: AppTextStyles.bodyMedium(color: StaffQuotationTheme.accent),
+                              style: AppTextStyles.bodyMedium(color: AppColors.primary),
                             ),
                           ],
                         ),
@@ -985,7 +863,7 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
                         ),
                         Text(
                           PriceFormatter.formatPrice(_calculateTotal()),
-                          style: AppTextStyles.heading3(color: StaffQuotationTheme.accent),
+                          style: AppTextStyles.heading3(color: AppColors.primary),
                         ),
                       ],
                     ),
@@ -1027,10 +905,42 @@ class _StaffQuotationDetailsPageState extends State<_StaffQuotationDetailsPage> 
                       : const Icon(Icons.save),
                   label: Text(_isLoading ? 'Saving...' : 'Save Prices & Quote'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: StaffQuotationTheme.accent,
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
+                ),
+              ),
+            ] else ...[
+              // Show message when quotation is already quoted
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.primary.withOpacity(0.3),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle,
+                      color: AppColors.primary,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'This quotation has been quoted. Prices cannot be modified.',
+                        style: AppTextStyles.bodyMedium(
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

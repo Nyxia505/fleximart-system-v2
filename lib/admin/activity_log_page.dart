@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
-import '../utils/price_formatter.dart';
 
 /// Activity Log Entry Model
 class ActivityLogEntry {
   final String id;
   final String userId;
   final String userName;
-  final String actionType; // Register, Login, Logout, Purchase, Update Profile
+  final String actionType; // Register, Login, Logout
   final String description;
   final DateTime timestamp;
   final Map<String, dynamic>? metadata;
@@ -45,8 +44,6 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     'Register',
     'Login',
     'Logout',
-    'Purchase',
-    'Update Profile',
   ];
 
   @override
@@ -105,10 +102,6 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         return Icons.login;
       case 'logout':
         return Icons.logout;
-      case 'purchase':
-        return Icons.shopping_bag;
-      case 'update profile':
-        return Icons.edit;
       default:
         return Icons.history;
     }
@@ -122,10 +115,6 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         return const Color(0xFF3B82F6); // Blue
       case 'logout':
         return const Color(0xFF6B7280); // Gray
-      case 'purchase':
-        return const Color(0xFF8B2E2E); // Primary red
-      case 'update profile':
-        return const Color(0xFFF59E0B); // Amber
       default:
         return AppColors.textSecondary;
     }
@@ -165,52 +154,36 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         }
       }
 
-      // Get purchases from orders collection
-      final ordersSnapshot = await FirebaseFirestore.instance
-          .collection('orders')
-          .orderBy('createdAt', descending: true)
-          .limit(100)
-          .get();
+      // Get login and logout activities from activity_logs collection
+      try {
+        final activityLogsSnapshot = await FirebaseFirestore.instance
+            .collection('activity_logs')
+            .orderBy('timestamp', descending: true)
+            .limit(200)
+            .get();
 
-      for (var orderDoc in ordersSnapshot.docs) {
-        final orderData = orderDoc.data();
-        final createdAt = orderData['createdAt'] as Timestamp?;
-        if (createdAt != null) {
-          // Get user name
-          final customerId = orderData['customerId'] as String? ?? '';
-          String customerName = 'Unknown Customer';
-          if (customerId.isNotEmpty) {
-            try {
-              final userDoc = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(customerId)
-                  .get();
-              if (userDoc.exists) {
-                final userData = userDoc.data() as Map<String, dynamic>;
-                customerName = (userData['name'] as String?) ??
-                    (userData['fullName'] as String?) ??
-                    (userData['customerName'] as String?) ??
-                    (userData['email'] as String?) ??
-                    'Unknown Customer';
-              }
-            } catch (e) {
-              debugPrint('Error fetching user for order: $e');
+        for (var logDoc in activityLogsSnapshot.docs) {
+          final logData = logDoc.data();
+          final timestamp = logData['timestamp'] as Timestamp?;
+          if (timestamp != null) {
+            final actionType = logData['actionType'] as String? ?? 'Unknown';
+            
+            // Only include Login and Logout activities
+            if (actionType == 'Login' || actionType == 'Logout') {
+              activities.add(ActivityLogEntry(
+                id: logDoc.id,
+                userId: logData['userId'] as String? ?? '',
+                userName: logData['userName'] as String? ?? 'Unknown User',
+                actionType: actionType,
+                description: logData['description'] as String? ?? '',
+                timestamp: timestamp.toDate(),
+                metadata: logData['metadata'] as Map<String, dynamic>?,
+              ));
             }
           }
-
-          final totalPrice = (orderData['totalPrice'] as num?)?.toDouble() ?? 0.0;
-          final orderId = orderDoc.id.substring(0, 8);
-
-          activities.add(ActivityLogEntry(
-            id: 'purchase_${orderDoc.id}',
-            userId: customerId,
-            userName: customerName,
-            actionType: 'Purchase',
-            description: 'Order #$orderId - ${PriceFormatter.formatPrice(totalPrice)}',
-            timestamp: createdAt.toDate(),
-            metadata: {'orderId': orderDoc.id, 'totalPrice': totalPrice},
-          ));
         }
+      } catch (e) {
+        debugPrint('Error loading activity logs: $e');
       }
     } catch (e) {
       debugPrint('Error loading activities: $e');

@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 import '../utils/fcm_utils.dart';
@@ -2896,6 +2895,11 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final category = (product['category'] as String?) ?? 'Uncategorized';
     final imageUrl = (product['imageUrl'] as String?);
     final isLowStock = stock < minStock;
+    
+    // Debug: Log image URL for troubleshooting
+    if (kDebugMode) {
+      debugPrint('🖼️ Product "$title" - imageUrl: ${imageUrl ?? "null"} (length: ${imageUrl?.length ?? 0})');
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -3113,7 +3117,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final minStockController = TextEditingController(text: '10');
     final imageUrlController = TextEditingController();
     String selectedCategory = 'Windows';
-    File? _selectedImage;
+    XFile? _selectedImage;
+    Uint8List? _selectedImageBytes;
     bool _uploadingImage = false;
 
     showDialog(
@@ -3246,20 +3251,53 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                         ),
                         const SizedBox(height: 8),
                         if (_selectedImage != null) ...[
-                          Container(
-                            height: 150,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                _selectedImage!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
+                          FutureBuilder<Uint8List?>(
+                            future: _selectedImageBytes != null
+                                ? Future.value(_selectedImageBytes)
+                                : _selectedImage!.readAsBytes(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              if (snapshot.hasData && snapshot.data != null) {
+                                return Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Container(
+                                height: 150,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.error_outline),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -3269,6 +3307,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   onPressed: () {
                                     setDialogState(() {
                                       _selectedImage = null;
+                                      _selectedImageBytes = null;
                                     });
                                   },
                                   icon: const Icon(
@@ -3290,8 +3329,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.gallery,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3319,8 +3360,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.camera,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3337,8 +3380,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.gallery,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3423,11 +3468,23 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      // Read image as bytes (works on both web and mobile)
-                                      final Uint8List imageBytes = await _selectedImage!.readAsBytes();
+                                      if (kDebugMode) {
+                                        debugPrint('📤 Starting image upload...');
+                                      }
+                                      
+                                      // Use cached bytes if available, otherwise read from XFile
+                                      final Uint8List imageBytes = _selectedImageBytes ?? await _selectedImage!.readAsBytes();
+                                      
+                                      if (kDebugMode) {
+                                        debugPrint('📦 Image bytes: ${imageBytes.length} bytes');
+                                      }
                                       
                                       // Generate storage path
                                       final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg';
+
+                                      if (kDebugMode) {
+                                        debugPrint('📁 Storage path: $storagePath');
+                                      }
 
                                       // Use centralized service that works on both web and mobile
                                       finalImageUrl = await FirebaseStorageService.uploadImageBytes(
@@ -3436,6 +3493,11 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                         contentType: 'image/jpeg',
                                       );
 
+                                      if (kDebugMode) {
+                                        debugPrint('✅ Image uploaded successfully!');
+                                        debugPrint('🔗 Download URL: $finalImageUrl');
+                                      }
+
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
@@ -3443,6 +3505,11 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
+                                      
+                                      if (kDebugMode) {
+                                        debugPrint('❌ Image upload failed: $e');
+                                      }
+                                      
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,
@@ -3462,27 +3529,56 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       .isNotEmpty) {
                                     finalImageUrl = imageUrlController.text
                                         .trim();
+                                    if (kDebugMode) {
+                                      debugPrint('🔗 Using manual image URL: $finalImageUrl');
+                                    }
+                                  } else {
+                                    if (kDebugMode) {
+                                      debugPrint('⚠️ No image selected and no URL provided');
+                                    }
                                   }
 
                                   Navigator.pop(context);
 
                                   try {
+                                    if (kDebugMode) {
+                                      debugPrint('💾 Saving product to Firestore...');
+                                      debugPrint('Image URL: $finalImageUrl');
+                                    }
+                                    
+                                    final productData = <String, dynamic>{
+                                      'title': titleController.text,
+                                      'description':
+                                          descriptionController.text,
+                                      'price': price,
+                                      'stock': stock,
+                                      'minStock': minStock,
+                                      'category': selectedCategory,
+                                      'createdAt':
+                                          FieldValue.serverTimestamp(),
+                                      'updatedAt':
+                                          FieldValue.serverTimestamp(),
+                                    };
+                                    
+                                    // Only add imageUrl if it's not null and not empty
+                                    if (finalImageUrl != null && finalImageUrl.isNotEmpty) {
+                                      productData['imageUrl'] = finalImageUrl;
+                                      if (kDebugMode) {
+                                        debugPrint('✅ Image URL added to product data');
+                                      }
+                                    } else {
+                                      if (kDebugMode) {
+                                        debugPrint('⚠️ No image URL to save');
+                                      }
+                                    }
+                                    
                                     await FirebaseFirestore.instance
                                         .collection('products')
-                                        .add({
-                                          'title': titleController.text,
-                                          'description':
-                                              descriptionController.text,
-                                          'price': price,
-                                          'stock': stock,
-                                          'minStock': minStock,
-                                          'category': selectedCategory,
-                                          'imageUrl': finalImageUrl,
-                                          'createdAt':
-                                              FieldValue.serverTimestamp(),
-                                          'updatedAt':
-                                              FieldValue.serverTimestamp(),
-                                        });
+                                        .add(productData);
+                                    
+                                    if (kDebugMode) {
+                                      debugPrint('✅ Product saved successfully');
+                                    }
 
                                     if (context.mounted) {
                                       ScaffoldMessenger.of(
@@ -3567,7 +3663,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
     // Get existing category or default to 'Windows'
     String selectedCategory = (product['category'] as String?) ?? 'Windows';
-    File? _selectedImage;
+    XFile? _selectedImage;
+    Uint8List? _selectedImageBytes;
     bool _uploadingImage = false;
     String? _existingImageUrl = product['imageUrl'] as String?;
 
@@ -3703,20 +3800,53 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                         ),
                         const SizedBox(height: 8),
                         if (_selectedImage != null) ...[
-                          Container(
-                            height: 150,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.file(
-                                _selectedImage!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
+                          FutureBuilder<Uint8List?>(
+                            future: _selectedImageBytes != null
+                                ? Future.value(_selectedImageBytes)
+                                : _selectedImage!.readAsBytes(),
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.waiting) {
+                                return Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(),
+                                  ),
+                                );
+                              }
+                              if (snapshot.hasData && snapshot.data != null) {
+                                return Container(
+                                  height: 150,
+                                  width: double.infinity,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Image.memory(
+                                      snapshot.data!,
+                                      fit: BoxFit.cover,
+                                    ),
+                                  ),
+                                );
+                              }
+                              return Container(
+                                height: 150,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.border),
+                                ),
+                                child: const Center(
+                                  child: Icon(Icons.error_outline),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(height: 8),
                           Row(
@@ -3726,6 +3856,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   onPressed: () {
                                     setDialogState(() {
                                       _selectedImage = null;
+                                      _selectedImageBytes = null;
                                     });
                                   },
                                   icon: const Icon(
@@ -3747,8 +3878,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.gallery,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3812,8 +3945,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.gallery,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                         _existingImageUrl = null;
                                       });
                                     }
@@ -3842,8 +3977,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.camera,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3860,8 +3997,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       source: ImageSource.gallery,
                                     );
                                     if (image != null) {
+                                      final bytes = await image.readAsBytes();
                                       setDialogState(() {
-                                        _selectedImage = File(image.path);
+                                        _selectedImage = image;
+                                        _selectedImageBytes = bytes;
                                       });
                                     }
                                   },
@@ -3975,8 +4114,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      // Read image as bytes (works on both web and mobile)
-                                      final Uint8List imageBytes = await _selectedImage!.readAsBytes();
+                                      // Use cached bytes if available, otherwise read from XFile
+                                      final Uint8List imageBytes = _selectedImageBytes ?? await _selectedImage!.readAsBytes();
                                       
                                       // Generate storage path
                                       final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg';
@@ -8823,6 +8962,42 @@ class _SettingsPage extends StatelessWidget {
     );
 
     if (shouldLogout == true && context.mounted) {
+      // Log logout activity before signing out
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .get();
+          if (userDoc.exists) {
+            final userData = userDoc.data() as Map<String, dynamic>;
+            final userName = (userData['name'] as String?) ??
+                (userData['fullName'] as String?) ??
+                (userData['customerName'] as String?) ??
+                (userData['email'] as String?) ??
+                'Unknown User';
+            
+            await FirebaseFirestore.instance.collection('activity_logs').add({
+              'userId': user.uid,
+              'userName': userName,
+              'actionType': 'Logout',
+              'description': 'User logged out',
+              'timestamp': FieldValue.serverTimestamp(),
+              'metadata': {
+                'role': userData['role'] as String? ?? 'unknown',
+                'logoutTime': DateTime.now().toIso8601String(),
+              },
+            });
+          }
+        }
+      } catch (e) {
+        // Don't fail logout if activity logging fails
+        if (kDebugMode) {
+          debugPrint('Error logging logout activity: $e');
+        }
+      }
+      
       try {
         // Try provider signOut first (clears app state)
         await context.read<app_auth.AuthProvider>().signOut();

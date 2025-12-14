@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import '../models/product_model.dart';
 
 /// Product Service
@@ -119,73 +118,70 @@ class ProductService {
         .map((snapshot) {
       int totalSold = 0;
       
-      if (kDebugMode) {
-        print('🔍 Checking sold count for productId: $productId');
-        print('   Total orders found: ${snapshot.docs.length}');
-      }
+      // Always log in production to help debug
+      print('🔍 [Sold Count] Checking for productId: $productId');
+      print('   📋 Total orders in database: ${snapshot.docs.length}');
       
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        
-        // Skip cancelled orders
-        final status = data['status'] as String? ?? '';
-        if (status.toLowerCase() == 'cancelled') {
-          if (kDebugMode) {
-            print('   ⏭️ Skipping cancelled order: ${doc.id}');
+        try {
+          final data = doc.data();
+          
+          // Skip cancelled orders
+          final status = (data['status'] as String? ?? '').toLowerCase().trim();
+          if (status == 'cancelled') {
+            continue;
           }
-          continue;
-        }
-        
-        bool foundInItems = false;
-        
-        // Check if order has items array (multi-item orders or new format)
-        if (data['items'] != null && data['items'] is List) {
-          final items = data['items'] as List;
-          if (kDebugMode) {
-            print('   📦 Order ${doc.id} has ${items.length} items');
-          }
-          for (var item in items) {
-            if (item is Map<String, dynamic>) {
-              final itemProductId = item['productId'] as String?;
-              if (kDebugMode && itemProductId != null) {
-                print('     - Item productId: $itemProductId (looking for: $productId)');
-              }
-              if (itemProductId == productId) {
-                final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
-                totalSold += quantity;
-                foundInItems = true;
-                if (kDebugMode) {
-                  print('     ✅ Found match! Adding quantity: $quantity (total now: $totalSold)');
+          
+          bool foundInItems = false;
+          
+          // Check if order has items array (multi-item orders or new format)
+          if (data['items'] != null && data['items'] is List) {
+            final items = data['items'] as List;
+            for (var item in items) {
+              if (item is Map<String, dynamic>) {
+                final itemProductId = (item['productId'] as String?)?.trim();
+                // Use both exact match and case-insensitive comparison
+                if (itemProductId != null && 
+                    (itemProductId == productId || 
+                     itemProductId.toLowerCase() == productId.toLowerCase())) {
+                  final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+                  if (quantity > 0) {
+                    totalSold += quantity;
+                    foundInItems = true;
+                    print('   ✅ [Order ${doc.id}] Found in items array: quantity=$quantity, total=$totalSold');
+                  }
                 }
               }
             }
           }
-        }
-        
-        // Only check direct productId field if not found in items array (legacy format)
-        if (!foundInItems) {
-          final orderProductId = data['productId'] as String?;
-          if (kDebugMode && orderProductId != null) {
-            print('   🔍 Order ${doc.id} direct productId: $orderProductId (looking for: $productId)');
-          }
-          if (orderProductId == productId) {
-            final quantity = (data['quantity'] as num?)?.toInt() ?? 0;
-            totalSold += quantity;
-            if (kDebugMode) {
-              print('     ✅ Found match in direct field! Adding quantity: $quantity (total now: $totalSold)');
+          
+          // Also check direct productId field (for legacy orders or when items array doesn't match)
+          final orderProductId = (data['productId'] as String?)?.trim();
+          if (orderProductId != null && 
+              (orderProductId == productId || 
+               orderProductId.toLowerCase() == productId.toLowerCase())) {
+            // Only count if we didn't already count from items array
+            if (!foundInItems) {
+              final quantity = (data['quantity'] as num?)?.toInt() ?? 0;
+              if (quantity > 0) {
+                totalSold += quantity;
+                print('   ✅ [Order ${doc.id}] Found in direct field: quantity=$quantity, total=$totalSold');
+              }
             }
           }
+        } catch (e) {
+          // Log error for this specific order but continue processing others
+          print('   ⚠️ [Order ${doc.id}] Error processing: $e');
         }
       }
       
-      if (kDebugMode) {
-        print('📊 Final sold count for productId $productId: $totalSold');
-      }
+      print('📊 [Sold Count] Final result for productId "$productId": $totalSold sold');
       
       return totalSold;
-    }).handleError((error) {
-      // Log error but don't crash
-      print('❌ Error in getSoldCountStream: $error');
+    }).handleError((error, stackTrace) {
+      // Log error with stack trace for debugging
+      print('❌ [Sold Count] Error in getSoldCountStream for productId "$productId": $error');
+      print('   Stack trace: $stackTrace');
       return 0;
     });
   }
@@ -205,50 +201,68 @@ class ProductService {
       
       int totalSold = 0;
       
+      print('🔍 [Sold Count] One-time fetch for productId: $productId');
+      print('   📋 Total orders in database: ${snapshot.docs.length}');
+      
       for (var doc in snapshot.docs) {
-        final data = doc.data();
-        
-        // Skip cancelled orders
-        final status = data['status'] as String? ?? '';
-        if (status.toLowerCase() == 'cancelled') {
-          continue;
-        }
-        
-        bool foundInItems = false;
-        
-        // Check if order has items array (multi-item orders or new format)
-        if (data['items'] != null && data['items'] is List) {
-          final items = data['items'] as List;
-          for (var item in items) {
-            if (item is Map<String, dynamic>) {
-              final itemProductId = item['productId'] as String?;
-              if (itemProductId == productId) {
-                final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
-                totalSold += quantity;
-                foundInItems = true;
+        try {
+          final data = doc.data();
+          
+          // Skip cancelled orders
+          final status = (data['status'] as String? ?? '').toLowerCase().trim();
+          if (status == 'cancelled') {
+            continue;
+          }
+          
+          bool foundInItems = false;
+          
+          // Check if order has items array (multi-item orders)
+          if (data['items'] != null && data['items'] is List) {
+            final items = data['items'] as List;
+            for (var item in items) {
+              if (item is Map<String, dynamic>) {
+                final itemProductId = (item['productId'] as String?)?.trim();
+                // Use both exact match and case-insensitive comparison
+                if (itemProductId != null && 
+                    (itemProductId == productId || 
+                     itemProductId.toLowerCase() == productId.toLowerCase())) {
+                  final quantity = (item['quantity'] as num?)?.toInt() ?? 0;
+                  if (quantity > 0) {
+                    totalSold += quantity;
+                    foundInItems = true;
+                    print('   ✅ [Order ${doc.id}] Found in items: quantity=$quantity');
+                  }
+                }
               }
             }
           }
-        }
-        
-        // Only check direct productId field if not found in items array (legacy format)
-        if (!foundInItems) {
-          final orderProductId = data['productId'] as String?;
-          if (orderProductId == productId) {
-            final quantity = (data['quantity'] as num?)?.toInt() ?? 0;
-            totalSold += quantity;
+          
+          // Also check direct productId field
+          final orderProductId = (data['productId'] as String?)?.trim();
+          if (orderProductId != null && 
+              (orderProductId == productId || 
+               orderProductId.toLowerCase() == productId.toLowerCase())) {
+            // Only count if we didn't already count from items array
+            if (!foundInItems) {
+              final quantity = (data['quantity'] as num?)?.toInt() ?? 0;
+              if (quantity > 0) {
+                totalSold += quantity;
+                print('   ✅ [Order ${doc.id}] Found in direct field: quantity=$quantity');
+              }
+            }
           }
+        } catch (e) {
+          print('   ⚠️ [Order ${doc.id}] Error processing: $e');
         }
       }
       
-      if (kDebugMode) {
-        print('📊 Sold count for product $productId: $totalSold');
-      }
+      print('📊 [Sold Count] Final result for productId "$productId": $totalSold sold');
       
       return totalSold;
-    } catch (e) {
+    } catch (e, stackTrace) {
       // Return 0 if there's an error to prevent UI crashes
-      print('Error calculating sold count: $e');
+      print('❌ [Sold Count] Error calculating sold count for "$productId": $e');
+      print('   Stack trace: $stackTrace');
       return 0;
     }
   }

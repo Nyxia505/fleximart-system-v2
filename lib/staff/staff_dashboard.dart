@@ -1039,6 +1039,7 @@ class _StaffDashboardPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Recent Tasks',
                     icon: Icons.task_alt,
+                    color: StaffThemeColors.primaryRed,
                     child: const _RecentTasksList(),
                   ),
                   _StaffPanel(
@@ -1047,6 +1048,7 @@ class _StaffDashboardPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Low Stock Alerts',
                     icon: Icons.warning_amber_rounded,
+                    color: StaffThemeColors.deepBerryRed,
                     child: const _LowStockAlertsList(),
                   ),
                 ],
@@ -1082,17 +1084,15 @@ class _StaffKpiCard extends StatelessWidget {
       width: width,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white, // White card background
+          color: color.withOpacity(0.1), // Light tint of the card's color
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
           border: Border.all(
-            color: const Color(
-              0xFF8B2E2E,
-            ).withOpacity(0.3), // Bright red border matching theme
+            color: color.withOpacity(0.4), // Border matching the card's color
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: color.withOpacity(0.15),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -1167,30 +1167,31 @@ class _StaffPanel extends StatelessWidget {
     required this.child,
     required this.width,
     required this.icon,
+    this.color,
   });
 
   final String title;
   final Widget child;
   final double width;
   final IconData icon;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final panelColor = color ?? StaffThemeColors.primaryRed;
     return SizedBox(
       width: width,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: panelColor.withOpacity(0.1), // Light tint of the panel's color
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(
-              0xFF8B2E2E,
-            ).withOpacity(0.3), // Bright red border matching theme
+            color: panelColor.withOpacity(0.4), // Border matching the panel's color
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: panelColor.withOpacity(0.15),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1206,14 +1207,12 @@ class _StaffPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF8B2E2E).withOpacity(0.1),
+                      color: panelColor.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       icon,
-                      color: const Color(
-                        0xFF8B2E2E,
-                      ), // Bright red icon for staff
+                      color: panelColor, // Icon color matching panel
                       size: 20,
                     ),
                   ),

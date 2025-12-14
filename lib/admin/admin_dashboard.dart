@@ -1134,6 +1134,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Recent Orders',
                     icon: Icons.receipt_long,
+                    color: AdminThemeColors.crimsonRed,
                     child: const _RecentOrdersTable(),
                   ),
                   _EnhancedPanel(
@@ -1142,6 +1143,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Low Stock Alerts',
                     icon: Icons.warning_amber_rounded,
+                    color: AdminThemeColors.deepBerryRed,
                     child: const _LowStockList(),
                   ),
                   _EnhancedPanel(
@@ -1150,6 +1152,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Top Customers',
                     icon: Icons.star_outline,
+                    color: AdminThemeColors.darkWinePurple,
                     child: const _TopCustomersList(),
                   ),
                   _EnhancedPanel(
@@ -1158,6 +1161,7 @@ class _DashboardOverviewPage extends StatelessWidget {
                         : constraints.maxWidth - 32,
                     title: 'Staff Performance',
                     icon: Icons.work_outline,
+                    color: AdminThemeColors.crimsonRed,
                     child: const _StaffPerformanceList(),
                   ),
                 ],
@@ -1230,17 +1234,15 @@ class _EnhancedKpiCard extends StatelessWidget {
       width: width,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white, // White card background
+          color: color.withOpacity(0.1), // Light tint of the card's color
           borderRadius: BorderRadius.circular(20), // 20px rounded corners
           border: Border.all(
-            color: const Color(
-              0xFFCD5656,
-            ).withOpacity(0.3), // Red border matching theme
+            color: color.withOpacity(0.4), // Border matching the card's color
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: color.withOpacity(0.15),
               blurRadius: 20,
               offset: const Offset(0, 4),
             ),
@@ -1340,30 +1342,31 @@ class _EnhancedPanel extends StatelessWidget {
     required this.child,
     required this.width,
     required this.icon,
+    this.color,
   });
 
   final String title;
   final Widget child;
   final double width;
   final IconData icon;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
+    final panelColor = color ?? AdminThemeColors.darkWinePurple;
     return SizedBox(
       width: width,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: panelColor.withOpacity(0.1), // Light tint of the panel's color
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: const Color(
-              0xFFCD5656,
-            ).withOpacity(0.3), // Red border matching theme
+            color: panelColor.withOpacity(0.4), // Border matching the panel's color
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.08),
+              color: panelColor.withOpacity(0.15),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -1379,12 +1382,12 @@ class _EnhancedPanel extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32).withOpacity(0.1),
+                      color: panelColor.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
                       icon,
-                      color: const Color(0xFF2E7D32), // Green icon
+                      color: panelColor, // Icon color matching panel
                       size: 20,
                     ),
                   ),

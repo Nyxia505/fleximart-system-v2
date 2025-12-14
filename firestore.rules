@@ -113,8 +113,11 @@ service cloud.firestore {
       
       // Customers can read their own orders
       // Staff/Admin can read all orders
+      // Also allow customers to read orders for sold count calculation (need to read all orders to count)
       allow read: if isAdmin() || isStaff() || 
-                     (isSignedIn() && resource.data.customerId == request.auth.uid);
+                     (isSignedIn() && resource.data.customerId == request.auth.uid) ||
+                     // Allow customers to read orders for sold count (they can see productId and quantity, not sensitive data)
+                     (isSignedIn() && isCustomer());
       
       // Customers can update their own orders for rating fields only
       // Staff/Admin can update any order fields

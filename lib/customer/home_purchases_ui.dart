@@ -17,11 +17,15 @@ class HomePurchasesUI extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: AppColors.primary.withOpacity(0.1), // Light tint of primary color
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: AppColors.primary.withOpacity(0.3),
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: AppColors.primary.withOpacity(0.15),
             blurRadius: 12,
             offset: const Offset(0, 4),
             spreadRadius: 0,
@@ -81,6 +85,7 @@ class HomePurchasesUI extends StatelessWidget {
                       context,
                       icon: Icons.local_shipping_outlined,
                       label: 'Track Orders',
+                      actionColor: AppColors.primary,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -94,6 +99,7 @@ class HomePurchasesUI extends StatelessWidget {
                       context,
                       icon: Icons.description_outlined,
                       label: 'My Quotations',
+                      actionColor: AppColors.berryRed,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -107,6 +113,7 @@ class HomePurchasesUI extends StatelessWidget {
                       context,
                       icon: Icons.history_outlined,
                       label: 'Order History',
+                      actionColor: AppColors.darkWine,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -120,6 +127,7 @@ class HomePurchasesUI extends StatelessWidget {
                       context,
                       icon: Icons.chat_bubble_outline,
                       label: 'Messages',
+                      actionColor: AppColors.primary,
                       onTap: () {
                         Navigator.push(
                           context,
@@ -144,7 +152,9 @@ class HomePurchasesUI extends StatelessWidget {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    Color? actionColor,
   }) {
+    final color = actionColor ?? AppColors.primary;
     return Expanded(
       child: Material(
         color: Colors.transparent,
@@ -157,11 +167,15 @@ class HomePurchasesUI extends StatelessWidget {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: color.withOpacity(0.15), // Light tint of the action color
                   shape: BoxShape.circle,
+                  border: Border.all(
+                    color: color.withOpacity(0.4),
+                    width: 2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.primary.withOpacity(0.15),
+                      color: color.withOpacity(0.2),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                       spreadRadius: 0,
@@ -170,7 +184,7 @@ class HomePurchasesUI extends StatelessWidget {
                 ),
                 child: Icon(
                   icon,
-                  color: AppColors.primary,
+                  color: color,
                   size: 28,
                 ),
               ),

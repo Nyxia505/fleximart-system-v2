@@ -187,8 +187,10 @@ service cloud.firestore {
       allow update: if isSignedIn() && resource.data.userId == request.auth.uid ||
                        isAdmin() || isStaff();
       
-      // Only admin can delete notifications
-      allow delete: if isAdmin();
+      // Users can delete their own notifications
+      // Staff/Admin can delete any notification
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid ||
+                       isAdmin() || isStaff();
     }
 
     // Quotations collection

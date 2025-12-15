@@ -303,6 +303,15 @@ service cloud.firestore {
       allow read, write: if request.resource.data.lastSentAt is timestamp;
     }
 
+    // Activity Logs collection - for tracking system activities
+    match /activity_logs/{logId} {
+      // Anyone authenticated can create activity logs (for system logging)
+      // Admin/Staff can read all activity logs
+      allow create: if isSignedIn();
+      allow read: if isAdmin() || isStaff();
+      allow update, delete: if isAdmin();
+    }
+
     // Default deny all other collections
     match /{document=**} { 
       allow read, write: if false; 

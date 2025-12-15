@@ -26,6 +26,7 @@ import '../widgets/customer_profile_avatar.dart';
 import '../widgets/product_image_widget.dart';
 import '../services/firebase_storage_service.dart';
 import '../services/product_service.dart';
+import '../services/activity_log_service.dart';
 import 'activity_log_page.dart';
 
 // Official theme colors - New Theme
@@ -2596,10 +2597,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       child: Text('All Categories'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'Glass',
-                                      child: Text('Glass'),
-                                    ),
-                                    DropdownMenuItem(
                                       value: 'Doors',
                                       child: Text('Doors'),
                                     ),
@@ -2678,10 +2675,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     DropdownMenuItem(
                                       value: 'all',
                                       child: Text('All Categories'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'Glass',
-                                      child: Text('Glass'),
                                     ),
                                     DropdownMenuItem(
                                       value: 'Doors',
@@ -3157,11 +3150,9 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
   void _showAddProductDialog(BuildContext context) {
     final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
     final priceController = TextEditingController();
     final stockController = TextEditingController(text: '0');
     final minStockController = TextEditingController(text: '10');
-    final imageUrlController = TextEditingController();
     String selectedCategory = 'Windows';
     XFile? _selectedImage;
     Uint8List? _selectedImageBytes;
@@ -3201,15 +3192,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       controller: titleController,
                       decoration: const InputDecoration(
                         labelText: 'Product Title *',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: descriptionController,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
                         border: OutlineInputBorder(),
                       ),
                     ),
@@ -3345,57 +3327,73 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                               );
                             },
                           ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    setDialogState(() {
-                                      _selectedImage = null;
-                                      _selectedImageBytes = null;
-                                    });
-                                  },
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Remove Image'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.error,
-                                  ),
-                                ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                final ImagePicker picker = ImagePicker();
+                                final XFile? image = await picker.pickImage(
+                                  source: ImageSource.gallery,
+                                );
+                                if (image != null) {
+                                  final bytes = await image.readAsBytes();
+                                  setDialogState(() {
+                                    _selectedImage = image;
+                                    _selectedImageBytes = bytes;
+                                  });
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.photo_library,
+                                size: 18,
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Change Image'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
+                              label: const Text('Change Image'),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
                               ),
-                            ],
+                            ),
                           ),
                         ] else ...[
+                          Container(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: AppColors.border,
+                                width: 2,
+                                style: BorderStyle.solid,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              color: AppColors.dashboardBackground,
+                            ),
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                Icon(
+                                  Icons.add_photo_alternate_outlined,
+                                  size: 48,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No image selected',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: AppColors.textSecondary,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Add a product image to help customers',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
                           Row(
                             children: [
                               Expanded(
@@ -3415,9 +3413,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   },
                                   icon: const Icon(Icons.camera_alt, size: 18),
                                   label: const Text('Take Photo'),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                  ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 12),
                               Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed: () async {
@@ -3441,23 +3442,13 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
                                     foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(vertical: 12),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ],
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: imageUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Or enter Image URL (optional)',
-                            border: OutlineInputBorder(),
-                            hintText: 'https://example.com/image.jpg',
-                            helperText:
-                                'Use image picker above OR enter URL manually',
-                          ),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -3570,17 +3561,9 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       }
                                       return;
                                     }
-                                  } else if (imageUrlController
-                                      .text
-                                      .isNotEmpty) {
-                                    finalImageUrl = imageUrlController.text
-                                        .trim();
-                                    if (kDebugMode) {
-                                      debugPrint('🔗 Using manual image URL: $finalImageUrl');
-                                    }
                                   } else {
                                     if (kDebugMode) {
-                                      debugPrint('⚠️ No image selected and no URL provided');
+                                      debugPrint('⚠️ No image selected');
                                     }
                                   }
 
@@ -3594,8 +3577,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     
                                     final productData = <String, dynamic>{
                                       'title': titleController.text,
-                                      'description':
-                                          descriptionController.text,
                                       'price': price,
                                       'stock': stock,
                                       'minStock': minStock,
@@ -3618,12 +3599,39 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       }
                                     }
                                     
-                                    await FirebaseFirestore.instance
+                                    final productRef = await FirebaseFirestore.instance
                                         .collection('products')
                                         .add(productData);
                                     
                                     if (kDebugMode) {
                                       debugPrint('✅ Product saved successfully');
+                                    }
+
+                                    // Log product creation activity
+                                    try {
+                                      final user = FirebaseAuth.instance.currentUser;
+                                      if (user != null) {
+                                        final userDoc = await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(user.uid)
+                                            .get();
+                                        final userData = userDoc.data() as Map<String, dynamic>?;
+                                        final userName = (userData?['fullName'] as String?) ??
+                                            (userData?['name'] as String?) ??
+                                            user.email?.split('@')[0] ??
+                                            'Admin';
+                                        
+                                        await ActivityLogService().logProductCreate(
+                                          userId: user.uid,
+                                          userName: userName,
+                                          productId: productRef.id,
+                                          productName: titleController.text,
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (kDebugMode) {
+                                        debugPrint('⚠️ Error logging product creation: $e');
+                                      }
                                     }
 
                                     if (context.mounted) {
@@ -4224,10 +4232,100 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       updateData['imageUrl'] = finalImageUrl;
                                     }
 
+                                    // Get old product data for logging
+                                    final oldProductDoc = await FirebaseFirestore.instance
+                                        .collection('products')
+                                        .doc(productId)
+                                        .get();
+                                    final oldProductData = oldProductDoc.data() as Map<String, dynamic>?;
+                                    
                                     await FirebaseFirestore.instance
                                         .collection('products')
                                         .doc(productId)
                                         .update(updateData);
+
+                                    // Log product update activity
+                                    try {
+                                      final user = FirebaseAuth.instance.currentUser;
+                                      if (user != null) {
+                                        final userDoc = await FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(user.uid)
+                                            .get();
+                                        final userData = userDoc.data() as Map<String, dynamic>?;
+                                        final userName = (userData?['fullName'] as String?) ??
+                                            (userData?['name'] as String?) ??
+                                            user.email?.split('@')[0] ??
+                                            'Admin';
+                                        
+                                        final productName = nameController.text.trim();
+                                        
+                                        // Log changes for key fields
+                                        if (oldProductData != null) {
+                                          final oldName = (oldProductData['name'] as String?) ?? (oldProductData['title'] as String?) ?? '';
+                                          final oldPrice = (oldProductData['price'] as num?)?.toDouble() ?? 0.0;
+                                          final oldStock = (oldProductData['stock'] as num?)?.toInt() ?? 0;
+                                          final oldCategory = oldProductData['category'] as String? ?? '';
+                                          
+                                          if (oldName != productName) {
+                                            await ActivityLogService().logProductUpdate(
+                                              userId: user.uid,
+                                              userName: userName,
+                                              productId: productId,
+                                              productName: productName,
+                                              fieldChanged: 'name',
+                                              oldValue: oldName,
+                                              newValue: productName,
+                                            );
+                                          }
+                                          if (oldPrice != price) {
+                                            await ActivityLogService().logProductUpdate(
+                                              userId: user.uid,
+                                              userName: userName,
+                                              productId: productId,
+                                              productName: productName,
+                                              fieldChanged: 'price',
+                                              oldValue: '₱${oldPrice.toStringAsFixed(2)}',
+                                              newValue: '₱${price.toStringAsFixed(2)}',
+                                            );
+                                          }
+                                          if (oldStock != stock) {
+                                            await ActivityLogService().logProductUpdate(
+                                              userId: user.uid,
+                                              userName: userName,
+                                              productId: productId,
+                                              productName: productName,
+                                              fieldChanged: 'stock',
+                                              oldValue: oldStock.toString(),
+                                              newValue: stock.toString(),
+                                            );
+                                          }
+                                          if (oldCategory != selectedCategory) {
+                                            await ActivityLogService().logProductUpdate(
+                                              userId: user.uid,
+                                              userName: userName,
+                                              productId: productId,
+                                              productName: productName,
+                                              fieldChanged: 'category',
+                                              oldValue: oldCategory,
+                                              newValue: selectedCategory,
+                                            );
+                                          }
+                                        } else {
+                                          // If no old data, just log general update
+                                          await ActivityLogService().logProductUpdate(
+                                            userId: user.uid,
+                                            userName: userName,
+                                            productId: productId,
+                                            productName: productName,
+                                          );
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (kDebugMode) {
+                                        debugPrint('⚠️ Error logging product update: $e');
+                                      }
+                                    }
 
                                     if (context.mounted) {
                                       Navigator.pop(context);
@@ -4299,11 +4397,49 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
           ),
           ElevatedButton(
             onPressed: () async {
+              // Get product data before deletion for logging
+              final productDoc = await FirebaseFirestore.instance
+                  .collection('products')
+                  .doc(productId)
+                  .get();
+              final productData = productDoc.data() as Map<String, dynamic>?;
+              final productName = (productData?['name'] as String?) ?? 
+                                  (productData?['title'] as String?) ?? 
+                                  'Unknown Product';
+              
               Navigator.pop(context);
               await FirebaseFirestore.instance
                   .collection('products')
                   .doc(productId)
                   .delete();
+              
+              // Log product deletion activity
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null) {
+                  final userDoc = await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .get();
+                  final userData = userDoc.data() as Map<String, dynamic>?;
+                  final userName = (userData?['fullName'] as String?) ??
+                      (userData?['name'] as String?) ??
+                      user.email?.split('@')[0] ??
+                      'Admin';
+                  
+                  await ActivityLogService().logProductDelete(
+                    userId: user.uid,
+                    userName: userName,
+                    productId: productId,
+                    productName: productName,
+                  );
+                }
+              } catch (e) {
+                if (kDebugMode) {
+                  debugPrint('⚠️ Error logging product deletion: $e');
+                }
+              }
+              
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Product deleted')),
@@ -4355,6 +4491,18 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
               final quantity = int.tryParse(controller.text);
               if (quantity != null && quantity > 0) {
                 Navigator.pop(context);
+                // Get product data for logging
+                final productDoc = await FirebaseFirestore.instance
+                    .collection('products')
+                    .doc(productId)
+                    .get();
+                final productData = productDoc.data() as Map<String, dynamic>?;
+                final oldStock = (productData?['stock'] as num?)?.toInt() ?? 0;
+                final productName = (productData?['name'] as String?) ?? 
+                                    (productData?['title'] as String?) ?? 
+                                    'Unknown Product';
+                final newStock = oldStock + quantity;
+                
                 await FirebaseFirestore.instance
                     .collection('products')
                     .doc(productId)
@@ -4362,6 +4510,37 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       'stock': FieldValue.increment(quantity),
                       'updatedAt': FieldValue.serverTimestamp(),
                     });
+                
+                // Log restock activity
+                try {
+                  final user = FirebaseAuth.instance.currentUser;
+                  if (user != null) {
+                    final userDoc = await FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(user.uid)
+                        .get();
+                    final userData = userDoc.data() as Map<String, dynamic>?;
+                    final userName = (userData?['fullName'] as String?) ??
+                        (userData?['name'] as String?) ??
+                        user.email?.split('@')[0] ??
+                        'Admin';
+                    
+                    await ActivityLogService().logProductUpdate(
+                      userId: user.uid,
+                      userName: userName,
+                      productId: productId,
+                      productName: productName,
+                      fieldChanged: 'stock',
+                      oldValue: oldStock.toString(),
+                      newValue: newStock.toString(),
+                    );
+                  }
+                } catch (e) {
+                  if (kDebugMode) {
+                    debugPrint('⚠️ Error logging restock: $e');
+                  }
+                }
+                
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Restocked $quantity units')),
@@ -6480,6 +6659,27 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
               '';
           final oldStatus = orderData['status'] as String? ?? 'pending';
 
+          // Get user info for logging
+          final user = FirebaseAuth.instance.currentUser;
+          String? userName;
+          if (user != null) {
+            try {
+              final userDoc = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(user.uid)
+                  .get();
+              final userData = userDoc.data() as Map<String, dynamic>?;
+              userName = (userData?['fullName'] as String?) ??
+                  (userData?['name'] as String?) ??
+                  user.email?.split('@')[0] ??
+                  'Admin';
+            } catch (e) {
+              userName = user.email?.split('@')[0] ?? 'Admin';
+            }
+          }
+          
+          final customerName = orderData['customerName'] as String?;
+          
           // Update order status
           await FirebaseFirestore.instance
               .collection('orders')
@@ -6490,6 +6690,24 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                 // keep alias fields in sync for compatibility
                 'statusLabel': label,
               });
+          
+          // Log order status change activity
+          if (user != null && userName != null) {
+            try {
+              await ActivityLogService().logOrderStatusChange(
+                userId: user.uid,
+                userName: userName,
+                orderId: orderId,
+                oldStatus: oldStatus,
+                newStatus: status,
+                customerName: customerName,
+              );
+            } catch (e) {
+              if (kDebugMode) {
+                debugPrint('⚠️ Error logging order status change: $e');
+              }
+            }
+          }
 
           // Create notification for customer when status changes
           if (customerId.isNotEmpty && oldStatus != status) {
@@ -6994,6 +7212,42 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
 
                         try {
                           await RoleService.assignUserRole(staffId, value);
+
+                          // Log user role update activity
+                          try {
+                            final user = FirebaseAuth.instance.currentUser;
+                            if (user != null) {
+                              final userDoc = await FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(user.uid)
+                                  .get();
+                              final userData = userDoc.data() as Map<String, dynamic>?;
+                              final userName = (userData?['fullName'] as String?) ??
+                                  (userData?['name'] as String?) ??
+                                  user.email?.split('@')[0] ??
+                                  'Admin';
+                              
+                              final targetUserName = (staff['fullName'] as String?) ??
+                                  (staff['name'] as String?) ??
+                                  (staff['customerName'] as String?) ??
+                                  (staff['email'] as String?) ??
+                                  'Unknown User';
+                              
+                              await ActivityLogService().logUserUpdate(
+                                userId: user.uid,
+                                userName: userName,
+                                targetUserId: staffId,
+                                targetUserName: targetUserName,
+                                fieldChanged: 'role',
+                                oldValue: currentRole,
+                                newValue: value,
+                              );
+                            }
+                          } catch (logError) {
+                            if (kDebugMode) {
+                              debugPrint('⚠️ Error logging user role update: $logError');
+                            }
+                          }
 
                           if (context.mounted) {
                             Navigator.pop(context); // Close loading

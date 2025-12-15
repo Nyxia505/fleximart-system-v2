@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'notification_service.dart';
 import 'phone_verification_service.dart';
+import 'activity_log_service.dart';
 
 /// Order Service
 /// 
@@ -249,6 +251,41 @@ class OrderService {
       }
 
       await _firestore.collection('orders').doc(orderId).update(updateData);
+
+      // Log order status change activity
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          final orderDoc = await _firestore.collection('orders').doc(orderId).get();
+          if (orderDoc.exists) {
+            final orderData = orderDoc.data() as Map<String, dynamic>;
+            final oldStatus = orderData['status'] as String? ?? 'pending';
+            
+            // Get user name
+            final userDoc = await _firestore.collection('users').doc(user.uid).get();
+            final userData = userDoc.data() as Map<String, dynamic>?;
+            final userName = (userData?['fullName'] as String?) ??
+                (userData?['name'] as String?) ??
+                user.email?.split('@')[0] ??
+                'User';
+            
+            final customerName = orderData['customerName'] as String?;
+            
+            await ActivityLogService().logOrderStatusChange(
+              userId: user.uid,
+              userName: userName,
+              orderId: orderId,
+              oldStatus: oldStatus,
+              newStatus: newStatus,
+              customerName: customerName,
+            );
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ Error logging order status change: $e');
+        }
+      }
 
       // Create notification for customer if enabled
       if (createNotification) {

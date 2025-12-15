@@ -1731,10 +1731,6 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                                       child: Text('All Categories'),
                                     ),
                                     DropdownMenuItem(
-                                      value: 'Glass',
-                                      child: Text('Glass'),
-                                    ),
-                                    DropdownMenuItem(
                                       value: 'Doors',
                                       child: Text('Doors'),
                                     ),
@@ -1809,10 +1805,6 @@ class _ProductsViewPageState extends State<_ProductsViewPage> {
                                     DropdownMenuItem(
                                       value: 'all',
                                       child: Text('All Categories'),
-                                    ),
-                                    DropdownMenuItem(
-                                      value: 'Glass',
-                                      child: Text('Glass'),
                                     ),
                                     DropdownMenuItem(
                                       value: 'Doors',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
 
@@ -44,12 +45,214 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     'Register',
     'Login',
     'Logout',
+    'Product Update',
+    'Product Create',
+    'Product Delete',
+    'User Update',
+    'Order Status Change',
   ];
+
+  bool _isGeneratingTestData = false;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Generate test data for activity log
+  Future<void> _generateTestData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please log in to generate test data'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _isGeneratingTestData = true;
+    });
+
+    try {
+      final userId = user.uid;
+      final userName = user.displayName ?? user.email ?? 'Admin User';
+      final now = DateTime.now();
+
+      // Generate test data with different timestamps (spread over the last 7 days)
+      final testData = [
+        // Register
+        {
+          'userId': userId,
+          'userName': 'John Doe',
+          'actionType': 'Register',
+          'description': 'New user registered',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 6, hours: 2))),
+          'metadata': {'email': 'john.doe@example.com'},
+        },
+        // Login
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Login',
+          'description': 'User logged in',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 5, hours: 10))),
+          'metadata': {'loginTime': now.subtract(const Duration(days: 5, hours: 10)).toIso8601String()},
+        },
+        // Logout
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Logout',
+          'description': 'User logged out',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 5, hours: 8))),
+          'metadata': {'logoutTime': now.subtract(const Duration(days: 5, hours: 8)).toIso8601String()},
+        },
+        // Product Create
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Product Create',
+          'description': 'Created new product: Premium Window Frame',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 4, hours: 15))),
+          'metadata': {
+            'productId': 'prod_001',
+            'productName': 'Premium Window Frame',
+          },
+        },
+        // Product Update
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Product Update',
+          'description': 'Updated Premium Window Frame - Price: ₱1,500.00 → ₱1,350.00',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 3, hours: 20))),
+          'metadata': {
+            'productId': 'prod_001',
+            'productName': 'Premium Window Frame',
+            'fieldChanged': 'Price',
+            'oldValue': '₱1,500.00',
+            'newValue': '₱1,350.00',
+          },
+        },
+        // Product Delete
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Product Delete',
+          'description': 'Deleted product: Old Model Door',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 2, hours: 5))),
+          'metadata': {
+            'productId': 'prod_002',
+            'productName': 'Old Model Door',
+          },
+        },
+        // User Update
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'User Update',
+          'description': 'Updated Jane Smith - Role: customer → staff',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(days: 1, hours: 12))),
+          'metadata': {
+            'targetUserId': 'user_001',
+            'targetUserName': 'Jane Smith',
+            'fieldChanged': 'Role',
+            'oldValue': 'customer',
+            'newValue': 'staff',
+          },
+        },
+        // Order Status Change
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Order Status Change',
+          'description': 'Order status changed: Pending → Processing (Customer: Mike Johnson)',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 6))),
+          'metadata': {
+            'orderId': 'order_001',
+            'oldStatus': 'Pending',
+            'newStatus': 'Processing',
+            'customerName': 'Mike Johnson',
+          },
+        },
+        // More recent activities
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Login',
+          'description': 'User logged in',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 3))),
+          'metadata': {'loginTime': now.subtract(const Duration(hours: 3)).toIso8601String()},
+        },
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Product Create',
+          'description': 'Created new product: Modern Sliding Door',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 2))),
+          'metadata': {
+            'productId': 'prod_003',
+            'productName': 'Modern Sliding Door',
+          },
+        },
+        {
+          'userId': userId,
+          'userName': userName,
+          'actionType': 'Order Status Change',
+          'description': 'Order status changed: Processing → Shipped (Customer: Sarah Williams)',
+          'timestamp': Timestamp.fromDate(now.subtract(const Duration(hours: 1))),
+          'metadata': {
+            'orderId': 'order_002',
+            'oldStatus': 'Processing',
+            'newStatus': 'Shipped',
+            'customerName': 'Sarah Williams',
+          },
+        },
+      ];
+
+      // Add all test data to Firestore
+      final batch = FirebaseFirestore.instance.batch();
+      for (var data in testData) {
+        final docRef = FirebaseFirestore.instance.collection('activity_logs').doc();
+        batch.set(docRef, data);
+      }
+
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Test data generated successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // Refresh the list
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('❌ Error generating test data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error generating test data: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGeneratingTestData = false;
+        });
+      }
+    }
   }
 
   Future<void> _selectStartDate(BuildContext context) async {
@@ -102,6 +305,16 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         return Icons.login;
       case 'logout':
         return Icons.logout;
+      case 'product update':
+        return Icons.edit;
+      case 'product create':
+        return Icons.add_circle;
+      case 'product delete':
+        return Icons.delete;
+      case 'user update':
+        return Icons.person_outline;
+      case 'order status change':
+        return Icons.sync;
       default:
         return Icons.history;
     }
@@ -115,6 +328,16 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         return const Color(0xFF3B82F6); // Blue
       case 'logout':
         return const Color(0xFF6B7280); // Gray
+      case 'product update':
+        return const Color(0xFF8B2E2E); // Dark maroon
+      case 'product create':
+        return const Color(0xFF10B981); // Green
+      case 'product delete':
+        return const Color(0xFFEF4444); // Red
+      case 'user update':
+        return const Color(0xFFF59E0B); // Amber
+      case 'order status change':
+        return const Color(0xFF6366F1); // Indigo
       default:
         return AppColors.textSecondary;
     }
@@ -154,12 +377,12 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
         }
       }
 
-      // Get login and logout activities from activity_logs collection
+      // Get all activities from activity_logs collection
       try {
         final activityLogsSnapshot = await FirebaseFirestore.instance
             .collection('activity_logs')
             .orderBy('timestamp', descending: true)
-            .limit(200)
+            .limit(500)
             .get();
 
         for (var logDoc in activityLogsSnapshot.docs) {
@@ -168,18 +391,16 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
           if (timestamp != null) {
             final actionType = logData['actionType'] as String? ?? 'Unknown';
             
-            // Only include Login and Logout activities
-            if (actionType == 'Login' || actionType == 'Logout') {
-              activities.add(ActivityLogEntry(
-                id: logDoc.id,
-                userId: logData['userId'] as String? ?? '',
-                userName: logData['userName'] as String? ?? 'Unknown User',
-                actionType: actionType,
-                description: logData['description'] as String? ?? '',
-                timestamp: timestamp.toDate(),
-                metadata: logData['metadata'] as Map<String, dynamic>?,
-              ));
-            }
+            // Include all activity types
+            activities.add(ActivityLogEntry(
+              id: logDoc.id,
+              userId: logData['userId'] as String? ?? '',
+              userName: logData['userName'] as String? ?? 'Unknown User',
+              actionType: actionType,
+              description: logData['description'] as String? ?? '',
+              timestamp: timestamp.toDate(),
+              metadata: logData['metadata'] as Map<String, dynamic>?,
+            ));
           }
         }
       } catch (e) {
@@ -217,32 +438,41 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
     // Filter by date range
     if (_startDate != null || _endDate != null) {
       filtered = filtered.where((activity) {
-        final activityDate = DateTime(
-          activity.timestamp.year,
-          activity.timestamp.month,
-          activity.timestamp.day,
+        // Convert activity timestamp to UTC and normalize to date only
+        final activityUtc = activity.timestamp.toUtc();
+        final activityDate = DateTime.utc(
+          activityUtc.year,
+          activityUtc.month,
+          activityUtc.day,
         );
 
         bool matchesStart = true;
         bool matchesEnd = true;
 
         if (_startDate != null) {
-          final startDateOnly = DateTime(
-            _startDate!.year,
-            _startDate!.month,
-            _startDate!.day,
+          // Convert start date to UTC and normalize to date only (00:00:00 UTC)
+          final startUtc = _startDate!.toUtc();
+          final startDateOnly = DateTime.utc(
+            startUtc.year,
+            startUtc.month,
+            startUtc.day,
           );
+          // Activity date should be on or after start date
           matchesStart = activityDate.isAtSameMomentAs(startDateOnly) ||
               activityDate.isAfter(startDateOnly);
         }
 
         if (_endDate != null) {
-          final endDateOnly = DateTime(
-            _endDate!.year,
-            _endDate!.month,
-            _endDate!.day,
+          // Convert end date to UTC and normalize to date only (00:00:00 UTC)
+          final endUtc = _endDate!.toUtc();
+          final endDateOnly = DateTime.utc(
+            endUtc.year,
+            endUtc.month,
+            endUtc.day,
           );
+          // Add 1 day to make it inclusive (so activities on endDate are included)
           final endDateInclusive = endDateOnly.add(const Duration(days: 1));
+          // Activity date should be before the next day (i.e., on or before endDate)
           matchesEnd = activityDate.isBefore(endDateInclusive);
         }
 
@@ -284,21 +514,59 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Activity Log',
-                      style: TextStyle(
-                        fontSize: isMobile ? 20 : 24,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.textPrimary,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Activity Log',
+                                style: TextStyle(
+                                  fontSize: isMobile ? 20 : 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (!isMobile) ...[
+                          const SizedBox(width: 12),
+                          OutlinedButton.icon(
+                            onPressed: _isGeneratingTestData ? null : _generateTestData,
+                            icon: _isGeneratingTestData
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                : const Icon(Icons.add_circle_outline, size: 18),
+                            label: Text(_isGeneratingTestData ? 'Generating...' : 'Add Test Data'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    if (!isMobile) ...[
+                    if (isMobile) ...[
                       const SizedBox(height: 8),
-                      Text(
-                        'Track all user activities and system events',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _isGeneratingTestData ? null : _generateTestData,
+                          icon: _isGeneratingTestData
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.add_circle_outline, size: 18),
+                          label: Text(_isGeneratingTestData ? 'Generating...' : 'Add Test Data'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
                         ),
                       ),
                     ],
@@ -351,35 +619,60 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
                 final activities = snapshot.data ?? [];
                 final filteredActivities = _filterActivities(activities);
 
-                if (filteredActivities.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.history,
-                          size: 64,
-                          color: AppColors.textSecondary,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          activities.isEmpty
-                              ? 'No activities found'
-                              : 'No activities match your filters',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return _buildTimeline(filteredActivities);
+                // Add refresh functionality
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    setState(() {});
+                  },
+                  child: filteredActivities.isEmpty
+                      ? _buildEmptyState(activities.isEmpty)
+                      : _buildTimeline(filteredActivities),
+                );
               },
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(bool noActivities) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.history,
+            size: 64,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            noActivities
+                ? 'No activities found'
+                : 'No activities match your filters',
+            style: TextStyle(
+              fontSize: 18,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          if (noActivities) ...[
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: _isGeneratingTestData ? null : _generateTestData,
+              icon: _isGeneratingTestData
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_circle_outline, size: 18),
+              label: Text(_isGeneratingTestData ? 'Generating...' : 'Generate Test Data'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+          ],
         ],
       ),
     );

@@ -1362,7 +1362,9 @@ class _EnhancedPanel extends StatelessWidget {
           color: panelColor.withOpacity(0.1), // Light tint of the panel's color
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: panelColor.withOpacity(0.4), // Border matching the panel's color
+            color: panelColor.withOpacity(
+              0.4,
+            ), // Border matching the panel's color
             width: 2,
           ),
           boxShadow: [
@@ -1655,15 +1657,18 @@ class _RecentOrdersTable extends StatelessWidget {
                     FutureBuilder<DocumentSnapshot>(
                       future: (order['customerId'] as String?) != null
                           ? FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(order['customerId'] as String)
-                              .get()
+                                .collection('users')
+                                .doc(order['customerId'] as String)
+                                .get()
                           : null,
                       builder: (context, snapshot) {
-                        String displayName = customerName; // Fallback to order customerName
+                        String displayName =
+                            customerName; // Fallback to order customerName
                         if (snapshot.hasData && snapshot.data!.exists) {
-                          final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                          displayName = (userData?['fullName'] as String?) ??
+                          final userData =
+                              snapshot.data!.data() as Map<String, dynamic>?;
+                          displayName =
+                              (userData?['fullName'] as String?) ??
                               (userData?['name'] as String?) ??
                               (userData?['customerName'] as String?) ??
                               customerName;
@@ -2892,10 +2897,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final category = (product['category'] as String?) ?? 'Uncategorized';
     final imageUrl = (product['imageUrl'] as String?);
     final isLowStock = stock < minStock;
-    
+
     // Debug: Log image URL for troubleshooting
     if (kDebugMode) {
-      debugPrint('🖼️ Product "$title" - imageUrl: ${imageUrl ?? "null"} (length: ${imageUrl?.length ?? 0})');
+      debugPrint(
+        '🖼️ Product "$title" - imageUrl: ${imageUrl ?? "null"} (length: ${imageUrl?.length ?? 0})',
+      );
     }
 
     return Container(
@@ -3153,6 +3160,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final priceController = TextEditingController();
     final stockController = TextEditingController(text: '0');
     final minStockController = TextEditingController(text: '10');
+    final imageUrlController = TextEditingController();
     String selectedCategory = 'Windows';
     XFile? _selectedImage;
     Uint8List? _selectedImageBytes;
@@ -3284,7 +3292,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                 ? Future.value(_selectedImageBytes)
                                 : _selectedImage!.readAsBytes(),
                             builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
                                 return Container(
                                   height: 150,
                                   width: double.infinity,
@@ -3344,13 +3353,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   });
                                 }
                               },
-                              icon: const Icon(
-                                Icons.photo_library,
-                                size: 18,
-                              ),
+                              icon: const Icon(Icons.photo_library, size: 18),
                               label: const Text('Change Image'),
                               style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
                               ),
                             ),
                           ),
@@ -3414,7 +3422,9 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   icon: const Icon(Icons.camera_alt, size: 18),
                                   label: const Text('Take Photo'),
                                   style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -3442,13 +3452,26 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,
                                     foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(vertical: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
                                   ),
                                 ),
                               ),
                             ],
                           ),
                         ],
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: imageUrlController,
+                          decoration: const InputDecoration(
+                            labelText: 'Image URL',
+                            border: OutlineInputBorder(),
+                            hintText: 'https://example.com/image.jpg',
+                            helperText:
+                                'Select an image above or enter a direct image URL (required)',
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
@@ -3485,6 +3508,20 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       int.tryParse(minStockController.text) ??
                                       10;
 
+                                  // Require either an uploaded image or a URL
+                                  if (_selectedImage == null &&
+                                      imageUrlController.text.trim().isEmpty) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Please select an image or enter an Image URL',
+                                        ),
+                                        backgroundColor: AppColors.error,
+                                      ),
+                                    );
+                                    return;
+                                  }
+
                                   if (price == null || price <= 0) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -3506,33 +3543,47 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                     try {
                                       if (kDebugMode) {
-                                        debugPrint('📤 Starting image upload...');
+                                        debugPrint(
+                                          '📤 Starting image upload...',
+                                        );
                                       }
-                                      
+
                                       // Use cached bytes if available, otherwise read from XFile
-                                      final Uint8List imageBytes = _selectedImageBytes ?? await _selectedImage!.readAsBytes();
-                                      
-                                      if (kDebugMode) {
-                                        debugPrint('📦 Image bytes: ${imageBytes.length} bytes');
-                                      }
-                                      
-                                      // Generate storage path
-                                      final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg';
+                                      final Uint8List imageBytes =
+                                          _selectedImageBytes ??
+                                          await _selectedImage!.readAsBytes();
 
                                       if (kDebugMode) {
-                                        debugPrint('📁 Storage path: $storagePath');
+                                        debugPrint(
+                                          '📦 Image bytes: ${imageBytes.length} bytes',
+                                        );
+                                      }
+
+                                      // Generate storage path
+                                      final storagePath =
+                                          'products/${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg';
+
+                                      if (kDebugMode) {
+                                        debugPrint(
+                                          '📁 Storage path: $storagePath',
+                                        );
                                       }
 
                                       // Use centralized service that works on both web and mobile
-                                      finalImageUrl = await FirebaseStorageService.uploadImageBytes(
-                                        imageBytes: imageBytes,
-                                        storagePath: storagePath,
-                                        contentType: 'image/jpeg',
-                                      );
+                                      finalImageUrl =
+                                          await FirebaseStorageService.uploadImageBytes(
+                                            imageBytes: imageBytes,
+                                            storagePath: storagePath,
+                                            contentType: 'image/jpeg',
+                                          );
 
                                       if (kDebugMode) {
-                                        debugPrint('✅ Image uploaded successfully!');
-                                        debugPrint('🔗 Download URL: $finalImageUrl');
+                                        debugPrint(
+                                          '✅ Image uploaded successfully!',
+                                        );
+                                        debugPrint(
+                                          '🔗 Download URL: $finalImageUrl',
+                                        );
                                       }
 
                                       setDialogState(() {
@@ -3542,11 +3593,11 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
-                                      
+
                                       if (kDebugMode) {
                                         debugPrint('❌ Image upload failed: $e');
                                       }
-                                      
+
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,
@@ -3561,9 +3612,17 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       }
                                       return;
                                     }
+                                  } else if (imageUrlController.text
+                                      .trim()
+                                      .isNotEmpty) {
+                                    // Use manually entered image URL if provided
+                                    finalImageUrl = imageUrlController.text
+                                        .trim();
                                   } else {
                                     if (kDebugMode) {
-                                      debugPrint('⚠️ No image selected');
+                                      debugPrint(
+                                        '⚠️ No image selected or URL provided',
+                                      );
                                     }
                                   }
 
@@ -3571,66 +3630,81 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                   try {
                                     if (kDebugMode) {
-                                      debugPrint('💾 Saving product to Firestore...');
+                                      debugPrint(
+                                        '💾 Saving product to Firestore...',
+                                      );
                                       debugPrint('Image URL: $finalImageUrl');
                                     }
-                                    
+
                                     final productData = <String, dynamic>{
                                       'title': titleController.text,
                                       'price': price,
                                       'stock': stock,
                                       'minStock': minStock,
                                       'category': selectedCategory,
-                                      'createdAt':
-                                          FieldValue.serverTimestamp(),
-                                      'updatedAt':
-                                          FieldValue.serverTimestamp(),
+                                      'createdAt': FieldValue.serverTimestamp(),
+                                      'updatedAt': FieldValue.serverTimestamp(),
                                     };
-                                    
+
                                     // Only add imageUrl if it's not null and not empty
-                                    if (finalImageUrl != null && finalImageUrl.isNotEmpty) {
+                                    if (finalImageUrl != null &&
+                                        finalImageUrl.isNotEmpty) {
                                       productData['imageUrl'] = finalImageUrl;
                                       if (kDebugMode) {
-                                        debugPrint('✅ Image URL added to product data');
+                                        debugPrint(
+                                          '✅ Image URL added to product data',
+                                        );
                                       }
                                     } else {
                                       if (kDebugMode) {
                                         debugPrint('⚠️ No image URL to save');
                                       }
                                     }
-                                    
-                                    final productRef = await FirebaseFirestore.instance
+
+                                    final productRef = await FirebaseFirestore
+                                        .instance
                                         .collection('products')
                                         .add(productData);
-                                    
+
                                     if (kDebugMode) {
-                                      debugPrint('✅ Product saved successfully');
+                                      debugPrint(
+                                        '✅ Product saved successfully',
+                                      );
                                     }
 
                                     // Log product creation activity
                                     try {
-                                      final user = FirebaseAuth.instance.currentUser;
+                                      final user =
+                                          FirebaseAuth.instance.currentUser;
                                       if (user != null) {
-                                        final userDoc = await FirebaseFirestore.instance
+                                        final userDoc = await FirebaseFirestore
+                                            .instance
                                             .collection('users')
                                             .doc(user.uid)
                                             .get();
-                                        final userData = userDoc.data() as Map<String, dynamic>?;
-                                        final userName = (userData?['fullName'] as String?) ??
+                                        final userData =
+                                            userDoc.data()
+                                                as Map<String, dynamic>?;
+                                        final userName =
+                                            (userData?['fullName']
+                                                as String?) ??
                                             (userData?['name'] as String?) ??
                                             user.email?.split('@')[0] ??
                                             'Admin';
-                                        
-                                        await ActivityLogService().logProductCreate(
-                                          userId: user.uid,
-                                          userName: userName,
-                                          productId: productRef.id,
-                                          productName: titleController.text,
-                                        );
+
+                                        await ActivityLogService()
+                                            .logProductCreate(
+                                              userId: user.uid,
+                                              userName: userName,
+                                              productId: productRef.id,
+                                              productName: titleController.text,
+                                            );
                                       }
                                     } catch (e) {
                                       if (kDebugMode) {
-                                        debugPrint('⚠️ Error logging product creation: $e');
+                                        debugPrint(
+                                          '⚠️ Error logging product creation: $e',
+                                        );
                                       }
                                     }
 
@@ -3859,7 +3933,8 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                 ? Future.value(_selectedImageBytes)
                                 : _selectedImage!.readAsBytes(),
                             builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
+                              if (snapshot.connectionState ==
+                                  ConnectionState.waiting) {
                                 return Container(
                                   height: 150,
                                   width: double.infinity,
@@ -4169,17 +4244,21 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                     try {
                                       // Use cached bytes if available, otherwise read from XFile
-                                      final Uint8List imageBytes = _selectedImageBytes ?? await _selectedImage!.readAsBytes();
-                                      
+                                      final Uint8List imageBytes =
+                                          _selectedImageBytes ??
+                                          await _selectedImage!.readAsBytes();
+
                                       // Generate storage path
-                                      final storagePath = 'products/${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg';
+                                      final storagePath =
+                                          'products/${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg';
 
                                       // Use centralized service that works on both web and mobile
-                                      finalImageUrl = await FirebaseStorageService.uploadImageBytes(
-                                        imageBytes: imageBytes,
-                                        storagePath: storagePath,
-                                        contentType: 'image/jpeg',
-                                      );
+                                      finalImageUrl =
+                                          await FirebaseStorageService.uploadImageBytes(
+                                            imageBytes: imageBytes,
+                                            storagePath: storagePath,
+                                            contentType: 'image/jpeg',
+                                          );
 
                                       setDialogState(() {
                                         _uploadingImage = false;
@@ -4233,12 +4312,15 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     }
 
                                     // Get old product data for logging
-                                    final oldProductDoc = await FirebaseFirestore.instance
-                                        .collection('products')
-                                        .doc(productId)
-                                        .get();
-                                    final oldProductData = oldProductDoc.data() as Map<String, dynamic>?;
-                                    
+                                    final oldProductDoc =
+                                        await FirebaseFirestore.instance
+                                            .collection('products')
+                                            .doc(productId)
+                                            .get();
+                                    final oldProductData =
+                                        oldProductDoc.data()
+                                            as Map<String, dynamic>?;
+
                                     await FirebaseFirestore.instance
                                         .collection('products')
                                         .doc(productId)
@@ -4246,37 +4328,59 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                     // Log product update activity
                                     try {
-                                      final user = FirebaseAuth.instance.currentUser;
+                                      final user =
+                                          FirebaseAuth.instance.currentUser;
                                       if (user != null) {
-                                        final userDoc = await FirebaseFirestore.instance
+                                        final userDoc = await FirebaseFirestore
+                                            .instance
                                             .collection('users')
                                             .doc(user.uid)
                                             .get();
-                                        final userData = userDoc.data() as Map<String, dynamic>?;
-                                        final userName = (userData?['fullName'] as String?) ??
+                                        final userData =
+                                            userDoc.data()
+                                                as Map<String, dynamic>?;
+                                        final userName =
+                                            (userData?['fullName']
+                                                as String?) ??
                                             (userData?['name'] as String?) ??
                                             user.email?.split('@')[0] ??
                                             'Admin';
-                                        
-                                        final productName = nameController.text.trim();
-                                        
+
+                                        final productName = nameController.text
+                                            .trim();
+
                                         // Log changes for key fields
                                         if (oldProductData != null) {
-                                          final oldName = (oldProductData['name'] as String?) ?? (oldProductData['title'] as String?) ?? '';
-                                          final oldPrice = (oldProductData['price'] as num?)?.toDouble() ?? 0.0;
-                                          final oldStock = (oldProductData['stock'] as num?)?.toInt() ?? 0;
-                                          final oldCategory = oldProductData['category'] as String? ?? '';
-                                          
+                                          final oldName =
+                                              (oldProductData['name']
+                                                  as String?) ??
+                                              (oldProductData['title']
+                                                  as String?) ??
+                                              '';
+                                          final oldPrice =
+                                              (oldProductData['price'] as num?)
+                                                  ?.toDouble() ??
+                                              0.0;
+                                          final oldStock =
+                                              (oldProductData['stock'] as num?)
+                                                  ?.toInt() ??
+                                              0;
+                                          final oldCategory =
+                                              oldProductData['category']
+                                                  as String? ??
+                                              '';
+
                                           if (oldName != productName) {
-                                            await ActivityLogService().logProductUpdate(
-                                              userId: user.uid,
-                                              userName: userName,
-                                              productId: productId,
-                                              productName: productName,
-                                              fieldChanged: 'name',
-                                              oldValue: oldName,
-                                              newValue: productName,
-                                            );
+                                            await ActivityLogService()
+                                                .logProductUpdate(
+                                                  userId: user.uid,
+                                                  userName: userName,
+                                                  productId: productId,
+                                                  productName: productName,
+                                                  fieldChanged: 'name',
+                                                  oldValue: oldName,
+                                                  newValue: productName,
+                                                );
                                           }
                                           if (oldPrice != price) {
                                             await ActivityLogService().logProductUpdate(
@@ -4285,45 +4389,52 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                               productId: productId,
                                               productName: productName,
                                               fieldChanged: 'price',
-                                              oldValue: '₱${oldPrice.toStringAsFixed(2)}',
-                                              newValue: '₱${price.toStringAsFixed(2)}',
+                                              oldValue:
+                                                  '₱${oldPrice.toStringAsFixed(2)}',
+                                              newValue:
+                                                  '₱${price.toStringAsFixed(2)}',
                                             );
                                           }
                                           if (oldStock != stock) {
-                                            await ActivityLogService().logProductUpdate(
-                                              userId: user.uid,
-                                              userName: userName,
-                                              productId: productId,
-                                              productName: productName,
-                                              fieldChanged: 'stock',
-                                              oldValue: oldStock.toString(),
-                                              newValue: stock.toString(),
-                                            );
+                                            await ActivityLogService()
+                                                .logProductUpdate(
+                                                  userId: user.uid,
+                                                  userName: userName,
+                                                  productId: productId,
+                                                  productName: productName,
+                                                  fieldChanged: 'stock',
+                                                  oldValue: oldStock.toString(),
+                                                  newValue: stock.toString(),
+                                                );
                                           }
                                           if (oldCategory != selectedCategory) {
-                                            await ActivityLogService().logProductUpdate(
-                                              userId: user.uid,
-                                              userName: userName,
-                                              productId: productId,
-                                              productName: productName,
-                                              fieldChanged: 'category',
-                                              oldValue: oldCategory,
-                                              newValue: selectedCategory,
-                                            );
+                                            await ActivityLogService()
+                                                .logProductUpdate(
+                                                  userId: user.uid,
+                                                  userName: userName,
+                                                  productId: productId,
+                                                  productName: productName,
+                                                  fieldChanged: 'category',
+                                                  oldValue: oldCategory,
+                                                  newValue: selectedCategory,
+                                                );
                                           }
                                         } else {
                                           // If no old data, just log general update
-                                          await ActivityLogService().logProductUpdate(
-                                            userId: user.uid,
-                                            userName: userName,
-                                            productId: productId,
-                                            productName: productName,
-                                          );
+                                          await ActivityLogService()
+                                              .logProductUpdate(
+                                                userId: user.uid,
+                                                userName: userName,
+                                                productId: productId,
+                                                productName: productName,
+                                              );
                                         }
                                       }
                                     } catch (e) {
                                       if (kDebugMode) {
-                                        debugPrint('⚠️ Error logging product update: $e');
+                                        debugPrint(
+                                          '⚠️ Error logging product update: $e',
+                                        );
                                       }
                                     }
 
@@ -4403,16 +4514,17 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                   .doc(productId)
                   .get();
               final productData = productDoc.data() as Map<String, dynamic>?;
-              final productName = (productData?['name'] as String?) ?? 
-                                  (productData?['title'] as String?) ?? 
-                                  'Unknown Product';
-              
+              final productName =
+                  (productData?['name'] as String?) ??
+                  (productData?['title'] as String?) ??
+                  'Unknown Product';
+
               Navigator.pop(context);
               await FirebaseFirestore.instance
                   .collection('products')
                   .doc(productId)
                   .delete();
-              
+
               // Log product deletion activity
               try {
                 final user = FirebaseAuth.instance.currentUser;
@@ -4422,11 +4534,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       .doc(user.uid)
                       .get();
                   final userData = userDoc.data() as Map<String, dynamic>?;
-                  final userName = (userData?['fullName'] as String?) ??
+                  final userName =
+                      (userData?['fullName'] as String?) ??
                       (userData?['name'] as String?) ??
                       user.email?.split('@')[0] ??
                       'Admin';
-                  
+
                   await ActivityLogService().logProductDelete(
                     userId: user.uid,
                     userName: userName,
@@ -4439,7 +4552,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                   debugPrint('⚠️ Error logging product deletion: $e');
                 }
               }
-              
+
               if (context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Product deleted')),
@@ -4498,11 +4611,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                     .get();
                 final productData = productDoc.data() as Map<String, dynamic>?;
                 final oldStock = (productData?['stock'] as num?)?.toInt() ?? 0;
-                final productName = (productData?['name'] as String?) ?? 
-                                    (productData?['title'] as String?) ?? 
-                                    'Unknown Product';
+                final productName =
+                    (productData?['name'] as String?) ??
+                    (productData?['title'] as String?) ??
+                    'Unknown Product';
                 final newStock = oldStock + quantity;
-                
+
                 await FirebaseFirestore.instance
                     .collection('products')
                     .doc(productId)
@@ -4510,7 +4624,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       'stock': FieldValue.increment(quantity),
                       'updatedAt': FieldValue.serverTimestamp(),
                     });
-                
+
                 // Log restock activity
                 try {
                   final user = FirebaseAuth.instance.currentUser;
@@ -4520,11 +4634,12 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                         .doc(user.uid)
                         .get();
                     final userData = userDoc.data() as Map<String, dynamic>?;
-                    final userName = (userData?['fullName'] as String?) ??
+                    final userName =
+                        (userData?['fullName'] as String?) ??
                         (userData?['name'] as String?) ??
                         user.email?.split('@')[0] ??
                         'Admin';
-                    
+
                     await ActivityLogService().logProductUpdate(
                       userId: user.uid,
                       userName: userName,
@@ -4540,7 +4655,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                     debugPrint('⚠️ Error logging restock: $e');
                   }
                 }
-                
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Restocked $quantity units')),
@@ -4641,7 +4756,8 @@ class _PosPage extends StatelessWidget {
                   final doc = orders[index];
                   final data = doc.data() as Map<String, dynamic>;
                   final orderId = doc.id;
-                  final fallbackCustomerName = data['customerName'] ?? 'Unknown';
+                  final fallbackCustomerName =
+                      data['customerName'] ?? 'Unknown';
                   final customerId = data['customerId'] as String?;
                   // Get totalPrice from Firestore, or compute from items if missing
                   // Read totalPrice with null safety: default to 0 if missing
@@ -4704,17 +4820,24 @@ class _PosPage extends StatelessWidget {
                                     FutureBuilder<DocumentSnapshot>(
                                       future: customerId != null
                                           ? FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(customerId)
-                                              .get()
+                                                .collection('users')
+                                                .doc(customerId)
+                                                .get()
                                           : null,
                                       builder: (context, snapshot) {
-                                        String displayName = fallbackCustomerName;
-                                        if (snapshot.hasData && snapshot.data!.exists) {
-                                          final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                                          displayName = (userData?['fullName'] as String?) ??
+                                        String displayName =
+                                            fallbackCustomerName;
+                                        if (snapshot.hasData &&
+                                            snapshot.data!.exists) {
+                                          final userData =
+                                              snapshot.data!.data()
+                                                  as Map<String, dynamic>?;
+                                          displayName =
+                                              (userData?['fullName']
+                                                  as String?) ??
                                               (userData?['name'] as String?) ??
-                                              (userData?['customerName'] as String?) ??
+                                              (userData?['customerName']
+                                                  as String?) ??
                                               fallbackCustomerName;
                                         }
                                         return Text(
@@ -6104,7 +6227,8 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
     bool isMobile = false,
   }) {
     final status = (order['status'] as String?) ?? 'pending';
-    final fallbackCustomerName = (order['customerName'] as String?) ?? 'Unknown';
+    final fallbackCustomerName =
+        (order['customerName'] as String?) ?? 'Unknown';
     final customerId = order['customerId'] as String?;
     final items = (order['items'] as List<dynamic>?) ?? [];
     final createdAt = order['createdAt'] as Timestamp?;
@@ -6263,15 +6387,17 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                       FutureBuilder<DocumentSnapshot>(
                         future: customerId != null
                             ? FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(customerId)
-                                .get()
+                                  .collection('users')
+                                  .doc(customerId)
+                                  .get()
                             : null,
                         builder: (context, snapshot) {
                           String displayName = fallbackCustomerName;
                           if (snapshot.hasData && snapshot.data!.exists) {
-                            final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                            displayName = (userData?['fullName'] as String?) ??
+                            final userData =
+                                snapshot.data!.data() as Map<String, dynamic>?;
+                            displayName =
+                                (userData?['fullName'] as String?) ??
                                 (userData?['name'] as String?) ??
                                 (userData?['customerName'] as String?) ??
                                 fallbackCustomerName;
@@ -6669,7 +6795,8 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                   .doc(user.uid)
                   .get();
               final userData = userDoc.data() as Map<String, dynamic>?;
-              userName = (userData?['fullName'] as String?) ??
+              userName =
+                  (userData?['fullName'] as String?) ??
                   (userData?['name'] as String?) ??
                   user.email?.split('@')[0] ??
                   'Admin';
@@ -6677,9 +6804,9 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
               userName = user.email?.split('@')[0] ?? 'Admin';
             }
           }
-          
+
           final customerName = orderData['customerName'] as String?;
-          
+
           // Update order status
           await FirebaseFirestore.instance
               .collection('orders')
@@ -6690,7 +6817,7 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                 // keep alias fields in sync for compatibility
                 'statusLabel': label,
               });
-          
+
           // Log order status change activity
           if (user != null && userName != null) {
             try {
@@ -7221,18 +7348,21 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
                                   .collection('users')
                                   .doc(user.uid)
                                   .get();
-                              final userData = userDoc.data() as Map<String, dynamic>?;
-                              final userName = (userData?['fullName'] as String?) ??
+                              final userData =
+                                  userDoc.data() as Map<String, dynamic>?;
+                              final userName =
+                                  (userData?['fullName'] as String?) ??
                                   (userData?['name'] as String?) ??
                                   user.email?.split('@')[0] ??
                                   'Admin';
-                              
-                              final targetUserName = (staff['fullName'] as String?) ??
+
+                              final targetUserName =
+                                  (staff['fullName'] as String?) ??
                                   (staff['name'] as String?) ??
                                   (staff['customerName'] as String?) ??
                                   (staff['email'] as String?) ??
                                   'Unknown User';
-                              
+
                               await ActivityLogService().logUserUpdate(
                                 userId: user.uid,
                                 userName: userName,
@@ -7245,7 +7375,9 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
                             }
                           } catch (logError) {
                             if (kDebugMode) {
-                              debugPrint('⚠️ Error logging user role update: $logError');
+                              debugPrint(
+                                '⚠️ Error logging user role update: $logError',
+                              );
                             }
                           }
 
@@ -7530,7 +7662,10 @@ class _FeedbackPage extends StatelessWidget {
     );
   }
 
-  static Future<void> _deleteRating(BuildContext context, String orderId) async {
+  static Future<void> _deleteRating(
+    BuildContext context,
+    String orderId,
+  ) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -7545,9 +7680,7 @@ class _FeedbackPage extends StatelessWidget {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.error,
-            ),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Delete'),
           ),
         ],
@@ -7633,15 +7766,17 @@ class _FeedbackPage extends StatelessWidget {
                       FutureBuilder<DocumentSnapshot>(
                         future: customerId != null && customerId.isNotEmpty
                             ? FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(customerId)
-                                .get()
+                                  .collection('users')
+                                  .doc(customerId)
+                                  .get()
                             : null,
                         builder: (context, snapshot) {
                           String displayName = fallbackCustomerName;
                           if (snapshot.hasData && snapshot.data!.exists) {
-                            final userData = snapshot.data!.data() as Map<String, dynamic>?;
-                            displayName = (userData?['fullName'] as String?) ??
+                            final userData =
+                                snapshot.data!.data() as Map<String, dynamic>?;
+                            displayName =
+                                (userData?['fullName'] as String?) ??
                                 (userData?['name'] as String?) ??
                                 (userData?['customerName'] as String?) ??
                                 fallbackCustomerName;
@@ -7705,10 +7840,7 @@ class _FeedbackPage extends StatelessWidget {
               width: double.infinity,
               child: OutlinedButton.icon(
                 onPressed: () => _deleteRating(context, orderId),
-                icon: const Icon(
-                  Icons.delete_outline,
-                  size: 18,
-                ),
+                icon: const Icon(Icons.delete_outline, size: 18),
                 label: const Text('Delete Rating'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.error,
@@ -8119,14 +8251,13 @@ class _SettingsPage extends StatelessWidget {
     final emailController = TextEditingController(text: user.email ?? '');
 
     // Fetch current name from Firestore
-    FirebaseFirestore.instance
-        .collection('users')
-        .doc(user.uid)
-        .get()
-        .then((doc) {
+    FirebaseFirestore.instance.collection('users').doc(user.uid).get().then((
+      doc,
+    ) {
       if (doc.exists) {
         final userData = doc.data() ?? {};
-        final currentName = (userData['fullName'] as String?) ??
+        final currentName =
+            (userData['fullName'] as String?) ??
             (userData['name'] as String?) ??
             (userData['customerName'] as String?) ??
             user.displayName ??
@@ -8179,10 +8310,7 @@ class _SettingsPage extends StatelessWidget {
                   await FirebaseFirestore.instance
                       .collection('users')
                       .doc(user.uid)
-                      .update({
-                    'fullName': newName,
-                    'name': newName,
-                  });
+                      .update({'fullName': newName, 'name': newName});
                   if (context.mounted) {
                     Navigator.pop(context);
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -9272,12 +9400,13 @@ class _SettingsPage extends StatelessWidget {
               .get();
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
-            final userName = (userData['name'] as String?) ??
+            final userName =
+                (userData['name'] as String?) ??
                 (userData['fullName'] as String?) ??
                 (userData['customerName'] as String?) ??
                 (userData['email'] as String?) ??
                 'Unknown User';
-            
+
             await FirebaseFirestore.instance.collection('activity_logs').add({
               'userId': user.uid,
               'userName': userName,
@@ -9297,7 +9426,7 @@ class _SettingsPage extends StatelessWidget {
           debugPrint('Error logging logout activity: $e');
         }
       }
-      
+
       try {
         // Try provider signOut first (clears app state)
         await context.read<app_auth.AuthProvider>().signOut();

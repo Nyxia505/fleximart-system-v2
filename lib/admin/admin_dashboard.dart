@@ -24,10 +24,15 @@ import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
 import '../widgets/product_image_widget.dart';
-import '../services/firebase_storage_service.dart';
+import '../services/cloudinary_service.dart';
 import '../services/product_service.dart';
 import '../services/activity_log_service.dart';
 import 'activity_log_page.dart';
+
+// Cloudinary Configuration
+// TODO: Replace with your actual Cloudinary cloud name
+const String _cloudinaryCloudName =
+    'your-cloud-name'; // Update this with your Cloudinary cloud name
 
 // Official theme colors - New Theme
 class AdminThemeColors {
@@ -3548,33 +3553,23 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                         );
                                       }
 
-                                      // Use cached bytes if available, otherwise read from XFile
-                                      final Uint8List imageBytes =
-                                          _selectedImageBytes ??
-                                          await _selectedImage!.readAsBytes();
-
                                       if (kDebugMode) {
                                         debugPrint(
-                                          '📦 Image bytes: ${imageBytes.length} bytes',
+                                          '☁️ Uploading image to Cloudinary...',
                                         );
                                       }
 
-                                      // Generate storage path
-                                      final storagePath =
-                                          'products/${DateTime.now().millisecondsSinceEpoch}_${titleController.text.replaceAll(' ', '_')}.jpg';
+                                      // Initialize Cloudinary service and upload image
+                                      final cloudinaryService =
+                                          CloudinaryService(
+                                            cloudName: _cloudinaryCloudName,
+                                          );
 
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                          '📁 Storage path: $storagePath',
-                                        );
-                                      }
-
-                                      // Use centralized service that works on both web and mobile
-                                      finalImageUrl =
-                                          await FirebaseStorageService.uploadImageBytes(
-                                            imageBytes: imageBytes,
-                                            storagePath: storagePath,
-                                            contentType: 'image/jpeg',
+                                      // Upload image to Cloudinary in 'products' folder
+                                      finalImageUrl = await cloudinaryService
+                                          .uploadImage(
+                                            _selectedImage!,
+                                            folder: 'products',
                                           );
 
                                       if (kDebugMode) {
@@ -4243,21 +4238,23 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      // Use cached bytes if available, otherwise read from XFile
-                                      final Uint8List imageBytes =
-                                          _selectedImageBytes ??
-                                          await _selectedImage!.readAsBytes();
+                                      if (kDebugMode) {
+                                        debugPrint(
+                                          '☁️ Uploading image to Cloudinary...',
+                                        );
+                                      }
 
-                                      // Generate storage path
-                                      final storagePath =
-                                          'products/${DateTime.now().millisecondsSinceEpoch}_${nameController.text.trim().replaceAll(' ', '_')}.jpg';
+                                      // Initialize Cloudinary service and upload image
+                                      final cloudinaryService =
+                                          CloudinaryService(
+                                            cloudName: _cloudinaryCloudName,
+                                          );
 
-                                      // Use centralized service that works on both web and mobile
-                                      finalImageUrl =
-                                          await FirebaseStorageService.uploadImageBytes(
-                                            imageBytes: imageBytes,
-                                            storagePath: storagePath,
-                                            contentType: 'image/jpeg',
+                                      // Upload image to Cloudinary in 'products' folder
+                                      finalImageUrl = await cloudinaryService
+                                          .uploadImage(
+                                            _selectedImage!,
+                                            folder: 'products',
                                           );
 
                                       setDialogState(() {

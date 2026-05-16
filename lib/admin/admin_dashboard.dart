@@ -24,15 +24,22 @@ import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
 import '../widgets/product_image_widget.dart';
-import '../services/cloudinary_service.dart';
+import '../services/firebase_storage_service.dart';
 import '../services/product_service.dart';
 import '../services/activity_log_service.dart';
 import 'activity_log_page.dart';
+import '../dialogs/add_account_dialog.dart';
 
-// Cloudinary Configuration
-// TODO: Replace with your actual Cloudinary cloud name
-const String _cloudinaryCloudName =
-    'your-cloud-name'; // Update this with your Cloudinary cloud name
+/// Upload product image to Firebase Storage (no Cloudinary required).
+Future<String> _uploadProductImage(Uint8List imageBytes) async {
+  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
+  final timestamp = DateTime.now().millisecondsSinceEpoch;
+  return FirebaseStorageService.uploadImageBytes(
+    imageBytes: imageBytes,
+    storagePath: 'product_images/${uid}_$timestamp.jpg',
+    contentType: 'image/jpeg',
+  );
+}
 
 // Official theme colors - New Theme
 class AdminThemeColors {
@@ -330,6 +337,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     }),
                   ),
                 ),
+              ),
+            ),
+            // Add Staff - Admin can create staff accounts
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: _NavTile(
+                icon: Icons.person_add,
+                label: 'Add Staff',
+                selected: false,
+                collapsed: _sidebarCollapsed,
+                onTap: () => showAddAccountDialog(context, creatorRole: 'admin'),
               ),
             ),
             // Profile Section - Pinned at bottom with proper spacing
@@ -3474,7 +3492,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                             border: OutlineInputBorder(),
                             hintText: 'https://example.com/image.jpg',
                             helperText:
-                                'Select an image above or enter a direct image URL (required)',
+                                'Optional: pick an image or paste a direct image URL',
                           ),
                         ),
                       ],
@@ -3513,20 +3531,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       int.tryParse(minStockController.text) ??
                                       10;
 
-                                  // Require either an uploaded image or a URL
-                                  if (_selectedImage == null &&
-                                      imageUrlController.text.trim().isEmpty) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text(
-                                          'Please select an image or enter an Image URL',
-                                        ),
-                                        backgroundColor: AppColors.error,
-                                      ),
-                                    );
-                                    return;
-                                  }
-
                                   if (price == null || price <= 0) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
@@ -3547,40 +3551,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                          '📤 Starting image upload...',
-                                        );
-                                      }
-
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                          '☁️ Uploading image to Cloudinary...',
-                                        );
-                                      }
-
-                                      // Initialize Cloudinary service and upload image
-                                      final cloudinaryService =
-                                          CloudinaryService(
-                                            cloudName: _cloudinaryCloudName,
-                                          );
-
-                                      // Upload image to Cloudinary in 'products' folder
-                                      finalImageUrl = await cloudinaryService
-                                          .uploadImage(
-                                            _selectedImage!,
-                                            folder: 'products',
-                                          );
-
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                          '✅ Image uploaded successfully!',
-                                        );
-                                        debugPrint(
-                                          '🔗 Download URL: $finalImageUrl',
-                                        );
-                                      }
-
+                                      final bytes = _selectedImageBytes ??
+                                          await _selectedImage!.readAsBytes();
+                                      finalImageUrl =
+                                          await _uploadProductImage(bytes);
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
@@ -3588,11 +3562,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
-
-                                      if (kDebugMode) {
-                                        debugPrint('❌ Image upload failed: $e');
-                                      }
-
                                       if (context.mounted) {
                                         ScaffoldMessenger.of(
                                           context,
@@ -4238,25 +4207,10 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                     });
 
                                     try {
-                                      if (kDebugMode) {
-                                        debugPrint(
-                                          '☁️ Uploading image to Cloudinary...',
-                                        );
-                                      }
-
-                                      // Initialize Cloudinary service and upload image
-                                      final cloudinaryService =
-                                          CloudinaryService(
-                                            cloudName: _cloudinaryCloudName,
-                                          );
-
-                                      // Upload image to Cloudinary in 'products' folder
-                                      finalImageUrl = await cloudinaryService
-                                          .uploadImage(
-                                            _selectedImage!,
-                                            folder: 'products',
-                                          );
-
+                                      final bytes = _selectedImageBytes ??
+                                          await _selectedImage!.readAsBytes();
+                                      finalImageUrl =
+                                          await _uploadProductImage(bytes);
                                       setDialogState(() {
                                         _uploadingImage = false;
                                       });
@@ -7102,9 +7056,9 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
                         ),
                         if (!isMobile)
                           ElevatedButton.icon(
-                            onPressed: () => _showAddStaffDialog(context),
+                            onPressed: () => showAddAccountDialog(context, creatorRole: 'admin'),
                             icon: const Icon(Icons.person_add, size: 18),
-                            label: const Text('Add Staff'),
+                            label: const Text('Add Account'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
@@ -7112,25 +7066,34 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
                           ),
                       ],
                     ),
-                    if (isMobile) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _showAddStaffDialog(context),
-                          icon: const Icon(Icons.person_add, size: 18),
-                          label: const Text('Add Staff'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                          ),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               );
+            },
+          ),
+          // Add Staff button for mobile
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 768;
+              if (isMobile) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () => showAddAccountDialog(context, creatorRole: 'admin'),
+                      icon: const Icon(Icons.person_add, size: 18),
+                      label: const Text('Add Account'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
             },
           ),
           // Content
@@ -7181,11 +7144,6 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
                     color: AppColors.textSecondary,
                     fontSize: 16,
                   ),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton(
-                  onPressed: () => _showAddStaffDialog(context),
-                  child: const Text('Add First Staff Member'),
                 ),
               ],
             ),
@@ -7274,14 +7232,6 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showAddStaffDialog(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Add staff functionality - requires Firebase Auth setup'),
       ),
     );
   }

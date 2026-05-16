@@ -21,6 +21,8 @@ dependencies:
   firebase_messaging: ^16.0.4
   cloud_functions: ^6.0.3
   http: ^1.2.2
+  emailjs: ^4.0.0
+  mailer: ^6.1.0
   lottie: ^3.3.2
   carousel_slider: ^5.0.0
   flutter_svg: ^2.0.10+1
@@ -45,3 +47,4 @@ flutter:
     - assets/logo.png
     - assets/welcome screen logo.png.png
     - assets/logo/
+    - assets/config/

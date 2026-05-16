@@ -14,6 +14,8 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool obscure = true;
   bool loading = false;
 
@@ -27,6 +29,8 @@ class _SignInScreenState extends State<SignInScreen> {
   void dispose() {
     emailController.dispose();
     passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -135,6 +139,9 @@ class _SignInScreenState extends State<SignInScreen> {
             hintText: 'Enter your email',
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
+            focusNode: _emailFocus,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
           ),
           const SizedBox(height: 24),
           // Password Field
@@ -144,6 +151,9 @@ class _SignInScreenState extends State<SignInScreen> {
             hintText: 'Enter your password',
             icon: Icons.lock_outline,
             obscureText: obscure,
+            focusNode: _passwordFocus,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitIfReady(),
             suffixIcon: IconButton(
               icon: Icon(
                 obscure ? Icons.visibility_off : Icons.visibility,
@@ -188,6 +198,12 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
+  void _submitIfReady() {
+    if (loading) return;
+    FocusScope.of(context).unfocus();
+    _handleSignIn();
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -196,6 +212,9 @@ class _SignInScreenState extends State<SignInScreen> {
     TextInputType? keyboardType,
     bool obscureText = false,
     Widget? suffixIcon,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onFieldSubmitted,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,8 +234,11 @@ class _SignInScreenState extends State<SignInScreen> {
           width: double.infinity,
           child: TextFormField(
             controller: controller,
+            focusNode: focusNode,
             obscureText: obscureText,
             keyboardType: keyboardType,
+            textInputAction: textInputAction,
+            onFieldSubmitted: onFieldSubmitted,
             style: const TextStyle(
               fontSize: 16,
               color: Color(0xFF1B3B53),

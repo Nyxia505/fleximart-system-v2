@@ -15,9 +15,9 @@ import '../utils/price_formatter.dart';
 import '../services/notification_service.dart';
 import '../services/order_service.dart';
 import '../services/product_service.dart';
-import '../utils/role_helper.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
+import '../dialogs/add_account_dialog.dart';
 
 // Official theme colors - Staff Theme (Bright Red)
 // Staff uses brighter, more vibrant red palette to differentiate from admin's deeper wine red
@@ -53,56 +53,11 @@ class StaffDashboard extends StatefulWidget {
 class _StaffDashboardState extends State<StaffDashboard> {
   int _selectedIndex = 0;
   bool _sidebarCollapsed = false;
-  bool _isCheckingRole = true;
-  String? _userRole;
-  String? _errorMessage;
 
   @override
   void initState() {
     super.initState();
-    _checkRole();
-  }
-
-  Future<void> _checkRole() async {
-    try {
-      final role = await RoleHelper.getUserRole();
-
-      if (role == null) {
-        if (mounted) {
-          setState(() {
-            _isCheckingRole = false;
-            _errorMessage =
-                'Your account does not have assigned permissions. Please contact the system administrator.';
-          });
-        }
-        return;
-      }
-
-      if (role != 'staff') {
-        if (mounted) {
-          setState(() {
-            _isCheckingRole = false;
-            _errorMessage =
-                'Access denied. Staff dashboard requires staff role, but your role is: $role';
-          });
-        }
-        return;
-      }
-
-      if (mounted) {
-        setState(() {
-          _isCheckingRole = false;
-          _userRole = role;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isCheckingRole = false;
-          _errorMessage = 'Error checking permissions: $e';
-        });
-      }
-    }
+    // No need to check role again - AuthGate already verified and routed correctly
   }
 
   final List<Map<String, dynamic>> _navItems = [
@@ -129,45 +84,6 @@ class _StaffDashboardState extends State<StaffDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    // Check role before loading dashboard
-    if (_isCheckingRole) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    }
-
-    // Show error if role is invalid
-    if (_errorMessage != null || _userRole != 'staff') {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64, color: Colors.red),
-                const SizedBox(height: 16),
-                Text(
-                  _errorMessage ??
-                      'Access denied. Staff dashboard requires staff role.',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (mounted) {
-                      Navigator.of(context).pushReplacementNamed('/login');
-                    }
-                  },
-                  child: const Text('Return to Login'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     // Use a more stable breakpoint to prevent layout shifts when resizing
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobileLayout =
@@ -397,6 +313,17 @@ class _StaffDashboardState extends State<StaffDashboard> {
                 ),
               ),
             ),
+            // Add Account button (Staff can create other staff accounts)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: _NavTile(
+                icon: Icons.person_add,
+                label: 'Add Account',
+                selected: false,
+                collapsed: _sidebarCollapsed,
+                onTap: () => showAddAccountDialog(context, creatorRole: 'staff'),
+              ),
+            ),
             // Profile Section - Pinned at bottom with proper spacing
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -608,6 +535,20 @@ class _StaffDashboardState extends State<StaffDashboard> {
                       }),
                     ),
                   ),
+                ),
+              ),
+              // Add Account - Staff can create other staff accounts
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                child: _NavTile(
+                  icon: Icons.person_add,
+                  label: 'Add Account',
+                  selected: false,
+                  collapsed: false,
+                  onTap: () {
+                    Navigator.pop(context);
+                    showAddAccountDialog(context, creatorRole: 'staff');
+                  },
                 ),
               ),
               // Profile Section - Pinned at bottom with proper spacing

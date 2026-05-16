@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../services/email_verification_service.dart';
-import 'signup_verify_otp_screen.dart';
+import 'signup_check_email_screen.dart';
 import 'dart:math' as math;
 
 class SignUpScreen extends StatefulWidget {
@@ -15,6 +15,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
+  final _fullNameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmPasswordFocus = FocusNode();
   bool obscure = true;
   bool obscureConfirmPassword = true;
   bool loading = false;
@@ -37,6 +41,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
     emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
+    _fullNameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmPasswordFocus.dispose();
     super.dispose();
   }
 
@@ -145,6 +153,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             label: 'Full Name',
             hintText: 'Enter your full name',
             icon: Icons.person_outline,
+            focusNode: _fullNameFocus,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _emailFocus.requestFocus(),
           ),
           const SizedBox(height: 24),
           // Email Field
@@ -154,6 +165,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             hintText: 'Enter your email',
             icon: Icons.email_outlined,
             keyboardType: TextInputType.emailAddress,
+            focusNode: _emailFocus,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
           ),
           const SizedBox(height: 24),
           // Password Field
@@ -166,6 +180,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
             hintText: 'Confirm your password',
             icon: Icons.lock_outline,
             obscureText: obscureConfirmPassword,
+            focusNode: _confirmPasswordFocus,
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) => _submitIfReady(),
             suffixIcon: IconButton(
               icon: Icon(
                 obscureConfirmPassword
@@ -190,6 +207,12 @@ class _SignUpScreenState extends State<SignUpScreen> {
     );
   }
 
+  void _submitIfReady() {
+    if (loading) return;
+    FocusScope.of(context).unfocus();
+    _handleSignUp();
+  }
+
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -198,6 +221,9 @@ class _SignUpScreenState extends State<SignUpScreen> {
     TextInputType? keyboardType,
     bool obscureText = false,
     Widget? suffixIcon,
+    FocusNode? focusNode,
+    TextInputAction? textInputAction,
+    ValueChanged<String>? onFieldSubmitted,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,8 +243,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
           width: double.infinity,
           child: TextFormField(
             controller: controller,
+            focusNode: focusNode,
             obscureText: obscureText,
             keyboardType: keyboardType,
+            textInputAction: textInputAction,
+            onFieldSubmitted: onFieldSubmitted,
             style: const TextStyle(
               fontSize: 16,
               color: Colors.black,
@@ -384,12 +413,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       setState(() => loading = false);
 
-      // Navigate to OTP verification screen
       if (!mounted) return;
-      Navigator.push(
+      Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => SignupVerifyOtpScreen(
+          builder: (context) => SignupCheckEmailScreen(
             email: email,
             fullName: fullName,
             password: password,
@@ -399,24 +427,27 @@ class _SignUpScreenState extends State<SignUpScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      String errorMessage = 'Failed to send verification code';
-      String errorString = e.toString();
+      final errorLower = e.toString().toLowerCase();
 
-      if (errorString.contains('wait')) {
-        errorMessage = errorString.replaceFirst('Exception: ', '');
-      } else if (errorString.contains('email')) {
-        errorMessage =
-            'Failed to send verification code. Please check your email address.';
-      } else if (errorString.contains('network') ||
-          errorString.contains('timeout')) {
+      if (errorLower.contains('wait') && errorLower.contains('second')) {
+        _showError(e.toString().replaceFirst('Exception: ', ''));
+        setState(() => loading = false);
+        return;
+      }
+
+      String errorMessage = e.toString().replaceFirst('Exception: ', '');
+      if (errorMessage.isEmpty) {
+        errorMessage = 'Failed to send verification code';
+      }
+      if (errorLower.contains('network') || errorLower.contains('timeout')) {
         errorMessage =
             'Network error. Please check your internet connection and try again.';
-      } else if (errorString.contains('already') ||
-          errorString.contains('exists')) {
+      } else if (errorLower.contains('already') || errorLower.contains('exists')) {
         errorMessage =
             'An account with this email already exists. Please sign in instead.';
       } else {
-        errorMessage = 'Something went wrong. Please try again.';
+        errorMessage =
+            'Could not send verification email. Check your address and try again.';
       }
 
       _showError(errorMessage);
@@ -498,7 +529,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
           width: double.infinity,
           child: TextFormField(
             controller: passwordController,
+            focusNode: _passwordFocus,
             obscureText: obscure,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => _confirmPasswordFocus.requestFocus(),
             onChanged: (value) {
               _checkPasswordStrength(value);
             },

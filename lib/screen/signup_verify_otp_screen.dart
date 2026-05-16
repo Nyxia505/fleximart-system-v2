@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import '../services/email_verification_service.dart';
+import '../services/email_service.dart';
 import '../constants/app_colors.dart';
 import '../services/otp_popup_service.dart';
 
@@ -230,13 +231,25 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
           throw Exception('Failed to save user data. Please try again.');
         },
       );
+
+      // Notify user by email that their account is confirmed
+      try {
+        await EmailService.sendAccountConfirmedEmail(
+          toEmail: widget.email,
+          toName: widget.fullName,
+        );
+      } catch (_) {
+        // Account is valid even if confirmation email fails
+      }
       
       if (!mounted) return;
 
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Account created successfully! You can now sign in.'),
+          content: Text(
+            'Account confirmed! Check your email for a welcome message. You can now sign in.',
+          ),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
@@ -266,6 +279,9 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
           errorMessage = 'The password is too weak';
         } else if (e.code == 'invalid-email') {
           errorMessage = 'Invalid email address';
+        } else if (e.code == 'internal') {
+          errorMessage =
+              'Account creation failed. Please check your connection and try again, or contact support.';
         }
       }
 

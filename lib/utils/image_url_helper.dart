@@ -29,6 +29,37 @@ class ImageUrlHelper {
     }
   }
 
+  /// Appends a cache-bust query param without re-encoding the URL path.
+  static String withCacheBust(String url, String token) {
+    final uri = Uri.parse(url);
+    final params = Map<String, String>.from(uri.queryParameters);
+    params['_t'] = token;
+    return uri.replace(queryParameters: params).toString();
+  }
+
+  /// Decodes a Firebase Storage object path (handles double-encoded segments).
+  static String decodeFirebaseStoragePath(String pathOrUrl) {
+    var path = pathOrUrl.trim();
+    if (path.contains('firebasestorage.googleapis.com')) {
+      final uri = Uri.parse(path);
+      final match = RegExp(r'/o/(.+)$').firstMatch(uri.path);
+      if (match != null) {
+        path = match.group(1)!;
+      }
+    }
+    for (var i = 0; i < 3; i++) {
+      final decoded = Uri.decodeComponent(path);
+      if (decoded == path) break;
+      path = decoded;
+    }
+    return path;
+  }
+
+  /// True when URL path looks double-encoded (e.g. %252F instead of %2F).
+  static bool isDoubleEncodedFirebaseUrl(String url) {
+    return url.contains('%252F') || url.contains('%2525');
+  }
+
   /// Checks if a URL is valid and can be used for image loading.
   static bool isValidImageUrl(String? url) {
     if (url == null || url.isEmpty) {

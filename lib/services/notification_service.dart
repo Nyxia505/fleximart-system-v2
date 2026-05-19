@@ -5,6 +5,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../utils/price_formatter.dart';
+import 'otp_popup_service.dart';
 
 /// Notification Service
 ///
@@ -57,15 +58,19 @@ class NotificationService {
     }
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-      // Check if this is an OTP notification - handle it separately
       final data = message.data;
-      if (data['type'] == 'otp_verification' && context != null) {
-        // OTP notifications are handled by OtpPopupService
-        // Don't show regular notification, popup will be shown instead
+      if (data['type'] == 'otp_verification') {
+        final otp = data['otp'] as String? ?? '';
+        await showOtpVerificationNotification(
+          otpCode: otp,
+          email: data['email'] as String? ?? '',
+        );
+        if (otp.isNotEmpty) {
+          OtpPopupService.instance.onOtpReceived?.call(otp);
+        }
         return;
       }
-      
-      // Show regular notification for other types
+
       await showRemoteNotification(message);
     });
 
@@ -107,6 +112,32 @@ class NotificationService {
       body,
       details,
       payload: message.data['route'],
+    );
+  }
+
+  /// Shows OTP in the device notification tray (not in-app dialog).
+  Future<void> showOtpVerificationNotification({
+    required String otpCode,
+    required String email,
+  }) async {
+    if (kIsWeb || otpCode.isEmpty) return;
+
+    await init();
+
+    const androidDetails = AndroidNotificationDetails(
+      'high_importance_channel',
+      'High Importance Notifications',
+      channelDescription: 'Important notifications for FlexiMart',
+      importance: Importance.high,
+      priority: Priority.high,
+      icon: '@mipmap/ic_launcher',
+    );
+
+    await _flutterLocalNotificationsPlugin.show(
+      otpCode.hashCode,
+      'FlexiMart Verification Code',
+      'Your verification code is: $otpCode',
+      const NotificationDetails(android: androidDetails),
     );
   }
 

@@ -23,23 +23,20 @@ import 'package:intl/intl.dart';
 import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
+import '../widgets/user_profile_avatar.dart';
+import '../widgets/profile_picture_widget.dart';
+import '../utils/profile_pic_utils.dart';
 import '../widgets/product_image_widget.dart';
-import '../services/firebase_storage_service.dart';
+import '../services/product_image_upload_service.dart';
 import '../services/product_service.dart';
+import '../utils/product_image_utils.dart';
 import '../services/activity_log_service.dart';
 import 'activity_log_page.dart';
 import '../dialogs/add_account_dialog.dart';
-
-/// Upload product image to Firebase Storage (no Cloudinary required).
-Future<String> _uploadProductImage(Uint8List imageBytes) async {
-  final uid = FirebaseAuth.instance.currentUser?.uid ?? 'unknown';
-  final timestamp = DateTime.now().millisecondsSinceEpoch;
-  return FirebaseStorageService.uploadImageBytes(
-    imageBytes: imageBytes,
-    storagePath: 'product_images/${uid}_$timestamp.jpg',
-    contentType: 'image/jpeg',
-  );
-}
+import '../widgets/logout_button.dart';
+import '../widgets/admin_feature_header.dart';
+import '../screens/theme_display_settings_screen.dart';
+import '../utils/logout_helper.dart';
 
 // Official theme colors - New Theme
 class AdminThemeColors {
@@ -347,7 +344,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 label: 'Add Staff',
                 selected: false,
                 collapsed: _sidebarCollapsed,
-                onTap: () => showAddAccountDialog(context, creatorRole: 'admin'),
+                onTap: () =>
+                    showAddAccountDialog(context, creatorRole: 'admin'),
               ),
             ),
             // Profile Section - Pinned at bottom with proper spacing
@@ -389,6 +387,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             user?.email?.split('@')[0] ??
             'Admin';
         final userEmail = user?.email ?? '';
+        final profileUrl = profilePicUrlFromUserData(userData);
+        final avatarSize = _sidebarCollapsed ? 36.0 : 48.0;
 
         return Row(
           children: [
@@ -403,22 +403,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ],
               ),
-              child: CircleAvatar(
-                radius: _sidebarCollapsed ? 18 : 24,
-                backgroundColor: Colors.white,
-                child: CircleAvatar(
-                  radius: _sidebarCollapsed ? 16 : 22,
-                  backgroundColor: AdminThemeColors.crimsonRed,
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: _sidebarCollapsed ? 16 : 20,
+              child: profileUrl != null
+                  ? ProfilePictureWidget(
+                      imageUrl: profileUrl,
+                      size: avatarSize,
+                      placeholder: _adminInitialsAvatar(
+                        userName,
+                        collapsed: _sidebarCollapsed,
+                      ),
+                    )
+                  : _adminInitialsAvatar(
+                      userName,
+                      collapsed: _sidebarCollapsed,
                     ),
-                  ),
-                ),
-              ),
             ),
             if (!_sidebarCollapsed) ...[
               const SizedBox(width: 12),
@@ -459,6 +456,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _adminInitialsAvatar(String userName, {required bool collapsed}) {
+    return CircleAvatar(
+      radius: collapsed ? 18 : 24,
+      backgroundColor: Colors.white,
+      child: CircleAvatar(
+        radius: collapsed ? 16 : 22,
+        backgroundColor: AdminThemeColors.crimsonRed,
+        child: Text(
+          userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: collapsed ? 16 : 20,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMobileProfileSection(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     return StreamBuilder<DocumentSnapshot>(
@@ -479,6 +495,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             user?.email?.split('@')[0] ??
             'Admin';
         final userEmail = user?.email ?? '';
+        final profileUrl = profilePicUrlFromUserData(userData);
 
         return Row(
           children: [
@@ -493,22 +510,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                 ],
               ),
-              child: CircleAvatar(
-                radius: 24,
-                backgroundColor: Colors.white,
-                child: CircleAvatar(
-                  radius: 22,
-                  backgroundColor: AdminThemeColors.crimsonRed,
-                  child: Text(
-                    userName.isNotEmpty ? userName[0].toUpperCase() : 'A',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
-                  ),
-                ),
-              ),
+              child: profileUrl != null
+                  ? ProfilePictureWidget(
+                      imageUrl: profileUrl,
+                      size: 48,
+                      placeholder: _adminInitialsAvatar(
+                        userName,
+                        collapsed: false,
+                      ),
+                    )
+                  : _adminInitialsAvatar(userName, collapsed: false),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -787,84 +798,21 @@ class _DashboardOverviewPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Enhanced Header with Gradient - Matching Staff Design
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isCompact = constraints.maxWidth < 600;
-              return Container(
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      AdminThemeColors.crimsonRed,
-                      AdminThemeColors.deepBerryRed,
-                      AdminThemeColors.darkWinePurple,
-                    ],
-                    stops: [0.0, 0.5, 1.0],
-                  ),
-                  borderRadius: const BorderRadius.all(Radius.circular(24)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 20,
-                      offset: Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.analytics,
-                        color: Colors.white,
-                        size: 32,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Admin Dashboard',
-                            style: TextStyle(
-                              fontSize: isCompact ? 24 : 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors
-                                  .white, // White text for better contrast
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Quick stats and pending tasks',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.white.withOpacity(
-                                0.9,
-                              ), // White text for better contrast
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          const SizedBox(height: 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AdminFeatureHeader(
+          title: 'Admin Dashboard',
+          subtitle: 'Quick stats and pending tasks',
+          icon: Icons.analytics,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 8),
           // Enhanced KPI Cards with Customer & Staff connections
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -1174,6 +1122,26 @@ class _DashboardOverviewPage extends StatelessWidget {
                     width: isWide
                         ? (constraints.maxWidth - 64) / 2
                         : constraints.maxWidth - 32,
+                    title: 'Recent registrations',
+                    icon: Icons.app_registration_outlined,
+                    color: AdminThemeColors.deepBerryRed,
+                    child: SizedBox(
+                      height: 320,
+                      child: RecentRegistrationsList(
+                        limit: 5,
+                        onViewAll: () {
+                          final state = context
+                              .findAncestorStateOfType<_AdminDashboardState>();
+                          activityLogPendingActionFilter = 'Register';
+                          state?.setState(() => state._selectedIndex = 6);
+                        },
+                      ),
+                    ),
+                  ),
+                  _EnhancedPanel(
+                    width: isWide
+                        ? (constraints.maxWidth - 64) / 2
+                        : constraints.maxWidth - 32,
                     title: 'Top Customers',
                     icon: Icons.star_outline,
                     color: AdminThemeColors.darkWinePurple,
@@ -1192,8 +1160,11 @@ class _DashboardOverviewPage extends StatelessWidget {
               );
             },
           ),
-        ],
-      ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -2012,15 +1983,7 @@ class _TopCustomersList extends StatelessWidget {
                       horizontal: 12,
                       vertical: 8,
                     ),
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF2E7D32).withOpacity(0.1),
-                      child: Icon(
-                        Icons.person,
-                        color: const Color(0xFF2E7D32),
-                        size: 18,
-                      ),
-                    ),
+                    leading: UserProfileAvatar(userId: customerId, size: 40),
                     title: Text(
                       name,
                       style: const TextStyle(
@@ -2294,14 +2257,9 @@ class _StaffPerformanceList extends StatelessWidget {
                       horizontal: 12,
                       vertical: 8,
                     ),
-                    leading: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF2E7D32).withOpacity(0.1),
-                      child: Icon(
-                        Icons.work,
-                        color: const Color(0xFF2E7D32),
-                        size: 18,
-                      ),
+                    leading: UserProfileAvatar(
+                      userId: staff['id'] as String,
+                      size: 40,
                     ),
                     title: Text(
                       staff['name'] as String,
@@ -2435,136 +2393,86 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     return query.snapshots();
   }
 
+  Widget _buildAddProductHeaderAction(BuildContext context) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseAuth.instance.currentUser != null
+          ? FirebaseFirestore.instance
+                .collection('users')
+                .doc(FirebaseAuth.instance.currentUser!.uid)
+                .snapshots()
+          : null,
+      builder: (context, snapshot) {
+        final userRole =
+            (snapshot.data?.data() as Map<String, dynamic>?)?['role']
+                as String?;
+        if (userRole != 'admin') return const SizedBox.shrink();
+
+        return AdminFeatureHeader.primaryAction(
+          label: 'Add Product',
+          icon: Icons.add,
+          onPressed: () => _showAddProductDialog(context),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.dashboardBackground,
       body: Column(
         children: [
-          // Header - Responsive
           LayoutBuilder(
             builder: (context, constraints) {
               final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(
-                        0xFFCD5656,
-                      ).withOpacity(0.3), // Red border matching theme
-                      width: 2,
-                    ),
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AdminFeatureHeader(
+                    title: 'Products',
+                    subtitle: 'Track materials needing restocking',
+                    icon: Icons.inventory_2_outlined,
+                    trailing: isMobile
+                        ? null
+                        : _buildAddProductHeaderAction(context),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                  if (isMobile) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: _buildAddProductHeaderAction(context),
+                      ),
                     ),
                   ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Inventory Management',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 20 : 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              if (!isMobile) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Track materials needing restocking',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        if (!isMobile)
-                          StreamBuilder<DocumentSnapshot>(
-                            stream: FirebaseAuth.instance.currentUser != null
-                                ? FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(
-                                        FirebaseAuth.instance.currentUser!.uid,
-                                      )
-                                      .snapshots()
-                                : null,
-                            builder: (context, snapshot) {
-                              final userRole =
-                                  (snapshot.data?.data()
-                                          as Map<String, dynamic>?)?['role']
-                                      as String?;
-                              final isAdmin = userRole == 'admin';
-
-                              if (!isAdmin) return const SizedBox.shrink();
-
-                              return ElevatedButton.icon(
-                                onPressed: () => _showAddProductDialog(context),
-                                icon: const Icon(Icons.add, size: 18),
-                                label: const Text('Add Product'),
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
-                                ),
-                              );
-                            },
-                          ),
-                      ],
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isMobile ? 12 : 16,
+                      12,
+                      isMobile ? 12 : 16,
+                      0,
                     ),
-                    if (isMobile) ...[
-                      const SizedBox(height: 12),
-                      StreamBuilder<DocumentSnapshot>(
-                        stream: FirebaseAuth.instance.currentUser != null
-                            ? FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(FirebaseAuth.instance.currentUser!.uid)
-                                  .snapshots()
-                            : null,
-                        builder: (context, snapshot) {
-                          final userRole =
-                              (snapshot.data?.data()
-                                      as Map<String, dynamic>?)?['role']
-                                  as String?;
-                          final isAdmin = userRole == 'admin';
-
-                          if (!isAdmin) return const SizedBox.shrink();
-
-                          return SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              onPressed: () => _showAddProductDialog(context),
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add Product'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFCD5656).withOpacity(0.2),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                    ],
-                    const SizedBox(height: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                    const SizedBox(height: 0),
                     // Search Bar
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -2762,12 +2670,14 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                               ),
                             ],
                           ),
-                  ],
-                ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
-          // Products List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _getProductsStream(),
@@ -2854,8 +2764,6 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                 }
 
                 final isMobile = MediaQuery.of(context).size.width < 768;
-                final isTablet =
-                    MediaQuery.of(context).size.width < 1024 && !isMobile;
 
                 if (isMobile) {
                   return ListView.builder(
@@ -2864,24 +2772,27 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                     itemBuilder: (context, index) {
                       final productDoc = filteredProducts[index];
                       final product = productDoc.data() as Map<String, dynamic>;
-                      return _buildProductCard(
-                        context,
-                        productDoc.id,
-                        product,
-                        isMobile: true,
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _buildProductCard(
+                          context,
+                          productDoc.id,
+                          product,
+                          inGrid: false,
+                        ),
                       );
                     },
                   );
                 }
 
-                // Web/Tablet Grid Layout - Matching staff design
+                // Grid: cap card width so tiles stay compact on wide screens
                 return GridView.builder(
                   padding: const EdgeInsets.all(16),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: isTablet ? 2 : 3,
-                    crossAxisSpacing: 16,
-                    mainAxisSpacing: 16,
-                    childAspectRatio: 0.85, // Matching staff design
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.62,
                   ),
                   itemCount: filteredProducts.length,
                   itemBuilder: (context, index) {
@@ -2891,7 +2802,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       context,
                       productDoc.id,
                       product,
-                      isMobile: false,
+                      inGrid: true,
                     );
                   },
                 );
@@ -2907,7 +2818,7 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     BuildContext context,
     String productId,
     Map<String, dynamic> product, {
-    bool isMobile = false,
+    bool inGrid = true,
   }) {
     // Use 'name' field first, fallback to 'title' for backward compatibility
     final title =
@@ -2918,14 +2829,11 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final stock = (product['stock'] as num?)?.toInt() ?? 0;
     final minStock = (product['minStock'] as num?)?.toInt() ?? 10;
     final category = (product['category'] as String?) ?? 'Uncategorized';
-    final imageUrl = (product['imageUrl'] as String?);
+    final imageUrl = resolveProductImageString(product);
     final isLowStock = stock < minStock;
 
-    // Debug: Log image URL for troubleshooting
-    if (kDebugMode) {
-      debugPrint(
-        '🖼️ Product "$title" - imageUrl: ${imageUrl ?? "null"} (length: ${imageUrl?.length ?? 0})',
-      );
+    if (kDebugMode && imageUrl.isNotEmpty) {
+      debugPrint('🖼️ Product "$title" - image: ${imageUrl.length} chars');
     }
 
     return Container(
@@ -2946,236 +2854,486 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Product Image - Large size matching staff design
-          AspectRatio(
-            aspectRatio: 1.5,
-            child: ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(16),
-              ),
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? ProductImageWidget(
-                      imageUrl: imageUrl,
-                      fit: BoxFit.cover,
-                      backgroundColor: AppColors.border,
-                    )
-                  : Container(
-                      color: AppColors.border,
-                      child: Icon(
-                        Icons.inventory_2,
-                        size: 48,
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      child: inGrid
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Product Name
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+                Expanded(
+                  child: _buildProductCardImage(productId, imageUrl),
                 ),
-                const SizedBox(height: 4),
-                // Category Tag
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        category,
-                        style: TextStyle(
-                          fontSize: 12, // Increased for clarity
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ),
-                  ],
+                _buildProductCardDetails(
+                  context: context,
+                  productId: productId,
+                  product: product,
+                  title: title,
+                  price: price,
+                  stock: stock,
+                  category: category,
+                  isLowStock: isLowStock,
+                  compact: true,
                 ),
-                const SizedBox(height: 8),
-                // Sold Count Badge
-                StreamBuilder<int>(
-                  stream: ProductService().getSoldCountStream(productId),
-                  builder: (context, snapshot) {
-                    final soldCount = snapshot.data ?? 0;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: AppColors.primary.withOpacity(0.4),
-                          width: 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.shopping_bag_outlined,
-                            size: 12,
-                            color: AppColors.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '$soldCount sold',
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                              letterSpacing: 0.2,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.6,
+                  child: _buildProductCardImage(productId, imageUrl),
                 ),
-                const SizedBox(height: 8),
-                // Price and Stock Badge
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      PriceFormatter.formatPrice(price),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isLowStock
-                            ? AppColors.error.withOpacity(0.1)
-                            : AppColors.success.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        'Stock: $stock',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isLowStock
-                              ? AppColors.error
-                              : AppColors.success,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                // Action Buttons - Only show for admin
-                StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseAuth.instance.currentUser != null
-                      ? FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(FirebaseAuth.instance.currentUser!.uid)
-                            .snapshots()
-                      : null,
-                  builder: (context, snapshot) {
-                    final userRole =
-                        (snapshot.data?.data()
-                                as Map<String, dynamic>?)?['role']
-                            as String?;
-                    final isAdmin = userRole == 'admin';
-
-                    if (!isAdmin) return const SizedBox.shrink();
-
-                    return Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _showEditProductDialog(
-                              context,
-                              productId,
-                              product,
-                            ),
-                            icon: const Icon(Icons.edit, size: 16),
-                            label: Text(isMobile ? '' : 'Edit'),
-                            style: OutlinedButton.styleFrom(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 8 : 12,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => _deleteProduct(context, productId),
-                            icon: const Icon(Icons.delete, size: 16),
-                            label: Text(isMobile ? '' : 'Delete'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.error,
-                              padding: EdgeInsets.symmetric(
-                                horizontal: isMobile ? 8 : 12,
-                                vertical: 8,
-                              ),
-                            ),
-                          ),
-                        ),
-                        if (isLowStock) ...[
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: ElevatedButton.icon(
-                              onPressed: () => _showRestockDialog(
-                                context,
-                                productId,
-                                product,
-                              ),
-                              icon: const Icon(Icons.add_box, size: 16),
-                              label: Text(isMobile ? '' : 'Restock'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.error,
-                                foregroundColor: Colors.white,
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: isMobile ? 8 : 12,
-                                  vertical: 8,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    );
-                  },
+                _buildProductCardDetails(
+                  context: context,
+                  productId: productId,
+                  product: product,
+                  title: title,
+                  price: price,
+                  stock: stock,
+                  category: category,
+                  isLowStock: isLowStock,
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildProductCardImage(String productId, String imageUrl) {
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+      child: imageUrl.isNotEmpty
+          ? ProductImageWidget(
+              key: ValueKey('product_img_$productId'),
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              backgroundColor: AppColors.border,
+            )
+          : ColoredBox(
+              color: AppColors.border,
+              child: Icon(
+                Icons.inventory_2,
+                size: 40,
+                color: AppColors.textSecondary,
+              ),
+            ),
+    );
+  }
+
+  Widget _buildProductCardDetails({
+    required BuildContext context,
+    required String productId,
+    required Map<String, dynamic> product,
+    required String title,
+    required double price,
+    required int stock,
+    required String category,
+    required bool isLowStock,
+    bool compact = false,
+  }) {
+    final titleSize = compact ? 13.0 : 14.0;
+    final priceSize = compact ? 14.0 : 15.0;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        compact ? 8 : 10,
+        compact ? 6 : 8,
+        compact ? 8 : 10,
+        compact ? 6 : 8,
+      ),
+      decoration: compact
+          ? BoxDecoration(
+              color: Colors.white,
+              border: Border(
+                top: BorderSide(color: AppColors.border.withOpacity(0.5)),
+              ),
+            )
+          : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: titleSize,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+              height: 1.15,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: compact ? 3 : 4),
+          Row(
+            children: [
+              Expanded(
+                child: _productChip(category, compact: compact),
+              ),
+              const SizedBox(width: 4),
+              StreamBuilder<int>(
+                stream: ProductService().getSoldCountStream(productId),
+                builder: (context, snapshot) {
+                  return _productChip(
+                    '${snapshot.data ?? 0} sold',
+                    compact: compact,
+                  );
+                },
+              ),
+            ],
+          ),
+          SizedBox(height: compact ? 4 : 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  PriceFormatter.formatPrice(price),
+                  style: TextStyle(
+                    fontSize: priceSize,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primary,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              _productChip(
+                'Stock $stock',
+                compact: compact,
+                highlight: isLowStock ? AppColors.error : AppColors.success,
+              ),
+            ],
+          ),
+          StreamBuilder<DocumentSnapshot>(
+            stream: FirebaseAuth.instance.currentUser != null
+                ? FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(FirebaseAuth.instance.currentUser!.uid)
+                      .snapshots()
+                : null,
+            builder: (context, snapshot) {
+              final userRole =
+                  (snapshot.data?.data() as Map<String, dynamic>?)?['role']
+                      as String?;
+              if (userRole != 'admin') return const SizedBox.shrink();
+
+              return Padding(
+                padding: EdgeInsets.only(top: compact ? 4 : 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _productActionIcon(
+                      icon: Icons.edit_outlined,
+                      onTap: () => _showEditProductDialog(
+                        context,
+                        productId,
+                        product,
+                      ),
+                      compact: compact,
+                    ),
+                    _productActionIcon(
+                      icon: Icons.delete_outline,
+                      color: AppColors.error,
+                      onTap: () => _deleteProduct(context, productId),
+                      compact: compact,
+                    ),
+                    if (isLowStock)
+                      _productActionIcon(
+                        icon: Icons.add_box_outlined,
+                        color: AppColors.error,
+                        filled: true,
+                        onTap: () => _showRestockDialog(
+                          context,
+                          productId,
+                          product,
+                        ),
+                        compact: compact,
+                      ),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),
     );
+  }
+
+  Widget _productChip(
+    String label, {
+    bool compact = false,
+    Color? highlight,
+  }) {
+    final color = highlight ?? AppColors.primary;
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 5 : 6,
+        vertical: compact ? 1 : 2,
+      ),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: compact ? 9 : 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
+  Widget _productActionIcon({
+    required IconData icon,
+    required VoidCallback onTap,
+    Color? color,
+    bool filled = false,
+    bool compact = false,
+  }) {
+    final size = compact ? 30.0 : 34.0;
+    final iconSize = compact ? 16.0 : 18.0;
+
+    if (filled) {
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Material(
+          color: color ?? AppColors.primary,
+          borderRadius: BorderRadius.circular(8),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(8),
+            child: Icon(icon, size: iconSize, color: Colors.white),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: size,
+      height: size,
+      child: OutlinedButton(
+        onPressed: onTap,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color ?? AppColors.textPrimary,
+          padding: EdgeInsets.zero,
+          minimumSize: Size(size, size),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          side: BorderSide(color: (color ?? AppColors.border).withOpacity(0.8)),
+        ),
+        child: Icon(icon, size: iconSize),
+      ),
+    );
+  }
+
+  final ImagePicker _productImagePicker = ImagePicker();
+
+  Future<void> _pickProductImage({
+    required BuildContext dialogContext,
+    required ImageSource source,
+    required StateSetter setDialogState,
+    required void Function(XFile file, Uint8List bytes) onSuccess,
+    VoidCallback? beforePick,
+  }) async {
+    if (kIsWeb && source == ImageSource.camera) {
+      ScaffoldMessenger.of(dialogContext).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Camera is not available on web. Use Choose from Gallery.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final XFile? image = await _productImagePicker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1920,
+      );
+      if (image == null) return;
+
+      final bytes = await image.readAsBytes();
+      if (!dialogContext.mounted) return;
+
+      setDialogState(() {
+        beforePick?.call();
+        onSuccess(image, bytes);
+      });
+    } catch (e) {
+      if (dialogContext.mounted) {
+        ScaffoldMessenger.of(dialogContext).showSnackBar(
+          SnackBar(
+            content: Text('Could not pick image: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildProductImageMemoryPreview(
+    Uint8List bytes, {
+    double height = 200,
+  }) {
+    return Container(
+      height: height,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Image.memory(bytes, fit: BoxFit.cover, gaplessPlayback: true),
+      ),
+    );
+  }
+
+  Widget _buildProductImageEmptyPlaceholder() {
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.border, width: 2),
+        borderRadius: BorderRadius.circular(12),
+        color: AppColors.dashboardBackground,
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        children: [
+          Icon(
+            Icons.add_photo_alternate_outlined,
+            size: 48,
+            color: AppColors.textSecondary,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'No image selected',
+            style: TextStyle(
+              fontSize: 14,
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            kIsWeb
+                ? 'Choose from gallery to add a product image'
+                : 'Take a photo or choose from gallery',
+            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductImagePickButtons({
+    required BuildContext dialogContext,
+    required StateSetter setDialogState,
+    required void Function(XFile file, Uint8List bytes) onSuccess,
+    VoidCallback? beforePick,
+    bool stackVertically = false,
+  }) {
+    final showCamera = !kIsWeb;
+
+    final galleryButton = ElevatedButton.icon(
+      onPressed: () => _pickProductImage(
+        dialogContext: dialogContext,
+        source: ImageSource.gallery,
+        setDialogState: setDialogState,
+        onSuccess: onSuccess,
+        beforePick: beforePick,
+      ),
+      icon: const Icon(Icons.photo_library, size: 18),
+      label: const Text('Choose from Gallery'),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.primary,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        minimumSize: const Size(double.infinity, 44),
+      ),
+    );
+
+    if (!showCamera || stackVertically) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showCamera)
+            OutlinedButton.icon(
+              onPressed: () => _pickProductImage(
+                dialogContext: dialogContext,
+                source: ImageSource.camera,
+                setDialogState: setDialogState,
+                onSuccess: onSuccess,
+                beforePick: beforePick,
+              ),
+              icon: const Icon(Icons.camera_alt, size: 18),
+              label: const Text('Take Photo'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                minimumSize: const Size(double.infinity, 44),
+              ),
+            ),
+          if (showCamera) const SizedBox(height: 10),
+          galleryButton,
+        ],
+      );
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _pickProductImage(
+              dialogContext: dialogContext,
+              source: ImageSource.camera,
+              setDialogState: setDialogState,
+              onSuccess: onSuccess,
+              beforePick: beforePick,
+            ),
+            icon: const Icon(Icons.camera_alt, size: 18),
+            label: const Text('Take Photo'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: galleryButton),
+      ],
+    );
+  }
+
+  Future<String?> _uploadProductImageWithFeedback({
+    required BuildContext context,
+    required XFile file,
+    required StateSetter setDialogState,
+    required void Function(bool uploading) setUploading,
+  }) async {
+    setUploading(true);
+    try {
+      return await ProductImageUploadService.uploadProductImage(file);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error uploading image: $e'),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+      return null;
+    } finally {
+      setUploading(false);
+    }
   }
 
   void _showAddProductDialog(BuildContext context) {
@@ -3296,206 +3454,138 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Image Upload Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Product Image',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_selectedImage != null) ...[
-                          FutureBuilder<Uint8List?>(
-                            future: _selectedImageBytes != null
-                                ? Future.value(_selectedImageBytes)
-                                : _selectedImage!.readAsBytes(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Container(
-                                  height: 150,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
-                              if (snapshot.hasData && snapshot.data != null) {
-                                return Container(
-                                  height: 150,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.memory(
-                                      snapshot.data!,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                );
-                              }
-                              return Container(
-                                height: 150,
-                                width: double.infinity,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.error_outline),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final ImagePicker picker = ImagePicker();
-                                final XFile? image = await picker.pickImage(
-                                  source: ImageSource.gallery,
-                                );
-                                if (image != null) {
-                                  final bytes = await image.readAsBytes();
-                                  setDialogState(() {
-                                    _selectedImage = image;
-                                    _selectedImageBytes = bytes;
-                                  });
-                                }
-                              },
-                              icon: const Icon(Icons.photo_library, size: 18),
-                              label: const Text('Change Image'),
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 12,
-                                ),
+                    LayoutBuilder(
+                      builder: (context, imgConstraints) {
+                        final narrow = imgConstraints.maxWidth < 420;
+                        final previewHeight = narrow ? 140.0 : 200.0;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Product Image',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
                               ),
                             ),
-                          ),
-                        ] else ...[
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.border,
-                                width: 2,
-                                style: BorderStyle.solid,
+                            const SizedBox(height: 8),
+                            if (_selectedImageBytes != null) ...[
+                              _buildProductImageMemoryPreview(
+                                _selectedImageBytes!,
+                                height: previewHeight,
                               ),
-                              borderRadius: BorderRadius.circular(12),
-                              color: AppColors.dashboardBackground,
-                            ),
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate_outlined,
-                                  size: 48,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'No image selected',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Add a product image to help customers',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.camera,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.camera_alt, size: 18),
-                                  label: const Text('Take Photo'),
-                                  style: OutlinedButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                              const SizedBox(height: 12),
+                              if (narrow)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          _selectedImage = null;
+                                          _selectedImageBytes = null;
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Remove'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.error,
+                                      ),
                                     ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Choose from Gallery'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 12,
+                                    const SizedBox(height: 8),
+                                    OutlinedButton.icon(
+                                      onPressed: () => _pickProductImage(
+                                        dialogContext: context,
+                                        source: ImageSource.gallery,
+                                        setDialogState: setDialogState,
+                                        onSuccess: (file, bytes) {
+                                          _selectedImage = file;
+                                          _selectedImageBytes = bytes;
+                                        },
+                                      ),
+                                      icon: const Icon(
+                                        Icons.photo_library,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Change image'),
                                     ),
-                                  ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            _selectedImage = null;
+                                            _selectedImageBytes = null;
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Remove'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _pickProductImage(
+                                          dialogContext: context,
+                                          source: ImageSource.gallery,
+                                          setDialogState: setDialogState,
+                                          onSuccess: (file, bytes) {
+                                            _selectedImage = file;
+                                            _selectedImageBytes = bytes;
+                                          },
+                                        ),
+                                        icon: const Icon(
+                                          Icons.photo_library,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Change'),
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                            ] else ...[
+                              _buildProductImageEmptyPlaceholder(),
+                              const SizedBox(height: 12),
+                              _buildProductImagePickButtons(
+                                dialogContext: context,
+                                setDialogState: setDialogState,
+                                stackVertically: narrow,
+                                onSuccess: (file, bytes) {
+                                  _selectedImage = file;
+                                  _selectedImageBytes = bytes;
+                                },
                               ),
                             ],
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: imageUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Image URL',
-                            border: OutlineInputBorder(),
-                            hintText: 'https://example.com/image.jpg',
-                            helperText:
-                                'Optional: pick an image or paste a direct image URL',
-                          ),
-                        ),
-                      ],
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: imageUrlController,
+                              decoration: const InputDecoration(
+                                labelText: 'Image URL (optional)',
+                                border: OutlineInputBorder(),
+                                hintText: 'https://example.com/image.jpg',
+                                helperText:
+                                    'Pick from gallery above or paste a URL',
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     Row(
@@ -3544,42 +3634,30 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                   String? finalImageUrl;
 
-                                  // Upload image if selected
                                   if (_selectedImage != null) {
-                                    setDialogState(() {
-                                      _uploadingImage = true;
-                                    });
-
-                                    try {
-                                      final bytes = _selectedImageBytes ??
-                                          await _selectedImage!.readAsBytes();
-                                      finalImageUrl =
-                                          await _uploadProductImage(bytes);
-                                      setDialogState(() {
-                                        _uploadingImage = false;
-                                      });
-                                    } catch (e) {
-                                      setDialogState(() {
-                                        _uploadingImage = false;
-                                      });
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Error uploading image: $e',
-                                            ),
-                                            backgroundColor: AppColors.error,
-                                          ),
+                                    final uploaded =
+                                        await _uploadProductImageWithFeedback(
+                                          context: context,
+                                          file: _selectedImage!,
+                                          setDialogState: setDialogState,
+                                          setUploading: (v) {
+                                            setDialogState(() {
+                                              _uploadingImage = v;
+                                            });
+                                          },
                                         );
+                                    if (uploaded == null) {
+                                      if (imageUrlController.text
+                                          .trim()
+                                          .isEmpty) {
+                                        return;
                                       }
-                                      return;
+                                    } else {
+                                      finalImageUrl = uploaded;
                                     }
                                   } else if (imageUrlController.text
                                       .trim()
                                       .isNotEmpty) {
-                                    // Use manually entered image URL if provided
                                     finalImageUrl = imageUrlController.text
                                         .trim();
                                   } else {
@@ -3600,8 +3678,9 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       debugPrint('Image URL: $finalImageUrl');
                                     }
 
+                                    final productTitle = titleController.text
+                                        .trim();
                                     final productData = <String, dynamic>{
-                                      'title': titleController.text,
                                       'price': price,
                                       'stock': stock,
                                       'minStock': minStock,
@@ -3609,11 +3688,17 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       'createdAt': FieldValue.serverTimestamp(),
                                       'updatedAt': FieldValue.serverTimestamp(),
                                     };
+                                    applyProductNameFields(
+                                      productData,
+                                      productTitle,
+                                    );
 
-                                    // Only add imageUrl if it's not null and not empty
                                     if (finalImageUrl != null &&
                                         finalImageUrl.isNotEmpty) {
-                                      productData['imageUrl'] = finalImageUrl;
+                                      applyProductImageFields(
+                                        productData,
+                                        finalImageUrl,
+                                      );
                                       if (kDebugMode) {
                                         debugPrint(
                                           '✅ Image URL added to product data',
@@ -3749,16 +3834,15 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
     final minStockController = TextEditingController(
       text: (product['minStock'] as num?)?.toString() ?? '10',
     );
-    final imageUrlController = TextEditingController(
-      text: product['imageUrl'] as String? ?? '',
-    );
+    final existingImage = resolveProductImageString(product);
+    final imageUrlController = TextEditingController(text: existingImage);
 
     // Get existing category or default to 'Windows'
     String selectedCategory = (product['category'] as String?) ?? 'Windows';
     XFile? _selectedImage;
     Uint8List? _selectedImageBytes;
     bool _uploadingImage = false;
-    String? _existingImageUrl = product['imageUrl'] as String?;
+    String? _existingImageUrl = existingImage.isNotEmpty ? existingImage : null;
 
     showDialog(
       context: context,
@@ -3878,251 +3962,251 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                       ],
                     ),
                     const SizedBox(height: 16),
-                    // Image Upload Section
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Product Image',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.textPrimary,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        if (_selectedImage != null) ...[
-                          FutureBuilder<Uint8List?>(
-                            future: _selectedImageBytes != null
-                                ? Future.value(_selectedImageBytes)
-                                : _selectedImage!.readAsBytes(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState ==
-                                  ConnectionState.waiting) {
-                                return Container(
-                                  height: 150,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
-                                  child: const Center(
-                                    child: CircularProgressIndicator(),
-                                  ),
-                                );
-                              }
-                              if (snapshot.hasData && snapshot.data != null) {
-                                return Container(
-                                  height: 150,
-                                  width: double.infinity,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: AppColors.border),
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Image.memory(
-                                      snapshot.data!,
-                                      fit: BoxFit.cover,
+                    LayoutBuilder(
+                      builder: (context, imgConstraints) {
+                        final narrow = imgConstraints.maxWidth < 420;
+                        final previewHeight = narrow ? 140.0 : 200.0;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Product Image',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            if (_selectedImageBytes != null) ...[
+                              _buildProductImageMemoryPreview(
+                                _selectedImageBytes!,
+                                height: previewHeight,
+                              ),
+                              const SizedBox(height: 12),
+                              if (narrow)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          _selectedImage = null;
+                                          _selectedImageBytes = null;
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Remove'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.error,
+                                      ),
                                     ),
-                                  ),
-                                );
-                              }
-                              return Container(
-                                height: 150,
+                                    const SizedBox(height: 8),
+                                    OutlinedButton.icon(
+                                      onPressed: () => _pickProductImage(
+                                        dialogContext: context,
+                                        source: ImageSource.gallery,
+                                        setDialogState: setDialogState,
+                                        onSuccess: (file, bytes) {
+                                          _selectedImage = file;
+                                          _selectedImageBytes = bytes;
+                                          _existingImageUrl = null;
+                                        },
+                                      ),
+                                      icon: const Icon(
+                                        Icons.photo_library,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Change image'),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            _selectedImage = null;
+                                            _selectedImageBytes = null;
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Remove'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _pickProductImage(
+                                          dialogContext: context,
+                                          source: ImageSource.gallery,
+                                          setDialogState: setDialogState,
+                                          onSuccess: (file, bytes) {
+                                            _selectedImage = file;
+                                            _selectedImageBytes = bytes;
+                                            _existingImageUrl = null;
+                                          },
+                                        ),
+                                        icon: const Icon(
+                                          Icons.photo_library,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Change'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ] else if (_existingImageUrl != null &&
+                                _existingImageUrl!.isNotEmpty) ...[
+                              SizedBox(
+                                height: previewHeight,
                                 width: double.infinity,
-                                decoration: BoxDecoration(
+                                child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.border),
-                                ),
-                                child: const Center(
-                                  child: Icon(Icons.error_outline),
-                                ),
-                              );
-                            },
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    setDialogState(() {
-                                      _selectedImage = null;
-                                      _selectedImageBytes = null;
-                                    });
-                                  },
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Remove Image'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.error,
+                                  child: ProductImageWidget(
+                                    key: ValueKey(
+                                      'edit_existing_$_existingImageUrl',
+                                    ),
+                                    imageUrl: _existingImageUrl!,
+                                    fit: BoxFit.cover,
+                                    width: double.infinity,
+                                    height: previewHeight,
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Change Image'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                  ),
+                              const SizedBox(height: 12),
+                              if (narrow)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () {
+                                        setDialogState(() {
+                                          _existingImageUrl = null;
+                                          imageUrlController.clear();
+                                        });
+                                      },
+                                      icon: const Icon(
+                                        Icons.delete_outline,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Remove'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.error,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    OutlinedButton.icon(
+                                      onPressed: () => _pickProductImage(
+                                        dialogContext: context,
+                                        source: ImageSource.gallery,
+                                        setDialogState: setDialogState,
+                                        onSuccess: (file, bytes) {
+                                          _selectedImage = file;
+                                          _selectedImageBytes = bytes;
+                                          _existingImageUrl = null;
+                                        },
+                                        beforePick: () {
+                                          _existingImageUrl = null;
+                                          imageUrlController.clear();
+                                        },
+                                      ),
+                                      icon: const Icon(
+                                        Icons.photo_library,
+                                        size: 18,
+                                      ),
+                                      label: const Text('Replace image'),
+                                    ),
+                                  ],
+                                )
+                              else
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () {
+                                          setDialogState(() {
+                                            _existingImageUrl = null;
+                                            imageUrlController.clear();
+                                          });
+                                        },
+                                        icon: const Icon(
+                                          Icons.delete_outline,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Remove'),
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.error,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _pickProductImage(
+                                          dialogContext: context,
+                                          source: ImageSource.gallery,
+                                          setDialogState: setDialogState,
+                                          onSuccess: (file, bytes) {
+                                            _selectedImage = file;
+                                            _selectedImageBytes = bytes;
+                                            _existingImageUrl = null;
+                                          },
+                                          beforePick: () {
+                                            _existingImageUrl = null;
+                                            imageUrlController.clear();
+                                          },
+                                        ),
+                                        icon: const Icon(
+                                          Icons.photo_library,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Replace'),
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                            ] else ...[
+                              _buildProductImageEmptyPlaceholder(),
+                              const SizedBox(height: 12),
+                              _buildProductImagePickButtons(
+                                dialogContext: context,
+                                setDialogState: setDialogState,
+                                stackVertically: narrow,
+                                onSuccess: (file, bytes) {
+                                  _selectedImage = file;
+                                  _selectedImageBytes = bytes;
+                                },
                               ),
                             ],
-                          ),
-                        ] else if (_existingImageUrl != null &&
-                            _existingImageUrl!.isNotEmpty) ...[
-                          Container(
-                            height: 150,
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: AppColors.border),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: imageUrlController,
+                              decoration: const InputDecoration(
+                                labelText: 'Image URL (optional)',
+                                border: OutlineInputBorder(),
+                                hintText: 'https://example.com/image.jpg',
+                                helperText:
+                                    'Pick from gallery above or paste a URL',
+                              ),
                             ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: ProductImageWidget(
-                                imageUrl: _existingImageUrl!,
-                                fit: BoxFit.cover,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    setDialogState(() {
-                                      _existingImageUrl = null;
-                                      imageUrlController.clear();
-                                    });
-                                  },
-                                  icon: const Icon(
-                                    Icons.delete_outline,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Remove Image'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: AppColors.error,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                        _existingImageUrl = null;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Change Image'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ] else ...[
-                          Row(
-                            children: [
-                              Expanded(
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.camera,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.camera_alt, size: 18),
-                                  label: const Text('Take Photo'),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () async {
-                                    final ImagePicker picker = ImagePicker();
-                                    final XFile? image = await picker.pickImage(
-                                      source: ImageSource.gallery,
-                                    );
-                                    if (image != null) {
-                                      final bytes = await image.readAsBytes();
-                                      setDialogState(() {
-                                        _selectedImage = image;
-                                        _selectedImageBytes = bytes;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(
-                                    Icons.photo_library,
-                                    size: 18,
-                                  ),
-                                  label: const Text('Choose from Gallery'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.primary,
-                                    foregroundColor: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: imageUrlController,
-                          decoration: const InputDecoration(
-                            labelText: 'Or enter Image URL (optional)',
-                            border: OutlineInputBorder(),
-                            hintText: 'https://example.com/image.jpg',
-                            helperText:
-                                'Use image picker above OR enter URL manually',
-                          ),
-                        ),
-                      ],
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
                     Row(
@@ -4200,37 +4284,28 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
 
                                   String? finalImageUrl;
 
-                                  // Upload image if selected
                                   if (_selectedImage != null) {
-                                    setDialogState(() {
-                                      _uploadingImage = true;
-                                    });
-
-                                    try {
-                                      final bytes = _selectedImageBytes ??
-                                          await _selectedImage!.readAsBytes();
-                                      finalImageUrl =
-                                          await _uploadProductImage(bytes);
-                                      setDialogState(() {
-                                        _uploadingImage = false;
-                                      });
-                                    } catch (e) {
-                                      setDialogState(() {
-                                        _uploadingImage = false;
-                                      });
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Error uploading image: $e',
-                                            ),
-                                            backgroundColor: AppColors.error,
-                                          ),
+                                    final uploaded =
+                                        await _uploadProductImageWithFeedback(
+                                          context: context,
+                                          file: _selectedImage!,
+                                          setDialogState: setDialogState,
+                                          setUploading: (v) {
+                                            setDialogState(() {
+                                              _uploadingImage = v;
+                                            });
+                                          },
                                         );
+                                    if (uploaded == null) {
+                                      if (imageUrlController.text
+                                              .trim()
+                                              .isEmpty &&
+                                          (_existingImageUrl == null ||
+                                              _existingImageUrl!.isEmpty)) {
+                                        return;
                                       }
-                                      return;
+                                    } else {
+                                      finalImageUrl = uploaded;
                                     }
                                   } else if (imageUrlController.text
                                       .trim()
@@ -4239,16 +4314,14 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                         .trim();
                                   } else if (_existingImageUrl != null &&
                                       _existingImageUrl!.isNotEmpty) {
-                                    // Keep existing image if no new image is provided
                                     finalImageUrl = _existingImageUrl;
                                   }
 
                                   // Update product in Firestore
                                   try {
+                                    final productName = nameController.text
+                                        .trim();
                                     final updateData = <String, dynamic>{
-                                      'name': nameController.text.trim(),
-                                      'title': nameController.text
-                                          .trim(), // Keep for backward compatibility
                                       'description': descriptionController.text
                                           .trim(),
                                       'price': price,
@@ -4257,9 +4330,17 @@ class _ProductsManagementPageState extends State<_ProductsManagementPage> {
                                       'category': selectedCategory,
                                       'updatedAt': FieldValue.serverTimestamp(),
                                     };
+                                    applyProductNameFields(
+                                      updateData,
+                                      productName,
+                                    );
 
-                                    if (finalImageUrl != null) {
-                                      updateData['imageUrl'] = finalImageUrl;
+                                    if (finalImageUrl != null &&
+                                        finalImageUrl.isNotEmpty) {
+                                      applyProductImageFields(
+                                        updateData,
+                                        finalImageUrl,
+                                      );
                                     }
 
                                     // Get old product data for logging
@@ -4670,32 +4751,17 @@ class _PosPage extends StatelessWidget {
 
         return Column(
           children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.white,
-                border: Border(bottom: BorderSide(color: AppColors.border)),
-              ),
-              child: Row(
-                children: [
-                  const Text(
-                    'Transactions',
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${orders.length} ${orders.length == 1 ? 'order' : 'orders'}',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+            AdminFeatureHeader(
+              title: 'Transactions',
+              subtitle: 'Point of sale and order history',
+              icon: Icons.point_of_sale,
+              trailing: Text(
+                '${orders.length} ${orders.length == 1 ? 'order' : 'orders'}',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.95),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             // Orders Table
@@ -4997,76 +5063,21 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 768;
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(isMobile ? 16 : 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AdminThemeColors.crimsonRed,
-                  AdminThemeColors.deepBerryRed,
-                  AdminThemeColors.darkWinePurple,
-                ],
-                stops: [0.0, 0.5, 1.0],
-              ),
-              borderRadius: const BorderRadius.all(Radius.circular(24)),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 20,
-                  offset: Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const AdminFeatureHeader(
+          title: 'Sales Calendar',
+          subtitle: 'View sales by date',
+          icon: Icons.calendar_today,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(isMobile ? 16 : 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.calendar_today,
-                    color: Colors.white,
-                    size: 32,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Daily Sales Calendar',
-                        style: TextStyle(
-                          fontSize: isMobile ? 24 : 28,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'View sales by date',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.9),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
+                const SizedBox(height: 16),
           // Calendar
           Card(
             elevation: 4,
@@ -5150,8 +5161,11 @@ class _SalesCalendarPageState extends State<_SalesCalendarPage> {
               ),
             ),
           ),
-        ],
-      ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -5782,84 +5796,56 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
       backgroundColor: AppColors.dashboardBackground,
       body: Column(
         children: [
-          // Header with filters - Responsive
           LayoutBuilder(
             builder: (context, constraints) {
               final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(
-                        0xFFCD5656,
-                      ).withOpacity(0.3), // Red border matching theme
-                      width: 2,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AdminFeatureHeader(
+                    title: 'Orders',
+                    subtitle:
+                        'View incoming orders and quotations prepared by staff',
+                    icon: Icons.receipt_long,
+                    trailing: AdminFeatureHeader.primaryAction(
+                      label: 'View Map',
+                      icon: Icons.map,
+                      compact: isMobile,
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const MapComingSoonPlaceholder(
+                              title: 'Delivery Locations Map',
+                              message:
+                                  'Map view of all delivery locations is coming soon!',
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isMobile ? 12 : 16,
+                      12,
+                      isMobile ? 12 : 16,
+                      0,
                     ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Orders & Quotations',
-                            style: TextStyle(
-                              fontSize: isMobile ? 20 : 24,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const MapComingSoonPlaceholder(
-                                      title: 'Delivery Locations Map',
-                                      message:
-                                          'Map view of all delivery locations is coming soon!',
-                                    ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.map, size: 18),
-                          label: const Text('View Map'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!isMobile) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'View incoming orders and quotations prepared by staff',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: AppColors.textSecondary,
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFCD5656).withOpacity(0.2),
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     // Filters - Responsive layout
                     isMobile
                         ? Column(
@@ -6040,12 +6026,14 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                         Tab(text: 'Completed'),
                       ],
                     ),
-                  ],
-                ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
-          // Orders List
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -6871,7 +6859,7 @@ class _OrdersManagementPageState extends State<_OrdersManagementPage>
                   final isAssigned = order['assignedStaffId'] == staff.id;
 
                   return ListTile(
-                    leading: const CompactProfilePicturePlaceholder(size: 40),
+                    leading: UserProfileAvatar(userId: staff.id, size: 40),
                     title: Text(staffName),
                     subtitle: Text(staffData['email'] ?? ''),
                     trailing: isAssigned
@@ -6999,101 +6987,46 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
       backgroundColor: AppColors.dashboardBackground,
       body: Column(
         children: [
-          // Header - Responsive
           LayoutBuilder(
             builder: (context, constraints) {
               final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(
-                        0xFFCD5656,
-                      ).withOpacity(0.3), // Red border matching theme
-                      width: 2,
-                    ),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Staff Management',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 20 : 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              if (!isMobile) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Manage staff accounts and assignments',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        if (!isMobile)
-                          ElevatedButton.icon(
-                            onPressed: () => showAddAccountDialog(context, creatorRole: 'admin'),
-                            icon: const Icon(Icons.person_add, size: 18),
-                            label: const Text('Add Account'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primary,
-                              foregroundColor: Colors.white,
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AdminFeatureHeader(
+                    title: 'Staff Management',
+                    subtitle: 'Manage staff accounts and assignments',
+                    icon: Icons.people_outline,
+                    trailing: isMobile
+                        ? null
+                        : AdminFeatureHeader.primaryAction(
+                            label: 'Add Account',
+                            icon: Icons.person_add,
+                            onPressed: () => showAddAccountDialog(
+                              context,
+                              creatorRole: 'admin',
                             ),
                           ),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          // Add Staff button for mobile
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < 768;
-              if (isMobile) {
-                return Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () => showAddAccountDialog(context, creatorRole: 'admin'),
-                      icon: const Icon(Icons.person_add, size: 18),
-                      label: const Text('Add Account'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  if (isMobile) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: AdminFeatureHeader.primaryAction(
+                          label: 'Add Account',
+                          icon: Icons.person_add,
+                          onPressed: () => showAddAccountDialog(
+                            context,
+                            creatorRole: 'admin',
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
+                  ],
+                ],
+              );
             },
           ),
           // Content
@@ -7185,7 +7118,7 @@ class _StaffManagementPageState extends State<_StaffManagementPage> {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            const ProfilePicturePlaceholder(size: 60),
+            UserProfileAvatar(userId: staffId, size: 60),
             const SizedBox(width: 16),
             Expanded(
               child: Column(
@@ -7377,45 +7310,11 @@ class _FeedbackPage extends StatelessWidget {
       backgroundColor: AppColors.dashboardBackground,
       body: Column(
         children: [
-          // Header
-          Container(
-            padding: EdgeInsets.all(isMobile ? 16 : 24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(
-                bottom: BorderSide(
-                  color: const Color(0xFF8B2E2E).withOpacity(0.3),
-                  width: 2,
-                ),
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black12,
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.feedback_outlined,
-                  size: isMobile ? 28 : 32,
-                  color: AppColors.primary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Feedback Center',
-                  style: TextStyle(
-                    fontSize: isMobile ? 20 : 24,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
+          const AdminFeatureHeader(
+            title: 'Feedback Center',
+            subtitle: 'Customer ratings and order feedback',
+            icon: Icons.feedback_outlined,
           ),
-          // Feedback List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: FirebaseFirestore.instance
@@ -7875,60 +7774,20 @@ class _SettingsPage extends StatelessWidget {
       }
     }
 
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.settings_outlined,
-                      color: Colors.white,
-                      size: 32,
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Settings',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          user?.email ?? 'Admin',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.9),
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AdminFeatureHeader(
+          title: 'Settings',
+          subtitle: user?.email ?? 'Admin account',
+          icon: Icons.settings_outlined,
+        ),
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
 
             // Account Section
             _buildSectionHeader('Account'),
@@ -7978,6 +7837,21 @@ class _SettingsPage extends StatelessWidget {
 
             // System Section
             _buildSectionHeader('System'),
+            _buildSettingsTile(
+              context,
+              icon: Icons.palette_outlined,
+              title: 'Theme & Display',
+              subtitle: 'Light, dark, or system theme',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ThemeDisplaySettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            const Divider(height: 1),
             _buildSettingsTile(
               context,
               icon: Icons.notifications_outlined,
@@ -8083,28 +7957,15 @@ class _SettingsPage extends StatelessWidget {
 
             // Logout Section
             const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _handleLogoutFromSettings(context),
-                  child: const Text('Logout'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                ),
-              ),
+            LogoutButton(
+              onPressed: () => LogoutHelper.confirmAndSignOut(context),
             ),
             const SizedBox(height: 24),
-          ],
+              ],
+            ),
+          ),
         ),
-      ),
+      ],
     );
   }
 
@@ -9315,77 +9176,6 @@ class _SettingsPage extends StatelessWidget {
       ),
     );
   }
-
-  void _handleLogoutFromSettings(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true && context.mounted) {
-      // Log logout activity before signing out
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-          if (userDoc.exists) {
-            final userData = userDoc.data() as Map<String, dynamic>;
-            final userName =
-                (userData['name'] as String?) ??
-                (userData['fullName'] as String?) ??
-                (userData['customerName'] as String?) ??
-                (userData['email'] as String?) ??
-                'Unknown User';
-
-            await FirebaseFirestore.instance.collection('activity_logs').add({
-              'userId': user.uid,
-              'userName': userName,
-              'actionType': 'Logout',
-              'description': 'User logged out',
-              'timestamp': FieldValue.serverTimestamp(),
-              'metadata': {
-                'role': userData['role'] as String? ?? 'unknown',
-                'logoutTime': DateTime.now().toIso8601String(),
-              },
-            });
-          }
-        }
-      } catch (e) {
-        // Don't fail logout if activity logging fails
-        if (kDebugMode) {
-          debugPrint('Error logging logout activity: $e');
-        }
-      }
-
-      try {
-        // Try provider signOut first (clears app state)
-        await context.read<app_auth.AuthProvider>().signOut();
-      } catch (_) {
-        // Fallback to direct Firebase signOut
-        await FirebaseAuth.instance.signOut();
-      }
-      if (!context.mounted) return;
-      // Ensure stack is cleared to prevent back navigation into admin
-      Navigator.of(context).pushNamedAndRemoveUntil('/login', (route) => false);
-    }
-  }
 }
 
 // Admin Messages Page
@@ -9398,40 +9188,11 @@ class _AdminMessagesPage extends StatelessWidget {
       backgroundColor: const Color(0xFFF8F8F8),
       body: Column(
         children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  color: AppColors.primary,
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Customer Messages',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF212121),
-                  ),
-                ),
-              ],
-            ),
+          const AdminFeatureHeader(
+            title: 'Messages',
+            subtitle: 'Chat with customers',
+            icon: Icons.chat_bubble_outline,
           ),
-
-          // Chat List
           Expanded(child: ChatListPage(showBackButton: false)),
         ],
       ),

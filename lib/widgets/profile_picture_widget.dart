@@ -1,34 +1,32 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
-import 'package:firebase_storage/firebase_storage.dart';
+import '../services/profile_pic_cache_service.dart';
 import 'profile_picture_placeholder.dart';
 import '../utils/image_url_helper.dart';
+import '../utils/storage_image_loader.dart';
 
-/// A responsive profile picture widget that works on both web and mobile.
-/// Always uses getDownloadURL() to ensure valid Firebase Storage URLs.
+/// Profile picture from Firebase Storage + local cache (persists across sessions).
 class ProfilePictureWidget extends StatefulWidget {
-  /// The Firebase Storage path or download URL
   final String? imageUrl;
-  
-  /// Size of the profile picture
+  /// Loads `profile_images/{storageUserId}.jpg` from Storage (recommended).
+  final String? storageUserId;
   final double size;
-  
-  /// Background color
   final Color? backgroundColor;
-  
-  /// Whether to show a loading indicator
   final bool showLoadingIndicator;
-  
-  /// Custom placeholder widget
   final Widget? placeholder;
+  final Uint8List? initialBytes;
 
   const ProfilePictureWidget({
     super.key,
     this.imageUrl,
+    this.storageUserId,
     this.size = 48,
     this.backgroundColor,
     this.showLoadingIndicator = true,
     this.placeholder,
+    this.initialBytes,
   });
 
   @override
@@ -36,6 +34,7 @@ class ProfilePictureWidget extends StatefulWidget {
 }
 
 class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
+  Uint8List? _imageBytes;
   String? _downloadUrl;
   bool _isLoading = true;
   bool _hasError = false;
@@ -43,43 +42,77 @@ class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
   @override
   void initState() {
     super.initState();
-    _loadImage();
+    if (widget.initialBytes != null && widget.initialBytes!.isNotEmpty) {
+      _imageBytes = widget.initialBytes;
+      _isLoading = false;
+    } else {
+      _loadImage();
+    }
   }
 
   @override
   void didUpdateWidget(ProfilePictureWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl) {
+    if (widget.initialBytes != null &&
+        widget.initialBytes!.isNotEmpty &&
+        widget.initialBytes != oldWidget.initialBytes) {
+      setState(() {
+        _imageBytes = widget.initialBytes;
+        _isLoading = false;
+        _hasError = false;
+      });
+      return;
+    }
+    if (oldWidget.imageUrl != widget.imageUrl ||
+        oldWidget.storageUserId != widget.storageUserId) {
       _loadImage();
     }
   }
 
   Future<void> _loadImage() async {
-    if (widget.imageUrl == null || widget.imageUrl!.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
-      return;
-    }
-
-    try {
+    if (mounted) {
       setState(() {
         _isLoading = true;
         _hasError = false;
+        if (widget.initialBytes == null) {
+          _imageBytes = null;
+        }
+        _downloadUrl = null;
       });
+    }
 
-      // Always get fresh download URL using getDownloadURL()
-      final downloadUrl = await _getDownloadUrl(widget.imageUrl!);
-      
-      if (downloadUrl != null && mounted) {
+    try {
+      final userId = widget.storageUserId?.trim() ?? '';
+
+      // 1) Device cache (instant, survives app restarts)
+      if (userId.isNotEmpty) {
+        final cachedBytes = await ProfilePicCacheService.getCachedBytes(userId);
+        if (cachedBytes != null && cachedBytes.isNotEmpty && mounted) {
+          setState(() {
+            _imageBytes = cachedBytes;
+            _isLoading = false;
+            _hasError = false;
+          });
+          _refreshFromRemote(userId, updateUi: true);
+          return;
+        }
+        final cachedUrl = await ProfilePicCacheService.getCachedUrl(userId);
+        if (cachedUrl != null && cachedUrl.isNotEmpty) {
+          _downloadUrl = cachedUrl;
+        }
+      }
+
+      await _refreshFromRemote(userId, updateUi: false);
+
+      if (mounted &&
+          (_imageBytes != null ||
+              (_downloadUrl != null && _downloadUrl!.isNotEmpty))) {
         setState(() {
-          _downloadUrl = downloadUrl;
           _isLoading = false;
           _hasError = false;
         });
       } else {
-        throw Exception('Failed to get download URL');
+        throw Exception('Profile image not found');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -94,66 +127,65 @@ class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
     }
   }
 
-  /// Get download URL from Firebase Storage path or existing URL
-  Future<String?> _getDownloadUrl(String pathOrUrl) async {
-    try {
-      // If it's already a valid HTTP/HTTPS URL (not Firebase Storage), use it
-      if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-        // Check if it's a Firebase Storage URL that needs regeneration
-        if (pathOrUrl.contains('firebasestorage.googleapis.com')) {
-          // Extract storage path and get fresh URL
-          return await _regenerateDownloadUrl(pathOrUrl);
+  Future<void> _refreshFromRemote(String userId, {required bool updateUi}) async {
+    if (userId.isNotEmpty) {
+      final bytes = await StorageImageLoader.loadProfileBytes(userId);
+      if (bytes != null && bytes.isNotEmpty) {
+        final url =
+            widget.imageUrl ??
+            await StorageImageLoader.freshProfileDownloadUrl(userId);
+        if (url != null && url.isNotEmpty) {
+          await ProfilePicCacheService.save(
+            uid: userId,
+            downloadUrl: url,
+            previewBytes: bytes,
+          );
         }
-        // It's a regular URL, use it directly
-        return pathOrUrl;
+        if (mounted) {
+          setState(() {
+            _imageBytes = bytes;
+            _hasError = false;
+            if (updateUi) _isLoading = false;
+          });
+        }
+        return;
       }
-
-      // It's a storage path, get download URL
-      final storageRef = FirebaseStorage.instance.ref().child(pathOrUrl);
-      final downloadUrl = await storageRef.getDownloadURL();
-      
-      if (kDebugMode) {
-        debugPrint('✅ ProfilePictureWidget: Got download URL for path: $pathOrUrl');
-      }
-
-      return downloadUrl;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ ProfilePictureWidget: Failed to get download URL: $e');
-      }
-      return null;
     }
-  }
 
-  /// Regenerate download URL from Firebase Storage URL
-  Future<String?> _regenerateDownloadUrl(String url) async {
-    try {
-      // Extract storage path from URL
-      // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
-      final uri = Uri.parse(url);
-      final pathMatch = RegExp(r'/o/(.+)\?').firstMatch(uri.path);
-      if (pathMatch == null) {
-        // Couldn't extract path, return null to use URL as-is
-        return null;
-      }
+    final source = widget.imageUrl ?? _downloadUrl;
+    if (source == null || source.isEmpty) return;
 
-      final encodedPath = pathMatch.group(1)!;
-      final storagePath = Uri.decodeComponent(encodedPath);
-      
-      // Get fresh download URL
-      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-      final downloadUrl = await storageRef.getDownloadURL();
-      
-      if (kDebugMode) {
-        debugPrint('✅ ProfilePictureWidget: Regenerated download URL');
+    if (kIsWeb) {
+      final bytes = await StorageImageLoader.loadBytes(source);
+      if (bytes != null && bytes.isNotEmpty && mounted) {
+        setState(() {
+          _imageBytes = bytes;
+          _hasError = false;
+          if (updateUi) _isLoading = false;
+        });
+        if (userId.isNotEmpty) {
+          await ProfilePicCacheService.save(
+            uid: userId,
+            downloadUrl: source,
+            previewBytes: bytes,
+          );
+        }
+        return;
       }
+    }
 
-      return downloadUrl;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ ProfilePictureWidget: Failed to regenerate URL: $e');
+    final url = userId.isNotEmpty
+        ? await StorageImageLoader.freshProfileDownloadUrl(userId)
+        : await StorageImageLoader.freshDownloadUrl(source);
+    if (url != null && mounted) {
+      setState(() {
+        _downloadUrl = url;
+        _hasError = false;
+        if (updateUi) _isLoading = false;
+      });
+      if (userId.isNotEmpty) {
+        await ProfilePicCacheService.save(uid: userId, downloadUrl: url);
       }
-      return null;
     }
   }
 
@@ -165,52 +197,57 @@ class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
   }
 
   Widget _buildImage() {
-    if (_hasError || _downloadUrl == null) {
+    if (_hasError && _imageBytes == null && _downloadUrl == null) {
       return _buildPlaceholder();
     }
 
-    // Use Image.network wrapped in ClipOval for web, CircleAvatar for mobile
-    if (kIsWeb) {
+    if (_imageBytes != null) {
       return ClipOval(
-        child: Container(
+        child: SizedBox(
           width: widget.size,
           height: widget.size,
-          color: widget.backgroundColor ?? Colors.grey[300],
-          child: Image.network(
-            ImageUrlHelper.encodeUrl(_downloadUrl!),
+          child: Image.memory(
+            _imageBytes!,
             fit: BoxFit.cover,
             width: widget.size,
             height: widget.size,
-            headers: const {'Cache-Control': 'no-cache'},
-            loadingBuilder: (context, child, loading) {
-              if (loading == null) return child;
-              return Center(child: CircularProgressIndicator());
-            },
-            errorBuilder: (context, error, stack) {
-              return Center(child: Text('Image failed to load'));
-            },
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
           ),
         ),
       );
-    } else {
-      return CircleAvatar(
-        radius: widget.size / 2,
-        backgroundColor: widget.backgroundColor ?? Colors.grey[300],
-        backgroundImage: NetworkImage(
-          ImageUrlHelper.encodeUrl(_downloadUrl!),
+    }
+
+    if (_downloadUrl == null) {
+      return _buildPlaceholder();
+    }
+
+    final url = ImageUrlHelper.encodeUrl(_downloadUrl!);
+
+    if (kIsWeb) {
+      return ClipOval(
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Image.network(
+            url,
+            fit: BoxFit.cover,
+            width: widget.size,
+            height: widget.size,
+            errorBuilder: (_, __, ___) => _buildPlaceholder(),
+          ),
         ),
-        onBackgroundImageError: (exception, stackTrace) {
-          if (mounted) {
-            setState(() {
-              _hasError = true;
-            });
-          }
-        },
-        child: _isLoading && widget.showLoadingIndicator
-            ? CircularProgressIndicator(strokeWidth: 2)
-            : null,
       );
     }
+
+    return CircleAvatar(
+      radius: widget.size / 2,
+      backgroundColor: widget.backgroundColor ?? Colors.grey[300],
+      backgroundImage: NetworkImage(url),
+      onBackgroundImageError: (_, __) {
+        if (mounted) setState(() => _hasError = true);
+      },
+    );
   }
 
   @override
@@ -219,10 +256,8 @@ class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
       return SizedBox(
         width: widget.size,
         height: widget.size,
-        child: Center(
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-          ),
+        child: const Center(
+          child: CircularProgressIndicator(strokeWidth: 2),
         ),
       );
     }
@@ -230,4 +265,3 @@ class _ProfilePictureWidgetState extends State<ProfilePictureWidget> {
     return _buildImage();
   }
 }
-

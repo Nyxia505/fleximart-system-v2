@@ -8,6 +8,8 @@ import 'dart:typed_data';
 import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/auth_provider.dart' as app_auth;
+import '../providers/theme_provider.dart';
+import '../screens/theme_display_settings_screen.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../pages/chat_list_page.dart';
@@ -15,6 +17,10 @@ import '../screen/payment_methods_screen.dart';
 import '../utils/price_formatter.dart';
 import '../widgets/profile_picture_widget.dart';
 import '../utils/image_url_helper.dart';
+import '../utils/profile_pic_utils.dart';
+import '../services/profile_picture_service.dart';
+import '../widgets/logout_button.dart';
+import '../utils/logout_helper.dart';
 import 'home_purchases_ui.dart';
 
 class DashboardProfile extends StatefulWidget {
@@ -25,8 +31,12 @@ class DashboardProfile extends StatefulWidget {
 }
 
 class _DashboardProfileState extends State<DashboardProfile> {
+  Uint8List? _localProfilePreviewBytes;
+
   Future<void> _pickProfileImage(String userId) async {
     debugPrint('📸 _pickProfileImage called with userId: $userId');
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final primaryColor = themeProvider.primaryColor;
 
     if (userId.isEmpty) {
       debugPrint('❌ User ID is empty');
@@ -81,12 +91,12 @@ class _DashboardProfileState extends State<DashboardProfile> {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.photo_library,
-                            color: AppColors.primary,
+                            color: primaryColor,
                             size: 24,
                           ),
                         ),
@@ -107,12 +117,12 @@ class _DashboardProfileState extends State<DashboardProfile> {
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: AppColors.primary.withOpacity(0.1),
+                            color: primaryColor.withOpacity(0.1),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.camera_alt,
-                            color: AppColors.primary,
+                            color: primaryColor,
                             size: 24,
                           ),
                         ),
@@ -151,7 +161,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
           debugPrint('⏳ Loading dialog shown');
           return Center(
             child: CircularProgressIndicator(
-              color: AppColors.primary,
+              color: primaryColor,
               strokeWidth: 3,
             ),
           );
@@ -214,59 +224,26 @@ class _DashboardProfileState extends State<DashboardProfile> {
         }
 
         debugPrint('✅ Image picked: ${image.path}');
-        // Read image as bytes
-        debugPrint('📖 Reading image bytes...');
-        final Uint8List imageBytes = await image.readAsBytes();
-        debugPrint('📖 Image bytes read: ${imageBytes.length} bytes');
-
-        if (imageBytes.isEmpty) {
-          throw Exception('Failed to read image data');
+        final pickedBytes = await image.readAsBytes();
+        if (pickedBytes.isNotEmpty && mounted) {
+          setState(() => _localProfilePreviewBytes = pickedBytes);
         }
-
-        debugPrint('📤 Uploading to Firebase Storage...');
-        // Upload to Firebase Storage
-        final storageRef = FirebaseStorage.instance
-            .ref()
-            .child('profile_images')
-            .child('${user.uid}.jpg');
-
-        await storageRef
-            .putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'))
+        debugPrint('📤 Uploading via ProfilePictureService...');
+        final downloadUrl = await ProfilePictureService()
+            .uploadAndSaveProfilePicture(
+              imageFile: image,
+              uid: user.uid,
+              previewBytes: pickedBytes,
+            )
             .timeout(
-              const Duration(seconds: 30),
+              const Duration(seconds: 45),
               onTimeout: () {
-                debugPrint('❌ Upload timeout');
                 throw Exception(
                   'Upload timeout. Please check your internet connection.',
                 );
               },
             );
-
-        debugPrint('✅ Upload completed, getting download URL...');
-        // Get download URL
-        final downloadUrl = await storageRef.getDownloadURL().timeout(
-          const Duration(seconds: 10),
-          onTimeout: () {
-            debugPrint('❌ Get download URL timeout');
-            throw Exception('Failed to get download URL. Please try again.');
-          },
-        );
-
-        if (downloadUrl.isEmpty) {
-          throw Exception('Invalid download URL received');
-        }
-
         debugPrint('✅ Download URL: $downloadUrl');
-        // Update Firestore - save to both profilePic (primary) and profileImageUrl (backward compatibility)
-        debugPrint('💾 Saving to Firestore...');
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .update({
-              'profilePic': downloadUrl,
-              'profileImageUrl': downloadUrl, // Keep for backward compatibility
-            });
-        debugPrint('✅ Firestore updated with image URL');
 
         // Verify the update was successful
         final verifyDoc = await FirebaseFirestore.instance
@@ -295,7 +272,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text('Profile picture updated!'),
-            backgroundColor: AppColors.primary,
+            backgroundColor: primaryColor,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
@@ -423,7 +400,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
             backgroundColor: AppColors.background,
             body: Center(
               child: CircularProgressIndicator(
-                color: AppColors.primary,
+                color: Provider.of<ThemeProvider>(context, listen: false).primaryColor,
                 strokeWidth: 3,
               ),
             ),
@@ -454,9 +431,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
             userData['phoneNumber'] as String? ??
             userData['phone'] as String? ??
             'No phone number';
-        final profileImageUrl =
-            (userData['profilePic'] as String?) ??
-            (userData['profileImageUrl'] as String?);
+        final profileImageUrl = profilePicUrlFromUserData(userData);
 
         debugPrint('📸 Profile image URL from Firestore: $profileImageUrl');
 
@@ -480,6 +455,34 @@ class _DashboardProfileState extends State<DashboardProfile> {
     String userId,
     String? profileImageUrl,
   ) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: true);
+    final primaryColor = themeProvider.primaryColor;
+    final secondaryColor = themeProvider.secondaryColor;
+    
+    // Create dynamic gradient from theme colors
+    final dynamicGradient = LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [
+        primaryColor,
+        secondaryColor,
+        Color.fromRGBO(
+          (primaryColor.red * 0.5).round().clamp(0, 255),
+          (primaryColor.green * 0.5).round().clamp(0, 255),
+          (primaryColor.blue * 0.5).round().clamp(0, 255),
+          1.0,
+        ),
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
+    
+    // Create dynamic button gradient
+    final dynamicButtonGradient = LinearGradient(
+      colors: [primaryColor, secondaryColor],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+    
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
@@ -501,10 +504,10 @@ class _DashboardProfileState extends State<DashboardProfile> {
                     width: double.infinity,
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
                     decoration: BoxDecoration(
-                      gradient: AppColors.mainGradient,
+                      gradient: dynamicGradient,
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: primaryColor.withOpacity(0.3),
                           blurRadius: 12,
                           offset: const Offset(0, 4),
                         ),
@@ -533,7 +536,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: AppColors.primary.withOpacity(0.3),
+                                  color: primaryColor.withOpacity(0.3),
                                   blurRadius: 12,
                                   offset: const Offset(0, 4),
                                   spreadRadius: 0,
@@ -551,25 +554,25 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                   key: ValueKey(
                                     'profile_avatar_${userId}_$profileImageUrl',
                                   ),
-                                  child:
-                                      (profileImageUrl != null &&
-                                          profileImageUrl.isNotEmpty)
-                                      ? _ProfileImageWidget(
-                                          imageUrl: profileImageUrl,
-                                          userId: userId,
-                                          width: 64,
-                                          height: 64,
-                                        )
-                                      : Container(
-                                          width: 64,
-                                          height: 64,
-                                          color: Colors.grey[300],
-                                          child: Icon(
-                                            Icons.person,
-                                            size: 32,
-                                            color: Colors.grey[400],
-                                          ),
-                                        ),
+                                  child: ProfilePictureWidget(
+                                    key: ValueKey(
+                                      'profile_avatar_${userId}_${profileImageUrl ?? ''}_${_localProfilePreviewBytes?.length ?? 0}',
+                                    ),
+                                    storageUserId: userId,
+                                    imageUrl: profileImageUrl,
+                                    initialBytes: _localProfilePreviewBytes,
+                                    size: 64,
+                                    placeholder: Container(
+                                      width: 64,
+                                      height: 64,
+                                      color: Colors.grey[300],
+                                      child: Icon(
+                                        Icons.person,
+                                        size: 32,
+                                        color: Colors.grey[400],
+                                      ),
+                                    ),
+                                  ),
                                 ),
                                 Positioned(
                                   bottom: 0,
@@ -583,7 +586,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                       width: 26,
                                       height: 26,
                                       decoration: BoxDecoration(
-                                        gradient: AppColors.buttonGradient,
+                                        gradient: dynamicButtonGradient,
                                         shape: BoxShape.circle,
                                         border: Border.all(
                                           color: Colors.white,
@@ -591,7 +594,7 @@ class _DashboardProfileState extends State<DashboardProfile> {
                                         ),
                                         boxShadow: [
                                           BoxShadow(
-                                            color: AppColors.primary
+                                            color: primaryColor
                                                 .withOpacity(0.4),
                                             blurRadius: 6,
                                             offset: const Offset(0, 2),
@@ -675,31 +678,76 @@ class _DashboardProfileState extends State<DashboardProfile> {
                             ],
                           ),
                         ),
-                        IconButton(
-                          icon: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.white.withOpacity(0.3),
-                                width: 1,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
                               ),
-                            ),
-                            child: const Icon(
-                              Icons.settings,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const SettingsScreen(),
+                              tooltip: 'Messages',
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.chat_bubble_outline,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
                               ),
-                            );
-                          },
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const ChatListPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                            IconButton(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
+                              ),
+                              tooltip: 'Settings',
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.settings,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const SettingsScreen(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -727,6 +775,8 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: true);
+    final primaryColor = themeProvider.primaryColor;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -735,7 +785,7 @@ class SettingsScreen extends StatelessWidget {
           'Settings',
           style: AppTextStyles.heading2(color: Colors.white),
         ),
-        backgroundColor: AppColors.primary,
+        backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
@@ -750,12 +800,12 @@ class SettingsScreen extends StatelessWidget {
               color: AppColors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: AppColors.primary.withOpacity(0.1),
+                color: primaryColor.withOpacity(0.1),
                 width: 1,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.primary.withOpacity(0.12),
+                  color: primaryColor.withOpacity(0.12),
                   blurRadius: 16,
                   offset: const Offset(0, 6),
                   spreadRadius: 0,
@@ -783,7 +833,7 @@ class SettingsScreen extends StatelessWidget {
                     'User';
                 final email =
                     userData?['email'] as String? ?? user?.email ?? 'No email';
-                final profileImageUrl = userData?['profileImageUrl'] as String?;
+                final profileImageUrl = profilePicUrlFromUserData(userData);
 
                 return InkWell(
                   onTap: () {
@@ -803,65 +853,31 @@ class SettingsScreen extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   child: Row(
                     children: [
-                      // Profile Picture
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              AppColors.primary.withOpacity(0.15),
-                              AppColors.secondary.withOpacity(0.12),
-                            ],
+                      ProfilePictureWidget(
+                        key: ValueKey(
+                          'settings_profile_${user?.uid}_$profileImageUrl',
+                        ),
+                        storageUserId: user?.uid,
+                        imageUrl: profileImageUrl,
+                        size: 64,
+                        placeholder: Container(
+                          width: 64,
+                          height: 64,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                primaryColor.withOpacity(0.15),
+                                themeProvider.secondaryColor.withOpacity(0.12),
+                              ],
+                            ),
+                            shape: BoxShape.circle,
                           ),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.primary.withOpacity(0.2),
-                            width: 1.5,
+                          child: Icon(
+                            Icons.person,
+                            size: 32,
+                            color: primaryColor,
                           ),
                         ),
-                        child:
-                            profileImageUrl != null &&
-                                profileImageUrl.isNotEmpty
-                            ? ClipOval(
-                                child: Image.network(
-                                  ImageUrlHelper.encodeUrl(profileImageUrl),
-                                  fit: BoxFit.cover,
-                                  cacheWidth: kIsWeb ? null : 200,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return Icon(
-                                      Icons.person,
-                                      size: 32,
-                                      color: AppColors.primary,
-                                    );
-                                  },
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                        if (loadingProgress == null)
-                                          return child;
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            value:
-                                                loadingProgress
-                                                        .expectedTotalBytes !=
-                                                    null
-                                                ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
-                                                : null,
-                                            strokeWidth: 2,
-                                            color: AppColors.primary,
-                                          ),
-                                        );
-                                      },
-                                ),
-                              )
-                            : Icon(
-                                Icons.person,
-                                size: 32,
-                                color: AppColors.primary,
-                              ),
                       ),
                       const SizedBox(width: 16),
                       // Name and Email
@@ -969,10 +985,10 @@ class SettingsScreen extends StatelessWidget {
                 title: 'Theme & Display',
                 color: Colors.purple,
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Theme settings coming soon'),
-                      backgroundColor: AppColors.primary,
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ThemeDisplaySettingsScreen(),
                     ),
                   );
                 },
@@ -1075,92 +1091,8 @@ class SettingsScreen extends StatelessWidget {
 
           // Logout Section
           const SizedBox(height: 32),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: SizedBox(
-              height: 50,
-              child: OutlinedButton(
-                onPressed: () async {
-                  final shouldLogout = await showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      title: Text('Logout', style: AppTextStyles.heading3()),
-                      content: const Text('Are you sure you want to logout?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancel'),
-                        ),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.error,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Logout'),
-                        ),
-                      ],
-                    ),
-                  );
-
-                  if (shouldLogout == true) {
-                    // Log logout activity before signing out
-                    try {
-                      final user = FirebaseAuth.instance.currentUser;
-                      if (user != null) {
-                        final userDoc = await FirebaseFirestore.instance
-                            .collection('users')
-                            .doc(user.uid)
-                            .get();
-                        if (userDoc.exists) {
-                          final userData = userDoc.data() as Map<String, dynamic>;
-                          final userName = (userData['name'] as String?) ??
-                              (userData['fullName'] as String?) ??
-                              (userData['customerName'] as String?) ??
-                              (userData['email'] as String?) ??
-                              'Unknown User';
-                          
-                          await FirebaseFirestore.instance.collection('activity_logs').add({
-                            'userId': user.uid,
-                            'userName': userName,
-                            'actionType': 'Logout',
-                            'description': 'User logged out',
-                            'timestamp': FieldValue.serverTimestamp(),
-                            'metadata': {
-                              'role': userData['role'] as String? ?? 'unknown',
-                              'logoutTime': DateTime.now().toIso8601String(),
-                            },
-                          });
-                        }
-                      }
-                    } catch (e) {
-                      // Don't fail logout if activity logging fails
-                      debugPrint('Error logging logout activity: $e');
-                    }
-                    
-                    await context.read<app_auth.AuthProvider>().signOut();
-                    if (!context.mounted) return;
-                    Navigator.pushReplacementNamed(context, '/login');
-                  }
-                },
-                child: Text(
-                  'Logout',
-                  style: AppTextStyles.buttonMedium(color: AppColors.error),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: AppColors.error, width: 2),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
-            ),
+          LogoutButton(
+            onPressed: () => LogoutHelper.confirmAndSignOut(context),
           ),
           const SizedBox(height: 32),
         ],
@@ -1182,12 +1114,15 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            title,
-            style: AppTextStyles.heading3().copyWith(
-              color: AppColors.primary,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          Expanded(
+            child: Text(
+              title,
+              style: AppTextStyles.heading3().copyWith(
+                color: AppColors.primary,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1232,7 +1167,7 @@ class SettingsScreen extends StatelessWidget {
     required VoidCallback onTap,
   }) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       leading: Container(
         width: 42,
         height: 42,
@@ -1247,10 +1182,14 @@ class SettingsScreen extends StatelessWidget {
         ),
         child: Icon(icon, color: color, size: 22),
       ),
-      title: Text(title, style: AppTextStyles.bodyLarge()),
+      title: Text(
+        title,
+        style: AppTextStyles.bodyLarge(),
+        overflow: TextOverflow.ellipsis,
+      ),
       trailing: Icon(
         Icons.arrow_forward_ios,
-        size: 16,
+        size: 14,
         color: AppColors.textSecondary,
       ),
       onTap: onTap,
@@ -1272,6 +1211,7 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
   bool _loading = false;
   bool _uploadingImage = false;
   String? _profileImageUrl;
+  Uint8List? _localProfilePreviewBytes;
 
   @override
   void initState() {
@@ -1288,8 +1228,11 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             .doc(user.uid)
             .get();
         final userData = userDoc.data();
-        _phoneController.text = userData?['phone'] as String? ?? '';
-        _profileImageUrl = userData?['profileImageUrl'] as String?;
+        _phoneController.text =
+            (userData?['phoneNumber'] as String?) ??
+            (userData?['phone'] as String?) ??
+            '';
+        _profileImageUrl = profilePicUrlFromUserData(userData);
         if (mounted) {
           setState(() {});
         }
@@ -1304,54 +1247,13 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
     super.dispose();
   }
 
-  /// Show "Coming Soon" dialog for profile picture upload
-  void _showComingSoonDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: Row(
-          children: [
-            Icon(
-              Icons.info_outline,
-              color: AppColors.primary,
-              size: 28,
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Coming Soon',
-              style: AppTextStyles.heading3(),
-            ),
-          ],
-        ),
-        content: Text(
-          'Profile picture upload feature is coming soon. Profile pictures are currently managed by admin.',
-          style: AppTextStyles.bodyLarge(),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'OK',
-              style: TextStyle(color: AppColors.primary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // DISABLED: Profile picture upload - managed by admin
-  // ignore: unused_element
   Future<void> _pickProfileImage() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Please log in to upload profile image'),
+            content: Text('Please log in to upload a profile picture'),
             backgroundColor: AppColors.error,
           ),
         );
@@ -1359,7 +1261,6 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
       return;
     }
 
-    // Show dialog to choose image source
     final ImageSource? source = await showDialog<ImageSource>(
       context: context,
       builder: (context) => AlertDialog(
@@ -1369,35 +1270,13 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.photo_library,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
-              ),
+              leading: Icon(Icons.photo_library, color: AppColors.primary),
               title: Text('Gallery', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.gallery),
             ),
             const Divider(),
             ListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.camera_alt,
-                  color: AppColors.primary,
-                  size: 24,
-                ),
-              ),
+              leading: Icon(Icons.camera_alt, color: AppColors.primary),
               title: Text('Camera', style: AppTextStyles.bodyLarge()),
               onTap: () => Navigator.pop(context, ImageSource.camera),
             ),
@@ -1408,91 +1287,37 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
 
     if (source == null) return;
 
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(
+    final picker = ImagePicker();
+    final image = await picker.pickImage(
       source: source,
       maxWidth: 512,
       maxHeight: 512,
       imageQuality: 85,
     );
-
     if (image == null) return;
 
-    // Show loading indicator
     if (!mounted) return;
-    BuildContext? dialogContext;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) {
-        dialogContext = dialogCtx;
-        return Center(
-          child: CircularProgressIndicator(
-            color: AppColors.primary,
-            strokeWidth: 3,
-          ),
-        );
-      },
-    );
+    setState(() => _uploadingImage = true);
 
     try {
-      // Read image as bytes
-      final Uint8List imageBytes = await image.readAsBytes();
-
-      if (imageBytes.isEmpty) {
-        throw Exception('Failed to read image data');
+      final pickedBytes = await image.readAsBytes();
+      if (pickedBytes.isNotEmpty) {
+        setState(() => _localProfilePreviewBytes = pickedBytes);
       }
 
-      // Upload to Firebase Storage
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('profile_images')
-          .child('${user.uid}.jpg');
-
-      await storageRef
-          .putData(imageBytes, SettableMetadata(contentType: 'image/jpeg'))
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              throw Exception(
-                'Upload timeout. Please check your internet connection.',
-              );
-            },
+      final downloadUrl = await ProfilePictureService()
+          .uploadAndSaveProfilePicture(
+            imageFile: image,
+            uid: user.uid,
+            previewBytes: pickedBytes,
           );
 
-      // Get download URL
-      final downloadUrl = await storageRef.getDownloadURL().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw Exception('Failed to get download URL. Please try again.');
-        },
-      );
-
-      if (downloadUrl.isEmpty) {
-        throw Exception('Invalid download URL received');
-      }
-
-      // Update Firestore - save to both profilePic (primary) and profileImageUrl (backward compatibility)
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).update(
-        {
-          'profilePic': downloadUrl,
-          'profileImageUrl': downloadUrl, // Keep for backward compatibility
-        },
-      );
-
-      // Update local state
-      if (mounted) {
-        setState(() {
-          _profileImageUrl = downloadUrl;
-        });
-      }
-
-      // Close loading dialog
-      if (mounted && dialogContext != null) {
-        Navigator.pop(dialogContext!);
-      }
-
       if (!mounted) return;
+      setState(() {
+        _profileImageUrl = downloadUrl;
+        _uploadingImage = false;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Profile picture updated!'),
@@ -1500,15 +1325,11 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
         ),
       );
     } catch (e) {
-      // Close loading dialog
-      if (mounted && dialogContext != null) {
-        Navigator.pop(dialogContext!);
-      }
-
       if (!mounted) return;
+      setState(() => _uploadingImage = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error uploading image: ${e.toString()}'),
+          content: Text('Failed to upload photo: $e'),
           backgroundColor: AppColors.error,
         ),
       );
@@ -1530,13 +1351,15 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
         throw Exception('User not logged in');
       }
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
-            'fullName': _nameController.text.trim(),
-            'phone': _phoneController.text.trim(),
-          });
+      final phone = _phoneController.text.trim();
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {
+          'fullName': _nameController.text.trim(),
+          'phone': phone,
+          'phoneNumber': phone,
+        },
+        SetOptions(merge: true),
+      );
 
       await user.updateDisplayName(_nameController.text.trim());
 
@@ -1629,47 +1452,37 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             Center(
               child: Stack(
                 children: [
-                  // Profile Picture - Use ProfilePictureWidget
-                  _profileImageUrl != null && _profileImageUrl!.isNotEmpty
-                      ? _uploadingImage
-                            ? SizedBox(
-                                width: 100,
-                                height: 100,
-                                child: const Center(
-                                  child: CircularProgressIndicator(
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                              )
-                            : ProfilePictureWidget(
-                                imageUrl: _profileImageUrl!,
-                                size: 100,
-                                backgroundColor: Colors.grey[300],
-                                placeholder: Container(
-                                  width: 100,
-                                  height: 100,
-                                  color: Colors.grey[300],
-                                  child: const Icon(Icons.person, size: 50),
-                                ),
-                              )
-                      : CircleAvatar(
-                          radius: 50,
-                          backgroundColor: Colors.grey[300],
-                          child: _uploadingImage
-                              ? const CircularProgressIndicator(
-                                  color: AppColors.primary,
-                                )
-                              : const Icon(
-                                  Icons.person,
-                                  size: 50,
-                                  color: Colors.grey,
-                                ),
+                  _uploadingImage
+                      ? const SizedBox(
+                          width: 100,
+                          height: 100,
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        )
+                      : ProfilePictureWidget(
+                          key: ValueKey(
+                            'edit_profile_${FirebaseAuth.instance.currentUser?.uid}_$_profileImageUrl',
+                          ),
+                          storageUserId:
+                              FirebaseAuth.instance.currentUser?.uid,
+                          imageUrl: _profileImageUrl,
+                          initialBytes: _localProfilePreviewBytes,
+                          size: 100,
+                          placeholder: Container(
+                            width: 100,
+                            height: 100,
+                            color: Colors.grey[300],
+                            child: const Icon(Icons.person, size: 50),
+                          ),
                         ),
                   Positioned(
                     bottom: 0,
                     right: 0,
                     child: GestureDetector(
-                      onTap: _showComingSoonDialog,
+                      onTap: _uploadingImage ? null : _pickProfileImage,
                       child: Container(
                         width: 40,
                         height: 40,
@@ -1699,8 +1512,8 @@ class _EditUsernameScreenState extends State<EditUsernameScreen> {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Profile picture managed by admin',
-                style: AppTextStyles.caption(color: AppColors.textHint),
+                'Tap the camera icon to change your photo',
+                style: AppTextStyles.caption(color: AppColors.textSecondary),
               ),
             ),
             const SizedBox(height: 24),
@@ -3161,12 +2974,8 @@ class ProfileDetailsScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 32),
-            // Profile Image
             Container(
-              width: 120,
-              height: 120,
               decoration: BoxDecoration(
-                color: Colors.pink[100],
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
@@ -3176,35 +2985,24 @@ class ProfileDetailsScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              child: profileImageUrl != null && profileImageUrl!.isNotEmpty
-                  ? ClipOval(
-                      child: Image.network(
-                        ImageUrlHelper.encodeUrl(profileImageUrl!),
-                        fit: BoxFit.cover,
-                        cacheWidth: kIsWeb ? null : 400,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Icon(
-                            Icons.person,
-                            size: 60,
-                            color: Colors.pink[300],
-                          );
-                        },
-                        loadingBuilder: (context, child, loadingProgress) {
-                          if (loadingProgress == null) return child;
-                          return Center(
-                            child: CircularProgressIndicator(
-                              value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded /
-                                        loadingProgress.expectedTotalBytes!
-                                  : null,
-                              strokeWidth: 3,
-                              color: Colors.pink[300],
-                            ),
-                          );
-                        },
-                      ),
-                    )
-                  : Icon(Icons.person, size: 60, color: Colors.pink[300]),
+              child: ProfilePictureWidget(
+                storageUserId: FirebaseAuth.instance.currentUser?.uid,
+                imageUrl: profileImageUrl,
+                size: 120,
+                placeholder: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFE4E4),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person,
+                    size: 60,
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 32),
             // Profile Information Card
@@ -3329,200 +3127,6 @@ class ProfileDetailsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-/// Widget that handles profile image loading with retry and URL refresh logic
-class _ProfileImageWidget extends StatefulWidget {
-  final String imageUrl;
-  final String userId;
-  final double width;
-  final double height;
-
-  const _ProfileImageWidget({
-    required this.imageUrl,
-    required this.userId,
-    required this.width,
-    required this.height,
-  });
-
-  @override
-  State<_ProfileImageWidget> createState() => _ProfileImageWidgetState();
-}
-
-class _ProfileImageWidgetState extends State<_ProfileImageWidget> {
-  String? _currentImageUrl;
-  String? _cacheBustToken;
-  int _retryCount = 0;
-  static const int _maxRetries = 2;
-  bool _isRetrying = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentImageUrl = widget.imageUrl;
-    _cacheBustToken = DateTime.now().millisecondsSinceEpoch.toString();
-  }
-
-  @override
-  void didUpdateWidget(_ProfileImageWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.imageUrl != widget.imageUrl) {
-      setState(() {
-        _currentImageUrl = widget.imageUrl;
-        _cacheBustToken = DateTime.now().millisecondsSinceEpoch.toString();
-        _retryCount = 0;
-        _isRetrying = false;
-      });
-      debugPrint('🔄 Profile image URL updated: ${widget.imageUrl}');
-    }
-  }
-
-  /// Regenerate download URL from Firebase Storage
-  Future<String?> _regenerateDownloadUrl() async {
-    try {
-      // Get reference to the profile image
-      final storageRef = FirebaseStorage.instance
-          .ref()
-          .child('profile_images')
-          .child('${widget.userId}.jpg');
-
-      // Get fresh download URL
-      final newUrl = await storageRef.getDownloadURL();
-      debugPrint('✅ Regenerated download URL for profile image');
-      return newUrl;
-    } catch (e) {
-      debugPrint('❌ Failed to regenerate URL: $e');
-      return null;
-    }
-  }
-
-  /// Handle image load error with retry logic
-  Future<void> _handleImageError(Object error) async {
-    if (_retryCount >= _maxRetries || _isRetrying) {
-      debugPrint('❌ Image load failed after $_retryCount retries: $error');
-      return;
-    }
-
-    _isRetrying = true;
-    _retryCount++;
-
-    debugPrint('🔄 Retrying image load (attempt $_retryCount/$_maxRetries)...');
-
-    // Wait a bit before retrying
-    await Future.delayed(Duration(milliseconds: 500 * _retryCount));
-
-    // Try to regenerate the URL
-    final newUrl = await _regenerateDownloadUrl();
-
-    if (mounted && newUrl != null && newUrl != _currentImageUrl) {
-      setState(() {
-        _currentImageUrl = newUrl;
-      });
-
-      // Update Firestore with new URL
-      try {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(widget.userId)
-            .update({'profilePic': newUrl, 'profileImageUrl': newUrl});
-      } catch (e) {
-        debugPrint('⚠️ Failed to update Firestore with new URL: $e');
-      }
-    }
-
-    _isRetrying = false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_currentImageUrl == null || _currentImageUrl!.isEmpty) {
-      return Container(
-        width: widget.width,
-        height: widget.height,
-        color: Colors.grey[300],
-        child: Icon(
-          Icons.person,
-          size: widget.width * 0.5,
-          color: Colors.grey[400],
-        ),
-      );
-    }
-
-    // Add cache busting parameter to force reload when URL changes
-    final imageUrlWithCacheBust = _currentImageUrl!.contains('?')
-        ? '$_currentImageUrl&_t=$_cacheBustToken'
-        : '$_currentImageUrl?_t=$_cacheBustToken';
-
-    // Encode URL for safe web loading
-    final safeImageUrl = Uri.encodeFull(imageUrlWithCacheBust);
-
-    return Image.network(
-      safeImageUrl,
-      width: widget.width,
-      height: widget.height,
-      fit: BoxFit.cover,
-      key: ValueKey(
-        'profile_image_${_currentImageUrl}_${widget.userId}_$_cacheBustToken',
-      ),
-      // Only use cacheWidth/cacheHeight on mobile, not on web
-      cacheWidth: kIsWeb ? null : (widget.width * 2).round().clamp(200, 800),
-      cacheHeight: kIsWeb ? null : (widget.height * 2).round().clamp(200, 800),
-      headers: kIsWeb ? null : {'Cache-Control': 'no-cache'},
-      frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-        if (wasSynchronouslyLoaded || frame != null) {
-          return child;
-        }
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          color: Colors.grey[300],
-          child: Center(
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.primary,
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        // Handle error and retry
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _handleImageError(error);
-        });
-
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          color: Colors.grey[300],
-          child: Icon(
-            Icons.person,
-            size: widget.width * 0.5,
-            color: Colors.grey[400],
-          ),
-        );
-      },
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) {
-          return child;
-        }
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          color: Colors.grey[300],
-          child: Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                        loadingProgress.expectedTotalBytes!
-                  : null,
-              strokeWidth: 2,
-              color: AppColors.primary,
-            ),
-          ),
-        );
-      },
     );
   }
 }

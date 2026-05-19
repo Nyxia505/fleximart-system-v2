@@ -4,7 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
-import '../utils/image_url_helper.dart';
+import '../utils/profile_pic_utils.dart';
+import 'profile_picture_widget.dart';
 
 /// Header Section Widget
 /// 
@@ -130,7 +131,7 @@ class HeaderSection extends StatelessWidget {
                           : null,
                       builder: (context, snapshot) {
                         final userData = snapshot.data?.data() as Map<String, dynamic>?;
-                        final profileImageUrl = userData?['profileImageUrl'] as String?;
+                        final profileImageUrl = profilePicUrlFromUserData(userData);
                         
                         return Container(
                           width: 44,
@@ -149,38 +150,21 @@ class HeaderSection extends StatelessWidget {
                               ),
                             ],
                           ),
-                          child: profileImageUrl != null && profileImageUrl.isNotEmpty
-                              ? ClipOval(
-                                  child: Image.network(
-                                    ImageUrlHelper.encodeUrl(profileImageUrl),
-                                    fit: BoxFit.cover,
-                                    cacheWidth: kIsWeb ? null : 80,
-                                    loadingBuilder: (context, child, loadingProgress) {
-                                      if (loadingProgress == null) return child;
-                                      return Container(
-                                        color: Colors.white.withOpacity(0.2),
-                                        child: Center(
-                                          child: CircularProgressIndicator(
-                                            value: loadingProgress.expectedTotalBytes != null
-                                                ? loadingProgress.cumulativeBytesLoaded /
-                                                    loadingProgress.expectedTotalBytes!
-                                                : null,
-                                            strokeWidth: 2,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                    errorBuilder: (context, error, stackTrace) {
-                                      return Container(
-                                        color: Colors.white.withOpacity(0.2),
-                                        child: const Icon(
-                                          Icons.person,
-                                          color: Colors.white,
-                                          size: 24,
-                                        ),
-                                      );
-                                    },
+                          child: user != null
+                              ? ProfilePictureWidget(
+                                  storageUserId: user.uid,
+                                  imageUrl: profileImageUrl,
+                                  size: 44,
+                                  placeholder: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
                                   ),
                                 )
                               : Container(

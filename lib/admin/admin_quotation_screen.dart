@@ -10,6 +10,7 @@ import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import '../widgets/quotation_card.dart';
 import '../utils/price_formatter.dart';
+import '../widgets/admin_feature_header.dart';
 
 /// Admin Quotation Screen
 /// 
@@ -56,31 +57,38 @@ class _AdminQuotationScreenState extends State<AdminQuotationScreen>
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('All Quotations'),
-        backgroundColor: AppColors.primary,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: const [
-            Tab(text: 'All'),
-            Tab(text: 'Pending'),
-            Tab(text: 'Quoted'),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined),
-            onPressed: () => _showNotifications(context, user.uid),
+      backgroundColor: AppColors.dashboardBackground,
+      body: Column(
+        children: [
+          AdminFeatureHeader(
+            title: 'Quotations',
+            subtitle: 'Review and manage customer quotation requests',
+            icon: Icons.description_outlined,
+            trailing: IconButton(
+              onPressed: () => _showNotifications(context, user.uid),
+              icon: const Icon(
+                Icons.notifications_outlined,
+                color: Colors.white,
+              ),
+              tooltip: 'Notifications',
+            ),
           ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot>(
+          Material(
+            color: AppColors.primary,
+            child: TabBar(
+              controller: _tabController,
+              indicatorColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.white70,
+              tabs: const [
+                Tab(text: 'All'),
+                Tab(text: 'Pending'),
+                Tab(text: 'Quoted'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('quotations')
             .orderBy('createdAt', descending: true)
@@ -200,6 +208,9 @@ class _AdminQuotationScreenState extends State<AdminQuotationScreen>
             ],
           );
         },
+            ),
+          ),
+        ],
       ),
     );
   }

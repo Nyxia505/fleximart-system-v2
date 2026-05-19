@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
+import '../utils/profile_pic_utils.dart';
 import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/profile_picture_widget.dart';
 import 'chat_detail_page.dart';
@@ -67,14 +68,8 @@ Future<String?> _getUserProfilePic(String userId) async {
         .collection('users')
         .doc(userId)
         .get();
-    final userData = userDoc.data() ?? {};
-    // Priority: profilePic (primary) > profileImageUrl (backward compatibility)
-    final profilePicUrl =
-        userData['profilePic'] as String? ??
-        userData['profileImageUrl'] as String?;
-    return (profilePicUrl != null && profilePicUrl.isNotEmpty)
-        ? profilePicUrl
-        : null;
+    final userData = userDoc.data();
+    return profilePicUrlFromUserData(userData);
   } catch (e) {
     return null;
   }

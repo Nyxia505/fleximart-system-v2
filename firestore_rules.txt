@@ -17,6 +17,7 @@ service cloud.firestore {
       allow create: if isOwner(uid) || isAdmin() || isStaff();
 
       // Owner can update their own profile fields (fullName, phone, profileImageUrl, emailVerified, isVerified, verifiedAt)
+      // Also allow preference fields (notifications, chat, theme, display settings)
       // Admins/staff can update any user
       // Allow verification updates during signup (user might be authenticated but rules should allow)
       allow update: if (isOwner(uid) &&
@@ -30,6 +31,68 @@ service cloud.firestore {
                           .changedKeys().hasOnly(['phone']) ||
                          request.resource.data.diff(resource.data)
                           .changedKeys().hasOnly(['profileImageUrl']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['profilePic']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['profilePic', 'profileImageUrl']) ||
+                         // Allow preference fields (notifications, chat, theme, display) - single or combinations
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['notif_pushEnabled']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['notif_emailEnabled']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['notif_orderUpdates']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['notif_promotions']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['notif_newsletter']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['chat_enabled']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['chat_sound']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['chat_readReceipts']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['chat_status']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['theme_mode']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['font_size']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['display_reducedMotion']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['theme_color']) ||
+                         // Allow combinations of theme/display fields
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'font_size']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'theme_color']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'display_reducedMotion']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['font_size', 'display_reducedMotion']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['font_size', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['display_reducedMotion', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'font_size', 'display_reducedMotion']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'font_size', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'display_reducedMotion', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['font_size', 'display_reducedMotion', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'font_size', 'display_reducedMotion', 'display_highContrast']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'theme_color', 'font_size']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['theme_mode', 'theme_color', 'font_size', 'display_reducedMotion', 'display_highContrast']) ||
                          // Allow verification fields together (for OTP verification)
                          request.resource.data.diff(resource.data)
                           .changedKeys().hasAll(['emailVerified', 'isVerified']) ||

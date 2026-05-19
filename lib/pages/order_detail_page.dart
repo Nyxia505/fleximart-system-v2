@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
+import '../providers/theme_provider.dart';
 import '../utils/price_formatter.dart';
 import '../dialogs/delivery_schedule_dialog.dart';
 import '../utils/role_helper.dart';
@@ -208,7 +210,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.location_on, color: AppColors.primary, size: 20),
+                              Consumer<ThemeProvider>(
+                                builder: (context, themeProvider, _) {
+                                  return Icon(Icons.location_on, color: themeProvider.primaryColor, size: 20);
+                                },
+                              ),
                               const SizedBox(width: 8),
                               const Text(
                                 'Delivery Address',
@@ -248,8 +254,6 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
                                 icon: const Icon(Icons.map),
                                 label: const Text('View on Map'),
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: AppColors.primary,
-                                  foregroundColor: Colors.white,
                                   padding: const EdgeInsets.symmetric(vertical: 12),
                                 ),
                               ),
@@ -485,6 +489,7 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
   }
 
   Widget _buildInfoRow(String label, String value) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
@@ -494,16 +499,18 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
             width: 120,
             child: Text(
               '$label:',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
-                color: AppColors.textSecondary,
+                color: isDark ? Colors.white70 : AppColors.textSecondary,
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: const TextStyle(color: AppColors.textPrimary),
+              style: TextStyle(
+                color: isDark ? const Color(0xFF64B5F6) : AppColors.textPrimary, // Light blue for dark theme
+              ),
             ),
           ),
         ],
@@ -663,7 +670,11 @@ class _OrderDetailPageState extends State<OrderDetailPage> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.star, color: AppColors.primary, size: 20),
+                    Consumer<ThemeProvider>(
+                      builder: (context, themeProvider, _) {
+                        return Icon(Icons.star, color: themeProvider.primaryColor, size: 20);
+                      },
+                    ),
                     const SizedBox(width: 8),
                     const Text(
                       'Rate Order',
@@ -785,64 +796,76 @@ class _RatingFormState extends State<_RatingForm> {
           ),
         ),
         const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(5, (index) {
-            final starNumber = index + 1;
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedStars = starNumber;
-                });
-              },
-              child: Icon(
-                starNumber <= _selectedStars
-                    ? Icons.star
-                    : Icons.star_border,
-                color: AppColors.primary,
-                size: 40,
-              ),
+        Consumer<ThemeProvider>(
+          builder: (context, themeProvider, _) {
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(5, (index) {
+                final starNumber = index + 1;
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedStars = starNumber;
+                    });
+                  },
+                  child: Icon(
+                    starNumber <= _selectedStars
+                        ? Icons.star
+                        : Icons.star_border,
+                    color: themeProvider.primaryColor,
+                    size: 40,
+                  ),
+                );
+              }),
             );
-          }),
+          },
         ),
         const SizedBox(height: 16),
         TextField(
           controller: _commentController,
           maxLines: 4,
-          decoration: const InputDecoration(
+          style: const TextStyle(color: Colors.white),
+          decoration: InputDecoration(
             hintText: 'Optional: Share your experience...',
-            border: OutlineInputBorder(),
+            hintStyle: TextStyle(color: Colors.white54),
+            border: const OutlineInputBorder(),
             filled: true,
-            fillColor: Colors.white,
+            fillColor: Theme.of(context).brightness == Brightness.dark 
+                ? const Color(0xFF2C2C2C) 
+                : Colors.white,
           ),
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: _isSubmitting ? null : _submitRating,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-            ),
-            child: _isSubmitting
-                ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  )
-                : const Text(
-                    'Submit Rating',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
+        Consumer<ThemeProvider>(
+          builder: (context, themeProvider, _) {
+            return SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isSubmitting ? null : _submitRating,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: themeProvider.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+                child: _isSubmitting
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Submit Rating',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            );
+          },
         ),
       ],
     );

@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
+import '../providers/theme_provider.dart';
 import '../pages/product_details_page.dart';
 import '../widgets/product_base64_image.dart';
+import '../widgets/product_image_widget.dart';
 import '../utils/price_formatter.dart';
 import '../services/cart_service.dart';
 import '../services/product_service.dart';
-import '../utils/image_url_helper.dart';
+import '../utils/product_image_utils.dart';
 
 class ShopDashboard extends StatefulWidget {
   const ShopDashboard({super.key});
@@ -64,16 +66,38 @@ class _ShopDashboardState extends State<ShopDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header with Search Bar
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: AppColors.mainGradient,
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final primaryColor = themeProvider.primaryColor;
+        final secondaryColor = themeProvider.secondaryColor;
+        
+        // Create dynamic gradient from theme colors
+        final dynamicGradient = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            primaryColor,
+            secondaryColor,
+            Color.fromRGBO(
+              (primaryColor.red * 0.5).round().clamp(0, 255),
+              (primaryColor.green * 0.5).round().clamp(0, 255),
+              (primaryColor.blue * 0.5).round().clamp(0, 255),
+              1.0,
+            ),
+          ],
+          stops: const [0.0, 0.5, 1.0],
+        );
+        
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          body: SafeArea(
+            child: Column(
+              children: [
+                // Header with Search Bar
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: dynamicGradient,
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -229,9 +253,9 @@ class _ShopDashboardState extends State<ShopDashboard> {
                 stream: _getProductsStream(),
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
-                    return Center(
+                      return Center(
                       child: CircularProgressIndicator(
-                        color: AppColors.primary,
+                        color: primaryColor,
                         strokeWidth: 3,
                       ),
                     );
@@ -287,7 +311,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                               Icon(
                                 Icons.inventory_2_outlined,
                                 size: 64,
-                                color: AppColors.primary.withOpacity(0.6),
+                                color: primaryColor.withOpacity(0.6),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -313,11 +337,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                   // Remove entries without valid images to avoid blank cards
                   final validProducts = filteredProducts.where((doc) {
                     final product = doc.data() as Map<String, dynamic>;
-                    final imageString =
-                        product['image']?.toString() ??
-                        product['imageUrl']?.toString() ??
-                        '';
-                    return imageString.trim().isNotEmpty;
+                    return resolveProductImageString(product).isNotEmpty;
                   }).toList();
 
                   if (filteredProducts.isEmpty || validProducts.isEmpty) {
@@ -331,7 +351,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                               Icon(
                                 Icons.search_off,
                                 size: 64,
-                                color: AppColors.primary.withOpacity(0.6),
+                                color: primaryColor.withOpacity(0.6),
                               ),
                               const SizedBox(height: 16),
                               Text(
@@ -379,10 +399,7 @@ class _ShopDashboardState extends State<ShopDashboard> {
                             product['name']?.toString() ??
                             product['title']?.toString() ??
                             'Product';
-                        final imageString =
-                            product['image']?.toString() ??
-                            product['imageUrl']?.toString() ??
-                            '';
+                        final imageString = resolveProductImageString(product);
                         // Safe price parsing - handle both String and num types
                         double price = 0.0;
                         final priceValue = product['price'];
@@ -491,6 +508,8 @@ class _ShopDashboardState extends State<ShopDashboard> {
           ],
         ),
       ),
+      );
+    },
     );
   }
 }
@@ -517,11 +536,14 @@ class _ProductCard extends StatelessWidget {
 
   Future<void> _addToCartAndNavigate(BuildContext context) async {
     final user = FirebaseAuth.instance.currentUser;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final primaryColor = themeProvider.primaryColor;
+    
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please log in to add items to cart'),
-          backgroundColor: AppColors.primary,
+        SnackBar(
+          content: const Text('Please log in to add items to cart'),
+          backgroundColor: primaryColor,
         ),
       );
       return;
@@ -531,7 +553,7 @@ class _ProductCard extends StatelessWidget {
       final cartService = CartService();
       final productId = productData['id']?.toString() ?? productData['productId']?.toString() ?? '';
       final productName = productData['name']?.toString() ?? 'Product';
-      final productImage = productData['image']?.toString() ?? productData['imageUrl']?.toString();
+      final productImage = resolveProductImageString(productData);
       final productLength = (productData['length'] as num?)?.toDouble();
       final productWidth = (productData['width'] as num?)?.toDouble();
 
@@ -570,17 +592,22 @@ class _ProductCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, _) {
+        final primaryColor = themeProvider.primaryColor;
+        final secondaryColor = themeProvider.secondaryColor;
+        
+        return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: AppColors.primary.withOpacity(0.1),
+          color: primaryColor.withOpacity(0.1),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withOpacity(0.15),
+            color: primaryColor.withOpacity(0.15),
             blurRadius: 20,
             offset: const Offset(0, 6),
             spreadRadius: 0,
@@ -607,7 +634,7 @@ class _ProductCard extends StatelessWidget {
                   top: Radius.circular(24),
                 ),
                 child: imageString.isNotEmpty
-                    ? _buildProductImage(imageString)
+                    ? _buildProductImage(imageString, primaryColor)
                     : Container(
                         color: Colors.grey[200],
                         child: const Icon(
@@ -638,13 +665,13 @@ class _ProductCard extends StatelessWidget {
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           colors: [
-                            AppColors.primary.withOpacity(0.15),
-                            AppColors.secondary.withOpacity(0.12),
+                            primaryColor.withOpacity(0.15),
+                            secondaryColor.withOpacity(0.12),
                           ],
                         ),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: AppColors.primary.withOpacity(0.3),
+                          color: primaryColor.withOpacity(0.3),
                           width: 0.5,
                         ),
                       ),
@@ -653,7 +680,7 @@ class _ProductCard extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.primary,
+                          color: primaryColor,
                           letterSpacing: 0.2,
                         ),
                         maxLines: 1,
@@ -688,7 +715,7 @@ class _ProductCard extends StatelessWidget {
                           child: Icon(
                             Icons.shopping_cart_outlined,
                             size: 18,
-                            color: AppColors.primary,
+                            color: primaryColor,
                           ),
                         ),
                       ],
@@ -706,10 +733,10 @@ class _ProductCard extends StatelessWidget {
                           vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withOpacity(0.12),
+                          color: primaryColor.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: AppColors.primary.withOpacity(0.4),
+                            color: primaryColor.withOpacity(0.4),
                             width: 1,
                           ),
                         ),
@@ -719,7 +746,7 @@ class _ProductCard extends StatelessWidget {
                             Icon(
                               Icons.shopping_bag_outlined,
                               size: 12,
-                              color: AppColors.primary,
+                              color: primaryColor,
                             ),
                             const SizedBox(width: 4),
                             Text(
@@ -727,7 +754,7 @@ class _ProductCard extends StatelessWidget {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
+                                color: primaryColor,
                                 letterSpacing: 0.2,
                               ),
                             ),
@@ -743,7 +770,7 @@ class _ProductCard extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: AppColors.primary,
+                      color: primaryColor,
                       letterSpacing: 0.3,
                     ),
                     maxLines: 1,
@@ -763,9 +790,9 @@ class _ProductCard extends StatelessWidget {
                         );
                       },
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
+                        foregroundColor: primaryColor,
                         side: BorderSide(
-                          color: AppColors.primary,
+                          color: primaryColor,
                           width: 1.5,
                         ),
                         padding: EdgeInsets.zero,
@@ -798,7 +825,7 @@ class _ProductCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                         boxShadow: [
                           BoxShadow(
-                            color: AppColors.primary.withOpacity(0.3),
+                            color: primaryColor.withOpacity(0.3),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -842,46 +869,39 @@ class _ProductCard extends StatelessWidget {
           ),
         ],
       ),
+      );
+    },
     );
   }
 
-  Widget _buildProductImage(String imageString) {
-    // Check if it's a base64 string
+  Widget _buildProductImage(String imageString, Color primaryColor) {
+    if (isNetworkProductImage(imageString)) {
+      return ProductImageWidget(
+        imageUrl: imageString,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        loadingColor: primaryColor,
+        backgroundColor: Colors.grey[200],
+        errorWidget: Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image, size: 32, color: Colors.grey),
+        ),
+      );
+    }
+
     final isBase64 =
         imageString.startsWith('data:image/') ||
         (imageString.length > 100 && !imageString.startsWith('http'));
 
     if (isBase64) {
       return ProductBase64Image(base64String: imageString);
-    } else {
-      return Image.network(
-        ImageUrlHelper.encodeUrl(imageString),
-        fit: BoxFit.cover,
-        cacheWidth: kIsWeb ? null : 400,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return Container(
-            color: Colors.grey[200],
-            child: Center(
-              child: CircularProgressIndicator(
-                value: loadingProgress.expectedTotalBytes != null
-                    ? loadingProgress.cumulativeBytesLoaded /
-                          loadingProgress.expectedTotalBytes!
-                    : null,
-                color: AppColors.primary,
-                strokeWidth: 2,
-              ),
-            ),
-          );
-        },
-        errorBuilder: (context, error, stackTrace) {
-          return Container(
-            color: Colors.grey[200],
-            child: const Icon(Icons.broken_image, size: 32, color: Colors.grey),
-          );
-        },
-      );
     }
+
+    return Container(
+      color: Colors.grey[200],
+      child: const Icon(Icons.broken_image, size: 32, color: Colors.grey),
+    );
   }
 }
 

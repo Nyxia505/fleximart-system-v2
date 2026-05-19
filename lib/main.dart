@@ -4,7 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'screen/sign_in_screen.dart';
 import 'screen/sign_up_screen.dart';
-import 'screen/verify_email_screen.dart';
+import 'screens/email_verification_screen.dart';
 import 'customer/customer_dashboard.dart';
 import 'admin/admin_dashboard.dart';
 import 'staff/staff_dashboard.dart';
@@ -12,6 +12,7 @@ import 'firebase_options.dart';
 import 'services/notification_service.dart';
 import 'package:provider/provider.dart';
 import 'providers/auth_provider.dart' as app_auth;
+import 'providers/theme_provider.dart';
 import 'auth_gate.dart';
 import 'utils/fcm_utils.dart';
 import 'customer/orders_page.dart';
@@ -23,12 +24,21 @@ import 'customer/shop_dashboard.dart';
 import 'pages/product_listing_page.dart';
 import 'customer/customer_quotation_details_page.dart';
 import 'pages/cart_page.dart';
+import 'config/cloudinary_config.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Initialize Firebase for background isolates
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await NotificationService.instance.init();
+  final data = message.data;
+  if (data['type'] == 'otp_verification') {
+    await NotificationService.instance.showOtpVerificationNotification(
+      otpCode: data['otp'] as String? ?? '',
+      email: data['email'] as String? ?? '',
+    );
+    return;
+  }
   await NotificationService.instance.showRemoteNotification(message);
 }
 
@@ -76,6 +86,8 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  await CloudinaryConfig.ensureLoaded();
+
   // Set up background handler for FCM (not supported on web)
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
@@ -121,77 +133,184 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => app_auth.AuthProvider()..initialize(),
         ),
+        ChangeNotifierProvider(
+          create: (_) => ThemeProvider(),
+        ),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'FlexiMart System',
-        theme: ThemeData(
-          primaryColor: AppColors.primary,
-          primarySwatch: createMaterialColor(AppColors.primary),
-          scaffoldBackgroundColor: AppColors.background,
-          appBarTheme: const AppBarTheme(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            centerTitle: false,
-          ),
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: AppColors.primary,
-            primary: AppColors.primary,
-            secondary: AppColors.secondary,
-            surface: AppColors.surface,
-            error: AppColors.error,
-          ),
-          floatingActionButtonTheme: const FloatingActionButtonThemeData(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-          ),
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, _) {
+          final primaryColor = themeProvider.primaryColor;
+          final secondaryColor = themeProvider.secondaryColor;
+          final themeMode = themeProvider.themeModeEnum;
+          
+          // Light Theme
+          final lightTheme = ThemeData(
+            primaryColor: primaryColor,
+            primarySwatch: createMaterialColor(primaryColor),
+            scaffoldBackgroundColor: AppColors.background,
+            appBarTheme: AppBarTheme(
+              backgroundColor: primaryColor,
               foregroundColor: Colors.white,
               elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+              centerTitle: false,
+            ),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: primaryColor,
+              primary: primaryColor,
+              secondary: secondaryColor,
+              surface: AppColors.surface,
+              error: AppColors.error,
+              brightness: Brightness.light,
+            ),
+            floatingActionButtonTheme: FloatingActionButtonThemeData(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-          ),
-          textButtonTheme: TextButtonThemeData(
-            style: TextButton.styleFrom(foregroundColor: AppColors.primary),
-          ),
-          inputDecorationTheme: InputDecorationTheme(
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: primaryColor),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.border),
+            inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: primaryColor, width: 2),
+              ),
+              filled: true,
+              fillColor: Colors.white,
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primary, width: 2),
+            bottomNavigationBarTheme: BottomNavigationBarThemeData(
+              backgroundColor: Colors.white,
+              selectedItemColor: primaryColor,
+              unselectedItemColor: const Color(0xFF9E9E9E),
+              type: BottomNavigationBarType.fixed,
+              elevation: 8,
             ),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-          bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-            backgroundColor: Colors.white,
-            selectedItemColor: AppColors.primary,
-            unselectedItemColor: Color(0xFF9E9E9E),
-            type: BottomNavigationBarType.fixed,
-            elevation: 8,
-          ),
-          cardTheme: CardThemeData(
-            color: Colors.white,
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+            cardTheme: CardThemeData(
+              color: Colors.white,
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
             ),
-          ),
-          useMaterial3: true,
-        ),
+            useMaterial3: true,
+          );
+
+          // Dark Theme
+          final darkTheme = ThemeData(
+            primaryColor: primaryColor,
+            primarySwatch: createMaterialColor(primaryColor),
+            scaffoldBackgroundColor: const Color(0xFF121212),
+            appBarTheme: AppBarTheme(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              centerTitle: false,
+            ),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: primaryColor,
+              primary: primaryColor,
+              secondary: secondaryColor,
+              surface: const Color(0xFF1E1E1E),
+              error: AppColors.error,
+              brightness: Brightness.dark,
+            ),
+            textTheme: const TextTheme(
+              displayLarge: TextStyle(color: Colors.white),
+              displayMedium: TextStyle(color: Colors.white),
+              displaySmall: TextStyle(color: Colors.white),
+              headlineLarge: TextStyle(color: Colors.white),
+              headlineMedium: TextStyle(color: Colors.white),
+              headlineSmall: TextStyle(color: Colors.white),
+              titleLarge: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              titleMedium: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              titleSmall: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              bodyLarge: TextStyle(color: Colors.white),
+              bodyMedium: TextStyle(color: Colors.white70),
+              bodySmall: TextStyle(color: Colors.white60),
+              labelLarge: TextStyle(color: Colors.white),
+              labelMedium: TextStyle(color: Colors.white70),
+              labelSmall: TextStyle(color: Colors.white60),
+            ),
+            floatingActionButtonTheme: FloatingActionButtonThemeData(
+              backgroundColor: primaryColor,
+              foregroundColor: Colors.white,
+            ),
+            elevatedButtonTheme: ElevatedButtonThemeData(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              ),
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: primaryColor),
+            ),
+            inputDecorationTheme: InputDecorationTheme(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF424242)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: Color(0xFF424242)),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: primaryColor, width: 2),
+              ),
+              filled: true,
+              fillColor: const Color(0xFF1E1E1E),
+              hintStyle: const TextStyle(color: Colors.white54),
+            ),
+            bottomNavigationBarTheme: BottomNavigationBarThemeData(
+              backgroundColor: const Color(0xFF1E1E1E),
+              selectedItemColor: primaryColor,
+              unselectedItemColor: const Color(0xFF9E9E9E),
+              type: BottomNavigationBarType.fixed,
+              elevation: 8,
+            ),
+            cardTheme: CardThemeData(
+              color: const Color(0xFF1E1E1E),
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            dividerTheme: const DividerThemeData(
+              color: Color(0xFF424242),
+              thickness: 1,
+            ),
+            useMaterial3: true,
+          );
+          
+          return MaterialApp(
+            debugShowCheckedModeBanner: false,
+            title: 'FlexiMart System',
+            theme: lightTheme,
+            darkTheme: darkTheme,
+            themeMode: themeMode,
         home: const AuthGate(),
         routes: {
           '/login': (context) => const SignInScreen(),
@@ -199,15 +318,12 @@ class MyApp extends StatelessWidget {
           '/verify-email': (context) {
             final args = ModalRoute.of(context)?.settings.arguments;
             if (args is Map) {
-              return VerifyEmailScreen(
-                uid: args['uid']?.toString() ?? '',
-                email: args['email']?.toString() ?? '',
+              return EmailVerificationScreen(
+                email: args['email']?.toString(),
                 fullName: args['fullName']?.toString(),
               );
             }
-            return const Scaffold(
-              body: Center(child: Text('Invalid verification arguments')),
-            );
+            return const EmailVerificationScreen();
           },
           '/dashboard': (context) => const CustomerDashboard(),
           '/shop': (context) => const ShopDashboard(),
@@ -238,7 +354,9 @@ class MyApp extends StatelessWidget {
             );
           },
         },
-      ),
+      );
+    },
+    ),
     );
   }
 }

@@ -59,6 +59,12 @@ service cloud.firestore {
                           .changedKeys().hasOnly(['phoneVerifiedAt']) ||
                          request.resource.data.diff(resource.data)
                           .changedKeys().hasOnly(['profileImageUrl']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasOnly(['profilePic']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['profilePic', 'profileImageUrl']) ||
+                         request.resource.data.diff(resource.data)
+                          .changedKeys().hasAll(['profilePic', 'profileImageUrl', 'profilePicUpdatedAt']) ||
                          // Allow preference fields (notifications, chat, theme, display) - single or combinations
                          request.resource.data.diff(resource.data)
                           .changedKeys().hasOnly(['notif_pushEnabled']) ||
@@ -345,7 +351,13 @@ service cloud.firestore {
                        request.resource.data.expiresAt is timestamp &&
                        request.resource.data.expiresAt > request.time &&
                        request.resource.data.used == false &&
-                       !('usedAt' in request.resource.data);
+                       !('usedAt' in request.resource.data) &&
+                       (!('toEmail' in request.resource.data) ||
+                         request.resource.data.toEmail is string) &&
+                       (!('emailSent' in request.resource.data) ||
+                         request.resource.data.emailSent == false) &&
+                       (!('fcmToken' in request.resource.data) ||
+                         request.resource.data.fcmToken is string);
       
       // Allow read during verification (unauthenticated users need to verify OTP)
       // OTPs expire in 5 minutes and are single-use, so security risk is minimal
@@ -360,6 +372,14 @@ service cloud.firestore {
       
       // No delete access
       allow delete: if false;
+    }
+
+    // Pre-signup FCM tokens (keyed by normalized email) for OTP push delivery
+    match /pending_signup/{email} {
+      allow create, update: if request.resource.data.email == email &&
+        request.resource.data.fcmToken is string &&
+        request.resource.data.fcmToken.size() >= 20;
+      allow read, delete: if false;
     }
 
     // OTP Last Sent collection - tracks cooldown between OTP requests

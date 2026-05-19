@@ -1,32 +1,19 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
-import 'package:firebase_storage/firebase_storage.dart';
+import '../utils/image_url_helper.dart';
+import '../utils/storage_image_loader.dart';
 
-/// Widget for displaying chat images that works on both web and mobile.
-/// Always uses getDownloadURL() to ensure valid Firebase Storage URLs.
+/// Chat image from Firebase Storage. On web uses Cloud Function proxy when needed.
 class ChatImageWidget extends StatefulWidget {
-  /// The Firebase Storage path or download URL
   final String imageUrl;
-  
-  /// Width of the image
   final double? width;
-  
-  /// Height of the image
   final double? height;
-  
-  /// How the image should be fitted
   final BoxFit fit;
-  
-  /// Border radius for the image
   final BorderRadius? borderRadius;
-  
-  /// Background color while loading
   final Color? backgroundColor;
-  
-  /// Color for loading indicator
   final Color? loadingColor;
-  
-  /// Callback when image is tapped
   final VoidCallback? onTap;
 
   const ChatImageWidget({
@@ -46,11 +33,10 @@ class ChatImageWidget extends StatefulWidget {
 }
 
 class _ChatImageWidgetState extends State<ChatImageWidget> {
-  String? _downloadUrl;
+  Uint8List? _imageBytes;
+  String? _networkUrl;
   bool _isLoading = true;
   bool _hasError = false;
-  int _retryCount = 0;
-  static const int _maxRetries = 2;
 
   @override
   void initState() {
@@ -62,130 +48,61 @@ class _ChatImageWidgetState extends State<ChatImageWidget> {
   void didUpdateWidget(ChatImageWidget oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.imageUrl != widget.imageUrl) {
-      _resetAndLoad();
+      _loadImage();
     }
-  }
-
-  void _resetAndLoad() {
-    setState(() {
-      _downloadUrl = null;
-      _isLoading = true;
-      _hasError = false;
-      _retryCount = 0;
-    });
-    _loadImage();
   }
 
   Future<void> _loadImage() async {
-    if (widget.imageUrl.isEmpty) {
-      setState(() {
-        _isLoading = false;
-        _hasError = true;
-      });
-      return;
-    }
-
-    try {
-      setState(() {
-        _isLoading = true;
-        _hasError = false;
-      });
-
-      // Always get fresh download URL using getDownloadURL()
-      final downloadUrl = await _getDownloadUrl(widget.imageUrl);
-      
-      if (downloadUrl != null && mounted) {
-        setState(() {
-          _downloadUrl = downloadUrl;
-          _isLoading = false;
-          _hasError = false;
-        });
-      } else {
-        throw Exception('Failed to get download URL');
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ ChatImageWidget error: $e');
-      }
+    final source = widget.imageUrl.trim();
+    if (source.isEmpty) {
       if (mounted) {
         setState(() {
           _isLoading = false;
           _hasError = true;
         });
       }
+      return;
     }
-  }
 
-  /// Get download URL from Firebase Storage path or existing URL
-  Future<String?> _getDownloadUrl(String pathOrUrl) async {
-    try {
-      // If it's already a valid HTTP/HTTPS URL (not Firebase Storage), use it
-      if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
-        // Check if it's a Firebase Storage URL that needs regeneration
-        if (pathOrUrl.contains('firebasestorage.googleapis.com')) {
-          // Extract storage path and get fresh URL
-          return await _regenerateDownloadUrl(pathOrUrl);
-        }
-        // It's a regular URL, use it directly
-        return pathOrUrl;
-      }
-
-      // It's a storage path, get download URL
-      final storageRef = FirebaseStorage.instance.ref().child(pathOrUrl);
-      final downloadUrl = await storageRef.getDownloadURL();
-      
-      if (kDebugMode) {
-        debugPrint('✅ ChatImageWidget: Got download URL for path: $pathOrUrl');
-      }
-
-      return downloadUrl;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ ChatImageWidget: Failed to get download URL: $e');
-      }
-      return null;
-    }
-  }
-
-  /// Regenerate download URL from Firebase Storage URL
-  Future<String?> _regenerateDownloadUrl(String url) async {
-    try {
-      // Extract storage path from URL
-      // Format: https://firebasestorage.googleapis.com/v0/b/{bucket}/o/{encodedPath}?alt=media&token=...
-      final uri = Uri.parse(url);
-      final pathMatch = RegExp(r'/o/(.+)\?').firstMatch(uri.path);
-      if (pathMatch == null) {
-        // Couldn't extract path, return null to use URL as-is
-        return null;
-      }
-
-      final encodedPath = pathMatch.group(1)!;
-      final storagePath = Uri.decodeComponent(encodedPath);
-      
-      // Get fresh download URL
-      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
-      final downloadUrl = await storageRef.getDownloadURL();
-      
-      if (kDebugMode) {
-        debugPrint('✅ ChatImageWidget: Regenerated download URL');
-      }
-
-      return downloadUrl;
-    } catch (e) {
-      if (kDebugMode) {
-        debugPrint('❌ ChatImageWidget: Failed to regenerate URL: $e');
-      }
-      return null;
-    }
-  }
-
-  Future<void> _retry() async {
-    if (_retryCount < _maxRetries) {
+    if (mounted) {
       setState(() {
-        _retryCount++;
+        _isLoading = true;
         _hasError = false;
+        _imageBytes = null;
+        _networkUrl = null;
       });
-      await _loadImage();
+    }
+
+    try {
+      final bytes = await StorageImageLoader.loadChatBytes(source);
+      if (bytes != null && bytes.isNotEmpty && mounted) {
+        setState(() {
+          _imageBytes = bytes;
+          _isLoading = false;
+          _hasError = false;
+        });
+        return;
+      }
+
+      final url = await StorageImageLoader.freshDownloadUrl(source);
+      if (url != null && url.isNotEmpty && mounted) {
+        setState(() {
+          _networkUrl = url;
+          _isLoading = false;
+          _hasError = false;
+        });
+        return;
+      }
+
+      throw Exception('Could not load chat image');
+    } catch (e) {
+      if (kDebugMode) debugPrint('❌ ChatImageWidget: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _hasError = true;
+        });
+      }
     }
   }
 
@@ -200,32 +117,16 @@ class _ChatImageWidgetState extends State<ChatImageWidget> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.broken_image,
-            size: 48,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 8),
+          Icon(Icons.broken_image, size: 40, color: Colors.grey[400]),
+          const SizedBox(height: 6),
           Text(
-            'Failed to load image',
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+            'Image unavailable',
+            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
           ),
-          if (_retryCount < _maxRetries) ...[
-            const SizedBox(height: 4),
-            TextButton(
-              onPressed: _retry,
-              child: Text(
-                'Tap to retry',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: Colors.grey[500],
-                ),
-              ),
-            ),
-          ],
+          TextButton(
+            onPressed: _loadImage,
+            child: const Text('Retry', style: TextStyle(fontSize: 11)),
+          ),
         ],
       ),
     );
@@ -248,88 +149,55 @@ class _ChatImageWidgetState extends State<ChatImageWidget> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    // Show error widget if error occurred
-    if (_hasError && _retryCount >= _maxRetries) {
-      return _buildErrorWidget();
+  Widget _buildImageContent() {
+    if (_imageBytes != null) {
+      return Image.memory(
+        _imageBytes!,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => _buildErrorWidget(),
+      );
     }
 
-    // Show loading widget while loading
-    if (_isLoading || _downloadUrl == null) {
+    if (_networkUrl != null) {
+      final url = ImageUrlHelper.encodeUrl(_networkUrl!);
+      return Image.network(
+        url,
+        width: widget.width,
+        height: widget.height,
+        fit: widget.fit,
+        headers: kIsWeb ? null : const {'Cache-Control': 'max-age=31536000'},
+        cacheWidth: kIsWeb
+            ? null
+            : (widget.width != null
+                ? (widget.width! * 2).round().clamp(200, 1200)
+                : null),
+        cacheHeight: kIsWeb
+            ? null
+            : (widget.height != null
+                ? (widget.height! * 2).round().clamp(200, 1200)
+                : null),
+        errorBuilder: (_, __, ___) => _buildErrorWidget(),
+      );
+    }
+
+    return _buildErrorWidget();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
       return _buildLoadingWidget();
     }
 
-    // Build responsive image
-    // Encode URL for safe web loading
-    final safeUrl = Uri.encodeFull(_downloadUrl!.trim());
-    
-    Widget imageWidget = Image.network(
-      safeUrl,
-      width: widget.width,
-      height: widget.height,
-      fit: widget.fit,
-      headers: kIsWeb ? null : const {
-        'Cache-Control': 'max-age=31536000',
-      },
-      // Only use cacheWidth/cacheHeight on mobile, not on web
-      cacheWidth: kIsWeb
-          ? null
-          : (widget.width != null ? (widget.width! * 2).round().clamp(200, 800) : null),
-      cacheHeight: kIsWeb
-          ? null
-          : (widget.height != null ? (widget.height! * 2).round().clamp(200, 800) : null),
-      loadingBuilder: (context, child, loadingProgress) {
-        if (loadingProgress == null) return child;
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            color: widget.backgroundColor ?? Colors.grey[200],
-            borderRadius: widget.borderRadius,
-          ),
-          child: Center(
-            child: CircularProgressIndicator(
-              value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded /
-                      loadingProgress.expectedTotalBytes!
-                  : null,
-              color: widget.loadingColor,
-              strokeWidth: 2,
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        if (kDebugMode) {
-          debugPrint('❌ ChatImageWidget image load error: $error');
-          debugPrint('📸 Image URL: $_downloadUrl');
-        }
+    if (_hasError) {
+      return _buildErrorWidget();
+    }
 
-        // Auto-retry if retries available
-        if (_retryCount < _maxRetries) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            Future.delayed(Duration(milliseconds: 500 * (_retryCount + 1)), () {
-              if (mounted) {
-                _retry();
-              }
-            });
-          });
-        } else {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() {
-                _hasError = true;
-              });
-            }
-          });
-        }
+    Widget imageWidget = _buildImageContent();
 
-        return _buildErrorWidget();
-      },
-    );
-
-    // Apply border radius if specified
     if (widget.borderRadius != null) {
       imageWidget = ClipRRect(
         borderRadius: widget.borderRadius!,
@@ -337,7 +205,6 @@ class _ChatImageWidgetState extends State<ChatImageWidget> {
       );
     }
 
-    // Wrap in GestureDetector if onTap is provided
     if (widget.onTap != null) {
       imageWidget = GestureDetector(
         onTap: widget.onTap,
@@ -348,4 +215,3 @@ class _ChatImageWidgetState extends State<ChatImageWidget> {
     return imageWidget;
   }
 }
-

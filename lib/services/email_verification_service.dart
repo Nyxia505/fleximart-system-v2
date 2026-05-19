@@ -44,25 +44,57 @@ class EmailVerificationService {
     await prefs.setInt(_lastSentKey(email), nowMs);
   }
 
-  static Future<void> _persistOtpFirestore(
+  static Future<String?> _persistOtpFirestore(
     String email,
     String otp,
-    int expiryMs,
-  ) async {
+    int expiryMs, {
+    String? displayName,
+  }) async {
     try {
       final normalized = _normalizeEmail(email);
-      await FirebaseFirestore.instance.collection('otp_verifications').add({
+      final ref = await FirebaseFirestore.instance
+          .collection('otp_verifications')
+          .add({
         'userId': normalized,
+        'toEmail': normalized,
+        'displayName': displayName ?? normalized.split('@').first,
         'otpCode': otp,
         'expiresAt': Timestamp.fromMillisecondsSinceEpoch(expiryMs),
         'used': false,
+        'emailSent': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
+      return ref.id;
     } catch (e) {
       if (kDebugMode) {
         debugPrint('⚠️ Could not save OTP to Firestore: $e');
       }
+      return null;
     }
+  }
+
+  /// Waits for Cloud Function [onOtpVerificationCreated] to send email via SMTP.
+  static Future<bool> _waitForServerEmail(String docId) async {
+    final docRef =
+        FirebaseFirestore.instance.collection('otp_verifications').doc(docId);
+    for (var i = 0; i < 12; i++) {
+      await Future.delayed(const Duration(milliseconds: 750));
+      final snap = await docRef.get();
+      if (!snap.exists) continue;
+      final data = snap.data() ?? {};
+      if (data['emailSent'] == true) {
+        if (kDebugMode) {
+          debugPrint('✅ OTP email sent by server (${data['emailMethod']})');
+        }
+        return true;
+      }
+      final err = data['emailError'] as String?;
+      if (data['emailSent'] == false && err != null && err.isNotEmpty) {
+        if (kDebugMode) debugPrint('⚠️ Server email failed: $err');
+        return false;
+      }
+    }
+    return false;
   }
 
   static Future<String> requestEmailVerification({
@@ -73,6 +105,7 @@ class EmailVerificationService {
     int resendCooldownSeconds = 45,
   }) async {
     final normalized = _normalizeEmail(email);
+    await clearStaleOtpVerifications(normalized);
     final prefs = await SharedPreferences.getInstance();
 
     final nowMs = DateTime.now().millisecondsSinceEpoch;
@@ -91,7 +124,16 @@ class EmailVerificationService {
 
     // Save OTP first so resend/verify can proceed even if email delivery fails
     await _persistOtpLocally(prefs, normalized, otp, expiryMs, nowMs);
-    await _persistOtpFirestore(normalized, otp, expiryMs);
+    final otpDocId = await _persistOtpFirestore(
+      normalized,
+      otp,
+      expiryMs,
+      displayName: displayName,
+    );
+
+    if (otpDocId != null && await _waitForServerEmail(otpDocId)) {
+      return otp;
+    }
 
     try {
       await EmailService.sendOtpEmail(
@@ -192,7 +234,7 @@ class EmailVerificationService {
       return false;
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('⚠️ Firestore OTP verify fallback: $e');
+        debugPrint('ΓÜá∩╕Å Firestore OTP verify fallback: $e');
       }
       return false;
     }
@@ -221,6 +263,87 @@ class EmailVerificationService {
     return prefs.getBool(_verifiedKey(_normalizeEmail(email))) ?? false;
   }
 
+  /// Active signup: only block re-registration when explicitly verified in Firestore.
+  static bool isActiveVerifiedSignup(Map<String, dynamic> data) {
+    return data['isVerified'] == true || data['emailVerified'] == true;
+  }
+
+  /// Clears verification flags on old [users] docs with the same email (keeps [keepUid]).
+  /// Requires signed-in owner or admin rules for each doc; failures are ignored.
+  static Future<void> clearStaleUserDocsForEmail(
+    String email, {
+    required String keepUid,
+  }) async {
+    final normalized = _normalizeEmail(email);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: normalized)
+          .get();
+      for (final doc in snap.docs) {
+        if (doc.id == keepUid) continue;
+        try {
+          await doc.reference.update({
+            'isVerified': false,
+            'emailVerified': false,
+          });
+          if (kDebugMode) {
+            debugPrint(
+              '🧹 Cleared stale verification flags on users/${doc.id} for $normalized',
+            );
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint(
+              '⚠️ Could not update stale users/${doc.id} (needs admin delete in Console): $e',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('clearStaleUserDocsForEmail: $e');
+    }
+  }
+
+  /// Returns true if any Firestore [users] doc for this email is a verified account.
+  static Future<bool> hasActiveVerifiedAccount(String email) async {
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('email', isEqualTo: _normalizeEmail(email))
+          .limit(10)
+          .get();
+      for (final doc in snap.docs) {
+        if (isActiveVerifiedSignup(doc.data())) return true;
+      }
+      return false;
+    } catch (e) {
+      if (kDebugMode) debugPrint('hasActiveVerifiedAccount: $e');
+      return false;
+    }
+  }
+
+  /// Removes old OTP rows before sending a new code (e.g. after user was deleted).
+  static Future<void> clearStaleOtpVerifications(String email) async {
+    final normalized = _normalizeEmail(email);
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('otp_verifications')
+          .where('userId', isEqualTo: normalized)
+          .get();
+      for (final doc in snap.docs) {
+        await doc.reference.delete();
+      }
+      if (kDebugMode && snap.docs.isNotEmpty) {
+        debugPrint(
+          '🧹 Cleared ${snap.docs.length} stale otp_verifications for $normalized',
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) debugPrint('clearStaleOtpVerifications: $e');
+    }
+  }
+
   static Future<bool> isEmailVerifiedInFirestore(String email) async {
     try {
       final querySnapshot = await FirebaseFirestore.instance
@@ -241,14 +364,24 @@ class EmailVerificationService {
     }
   }
 
+  /// True when OTP signup completed or legacy user (flags absent).
+  static bool isCustomerVerifiedFromDoc(Map<String, dynamic> data) {
+    if (data['isVerified'] == true || data['emailVerified'] == true) {
+      return true;
+    }
+    // Legacy accounts before OTP flags were stored
+    if (!data.containsKey('isVerified') && !data.containsKey('emailVerified')) {
+      return true;
+    }
+    return false;
+  }
+
   static Future<bool> isUserVerifiedInFirestore(String uid) async {
     try {
       final doc =
           await FirebaseFirestore.instance.collection('users').doc(uid).get();
       if (!doc.exists) return false;
-      final userData = doc.data() ?? {};
-      return (userData['isVerified'] as bool? ?? false) ||
-          (userData['emailVerified'] as bool? ?? false);
+      return isCustomerVerifiedFromDoc(doc.data() ?? {});
     } catch (e) {
       return false;
     }

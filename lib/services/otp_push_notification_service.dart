@@ -1,122 +1,145 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint, kIsWeb;
+import 'fcm_signup_service.dart';
+import 'notification_service.dart';
+import 'otp_popup_service.dart';
 
-/// Service for sending OTP via push notifications
-/// 
-/// This service sends OTP codes via Firebase Cloud Messaging push notifications
-/// so users don't need to check their email.
+/// Sends OTP via FCM push and/or local device notification.
 class OtpPushNotificationService {
   OtpPushNotificationService._();
-  static final OtpPushNotificationService instance = OtpPushNotificationService._();
 
-  /// Send OTP via push notification
-  /// 
-  /// Tries to send OTP to the user's device via push notification.
-  /// Falls back silently if FCM token is not available.
-  /// 
-  /// Parameters:
-  /// - [email]: User's email address
-  /// - [otpCode]: The OTP code to send
-  /// - [displayName]: Optional user display name
-  /// - [userId]: Optional user ID if user is already authenticated
-  static Future<void> sendOtpPushNotification({
+  static Future<bool> _ensurePermission() async {
+    if (kIsWeb) return true;
+    try {
+      final settings = await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('⚠️ FCM permission request failed: $e');
+      }
+      return false;
+    }
+  }
+
+  static Future<bool> _showLocalOtp(String otpCode, String email) async {
+    if (kIsWeb) return false;
+    try {
+      await NotificationService.instance.init();
+      await NotificationService.instance.showOtpVerificationNotification(
+        otpCode: otpCode,
+        email: email,
+      );
+      OtpPopupService.instance.onOtpReceived?.call(otpCode);
+      if (kDebugMode) {
+        debugPrint('✅ OTP local notification shown');
+      }
+      return true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('⚠️ Local OTP notification failed: $e');
+      }
+      return false;
+    }
+  }
+
+  /// Returns true if OTP reached the device (FCM and/or notification tray).
+  static Future<bool> sendOtpPushNotification({
     required String email,
     required String otpCode,
     String? displayName,
     String? userId,
+    String? fcmToken,
   }) async {
-    try {
-      String? fcmToken;
+    var delivered = false;
 
-      // Try to get FCM token from authenticated user's Firestore document
-      if (userId != null) {
+    try {
+      if (!kIsWeb) {
+        await _ensurePermission();
+        // Always show in notification tray first so user gets the code on device
+        delivered = await _showLocalOtp(otpCode, email);
+      }
+
+      var token = fcmToken;
+
+      if (userId != null && (token == null || token.isEmpty)) {
         try {
           final userDoc = await FirebaseFirestore.instance
               .collection('users')
               .doc(userId)
               .get();
-          
           if (userDoc.exists) {
-            final userData = userDoc.data();
-            fcmToken = userData?['fcmToken'] as String?;
+            token = userDoc.data()?['fcmToken'] as String?;
           }
         } catch (e) {
           if (kDebugMode) {
-            print('⚠️ Could not get FCM token from Firestore: $e');
+            debugPrint('⚠️ Could not get FCM token from users doc: $e');
           }
         }
       }
 
-      // If no token from Firestore, try to get it from the device
-      // This works even if user is not logged in yet (during signup)
-      if (fcmToken == null || fcmToken.isEmpty) {
+      if (token == null || token.isEmpty) {
+        token = await FcmSignupService.loadTokenForEmail(email);
+      }
+
+      if (token == null || token.isEmpty) {
         try {
-          final messaging = FirebaseMessaging.instance;
-          fcmToken = await messaging.getToken();
+          token = await FirebaseMessaging.instance.getToken();
         } catch (e) {
           if (kDebugMode) {
-            print('⚠️ Could not get FCM token from device: $e');
+            debugPrint('⚠️ Could not get FCM token: $e');
           }
         }
       }
 
-      // If still no token, silently fail (user will receive OTP via email)
-      if (fcmToken == null || fcmToken.isEmpty) {
-        if (kDebugMode) {
-          print('⚠️ No FCM token available, skipping push notification. OTP sent via email only.');
+      if (token != null && token.isNotEmpty) {
+        try {
+          await _sendOtpViaCloudFunction(
+            fcmToken: token,
+            otpCode: otpCode,
+            email: email,
+            displayName: displayName,
+          );
+          if (kDebugMode) {
+            debugPrint('✅ OTP push sent via Cloud Function');
+          }
+          delivered = true;
+        } catch (e) {
+          if (kDebugMode) {
+            debugPrint('⚠️ Cloud Function push failed (local may still work): $e');
+          }
         }
-        return;
       }
 
-      // Send push notification via Cloud Function
-      await _sendOtpViaCloudFunction(
-        fcmToken: fcmToken,
-        otpCode: otpCode,
-        email: email,
-        displayName: displayName,
-      );
-
-      if (kDebugMode) {
-        print('✅ OTP push notification sent successfully');
-      }
+      return delivered;
     } catch (e) {
-      // Silently fail - email is still sent as fallback
       if (kDebugMode) {
-        print('⚠️ Failed to send OTP push notification: $e');
+        debugPrint('❌ sendOtpPushNotification: $e');
       }
+      return delivered;
     }
   }
 
-  /// Call Cloud Function to send OTP notification
   static Future<void> _sendOtpViaCloudFunction({
     required String fcmToken,
     required String otpCode,
     required String email,
     String? displayName,
   }) async {
-    try {
-      final callable = FirebaseFunctions.instance.httpsCallable('sendOtpNotification');
-      
-      final result = await callable.call({
-        'fcmToken': fcmToken,
-        'otpCode': otpCode,
-        'email': email,
-        'displayName': displayName,
-      }).timeout(const Duration(seconds: 10));
+    final callable =
+        FirebaseFunctions.instance.httpsCallable('sendOtpNotification');
 
-      if (kDebugMode) {
-        print('✅ OTP notification sent via Cloud Function: ${result.data}');
-      }
-    } catch (e) {
-      // If Cloud Function doesn't exist or fails, that's okay
-      // Email is still sent as fallback
-      if (kDebugMode) {
-        print('⚠️ Cloud Function call failed (this is okay, email is still sent): $e');
-      }
-      rethrow;
-    }
+    await callable.call({
+      'fcmToken': fcmToken,
+      'otpCode': otpCode,
+      'email': email,
+      'displayName': displayName,
+    }).timeout(const Duration(seconds: 15));
   }
 }
-

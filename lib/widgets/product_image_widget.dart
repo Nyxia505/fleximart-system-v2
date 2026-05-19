@@ -1,32 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
-import '../utils/image_url_helper.dart';
 
-/// A responsive widget for displaying product images that works on both web and mobile.
-/// Uses Image.network with proper loading and error handling.
-class ProductImageWidget extends StatelessWidget {
-  /// The image URL
+import '../utils/image_url_helper.dart';
+import '../utils/product_image_utils.dart';
+import '../utils/storage_image_loader.dart';
+import 'product_base64_image.dart';
+
+/// Displays product images from network, Firebase Storage (web-safe), or base64.
+class ProductImageWidget extends StatefulWidget {
   final String? imageUrl;
-  
-  /// Width of the image
   final double? width;
-  
-  /// Height of the image
   final double? height;
-  
-  /// How the image should be fitted
   final BoxFit fit;
-  
-  /// Border radius for the image
   final BorderRadius? borderRadius;
-  
-  /// Background color while loading
   final Color? backgroundColor;
-  
-  /// Color for loading indicator
   final Color? loadingColor;
-  
-  /// Custom error widget
   final Widget? errorWidget;
 
   const ProductImageWidget({
@@ -41,95 +29,169 @@ class ProductImageWidget extends StatelessWidget {
     this.errorWidget,
   });
 
-  Widget _buildErrorWidget() {
-    if (errorWidget != null) {
-      return errorWidget!;
+  @override
+  State<ProductImageWidget> createState() => _ProductImageWidgetState();
+}
+
+class _ProductImageWidgetState extends State<ProductImageWidget> {
+  Uint8List? _memoryBytes;
+  bool _useNetwork = false;
+  bool _loading = true;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(ProductImageWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.imageUrl != widget.imageUrl) {
+      _memoryBytes = null;
+      _useNetwork = false;
+      _loading = true;
+      _failed = false;
+      _load();
+    }
+  }
+
+  Future<void> _load() async {
+    final url = widget.imageUrl?.trim() ?? '';
+    if (url.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _failed = true;
+        });
+      }
+      return;
     }
 
+    if (!isNetworkProductImage(url)) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _useNetwork = false;
+          _failed = false;
+        });
+      }
+      return;
+    }
+
+    if (kIsWeb && url.contains('firebasestorage.googleapis.com')) {
+      final bytes = await StorageImageLoader.loadProductBytes(url);
+      if (!mounted) return;
+      if (bytes != null && bytes.isNotEmpty) {
+        setState(() {
+          _memoryBytes = bytes;
+          _loading = false;
+          _failed = false;
+        });
+        return;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _useNetwork = true;
+        _loading = false;
+        _failed = false;
+      });
+    }
+  }
+
+  Widget _wrap(Widget child) {
+    if (widget.borderRadius != null) {
+      return ClipRRect(borderRadius: widget.borderRadius!, child: child);
+    }
+    return child;
+  }
+
+  Widget _buildErrorWidget() {
+    if (widget.errorWidget != null) return widget.errorWidget!;
     return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: backgroundColor ?? Colors.grey[200],
-        borderRadius: borderRadius,
-      ),
+      width: widget.width,
+      height: widget.height,
+      color: widget.backgroundColor ?? Colors.grey[200],
+      alignment: Alignment.center,
       child: Icon(
         Icons.image_not_supported,
-        size: (width != null && height != null)
-            ? (width! < height! ? width! * 0.3 : height! * 0.3)
-            : 48,
+        size: 40,
         color: Colors.grey[400],
       ),
     );
   }
 
+  Widget _buildLoading() {
+    return Container(
+      width: widget.width,
+      height: widget.height,
+      color: widget.backgroundColor ?? Colors.grey[200],
+      alignment: Alignment.center,
+      child: CircularProgressIndicator(color: widget.loadingColor),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Show error widget if no image URL
-    if (imageUrl == null || imageUrl!.isEmpty) {
-      if (kDebugMode) {
-        debugPrint('⚠️ ProductImageWidget: No image URL provided');
-      }
-      return _buildErrorWidget();
+    final url = widget.imageUrl?.trim() ?? '';
+
+    if (_loading) {
+      return _wrap(_buildLoading());
     }
 
-    // Validate URL before attempting to load
-    if (!ImageUrlHelper.isValidImageUrl(imageUrl)) {
-      if (kDebugMode) {
-        debugPrint('⚠️ ProductImageWidget: Invalid image URL: $imageUrl');
-      }
-      return _buildErrorWidget();
+    if (url.isEmpty || _failed) {
+      return _wrap(_buildErrorWidget());
     }
 
-    final encodedUrl = ImageUrlHelper.encodeUrl(imageUrl!);
-    
-    if (kDebugMode) {
-      debugPrint('🖼️ ProductImageWidget: Loading image from: $encodedUrl');
-    }
-    
-    Widget imageWidget = Image.network(
-      encodedUrl,
-      fit: fit,
-      width: width,
-      height: height,
-      headers: const {'Cache-Control': 'no-cache'},
-      loadingBuilder: (context, child, loading) {
-        if (loading == null) return child;
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: backgroundColor ?? Colors.grey[200],
-            borderRadius: borderRadius,
-          ),
-          child: Center(
-            child: CircularProgressIndicator(
-              color: loadingColor,
-            ),
-          ),
-        );
-      },
-      errorBuilder: (context, error, stack) {
-        if (kDebugMode) {
-          debugPrint('❌ ProductImageWidget: Failed to load image');
-          debugPrint('   Original URL: $imageUrl');
-          debugPrint('   Encoded URL: $encodedUrl');
-          debugPrint('   Error: $error');
-          debugPrint('   Stack: $stack');
-        }
-        return _buildErrorWidget();
-      },
-    );
-
-    // Apply border radius if specified
-    if (borderRadius != null) {
-      imageWidget = ClipRRect(
-        borderRadius: borderRadius!,
-        child: imageWidget,
+    if (!isNetworkProductImage(url)) {
+      return _wrap(
+        ProductBase64Image(
+          base64String: url,
+          width: widget.width ?? double.infinity,
+          height: widget.height ?? double.infinity,
+        ),
       );
     }
 
-    return imageWidget;
+    if (_memoryBytes != null) {
+      return _wrap(
+        Image.memory(
+          _memoryBytes!,
+          fit: widget.fit,
+          width: widget.width,
+          height: widget.height,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => _buildErrorWidget(),
+        ),
+      );
+    }
+
+    if (_useNetwork) {
+      final encodedUrl = ImageUrlHelper.encodeUrl(url);
+      return _wrap(
+        Image.network(
+          encodedUrl,
+          fit: widget.fit,
+          width: widget.width,
+          height: widget.height,
+          headers: kIsWeb ? null : const {'Cache-Control': 'no-cache'},
+          loadingBuilder: (context, child, progress) {
+            if (progress == null) return child;
+            return _buildLoading();
+          },
+          errorBuilder: (_, __, ___) {
+            if (kDebugMode) {
+              debugPrint('❌ ProductImageWidget network failed: $url');
+            }
+            return _buildErrorWidget();
+          },
+        ),
+      );
+    }
+
+    return _wrap(_buildErrorWidget());
   }
 }
-

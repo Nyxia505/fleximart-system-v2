@@ -41,6 +41,26 @@ class ActivityLogService {
     }
   }
 
+  /// Log a new user registration / sign-up.
+  Future<void> logRegister({
+    required String userId,
+    required String userName,
+    required String email,
+    String role = 'customer',
+  }) async {
+    await logActivity(
+      userId: userId,
+      userName: userName,
+      actionType: 'Register',
+      description: 'New user signed up',
+      metadata: {
+        'email': email,
+        'role': role,
+        'registeredAt': DateTime.now().toIso8601String(),
+      },
+    );
+  }
+
   /// Log a login activity
   Future<void> logLogin(String userId, String userName) async {
     await logActivity(

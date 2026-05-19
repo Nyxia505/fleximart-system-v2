@@ -30,9 +30,9 @@ class RoleHelper {
 
       final userData = doc.data();
       final role = userData?['role'] as String?;
-      
-      debugPrint('✅ User role from Firestore: $role');
-      return role;
+      final normalized = role?.toLowerCase().trim();
+      debugPrint('✅ User role from Firestore: $normalized');
+      return normalized?.isEmpty == true ? null : normalized;
     } catch (e) {
       debugPrint('❌ Error getting user role from Firestore: $e');
       return null;

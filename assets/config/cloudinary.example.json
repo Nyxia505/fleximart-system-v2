@@ -1,0 +1,4 @@
+{
+  "cloudName": "YOUR_CLOUDINARY_CLOUD_NAME",
+  "uploadPreset": "flutter_upload"
+}

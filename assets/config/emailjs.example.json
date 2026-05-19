@@ -1,0 +1,9 @@
+{
+  "serviceId": "service_1dhvvdp",
+  "publicKey": "YOUR_EMAILJS_PUBLIC_KEY",
+  "privateKey": "YOUR_EMAILJS_PRIVATE_KEY",
+  "templateId": "template_ac0np7l",
+  "templateIds": [],
+  "smtpUser": "your-sender@gmail.com",
+  "smtpPass": "YOUR_16_CHAR_GMAIL_APP_PASSWORD"
+}

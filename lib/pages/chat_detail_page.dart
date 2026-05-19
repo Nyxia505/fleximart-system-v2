@@ -4,13 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../services/chat_service.dart';
 import '../constants/app_colors.dart';
+import '../utils/profile_pic_utils.dart';
 import '../widgets/profile_picture_placeholder.dart';
 import '../widgets/profile_picture_widget.dart';
 import '../widgets/chat_image_widget.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode, debugPrint;
 import 'dart:typed_data';
-import '../utils/image_url_helper.dart';
 
 class ChatDetailPage extends StatefulWidget {
   final String chatId;
@@ -70,10 +70,7 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
           .get();
       if (userDoc.exists) {
         final userData = userDoc.data() ?? {};
-        // Priority: profilePic (primary) > profileImageUrl (backward compatibility)
-        final profilePicUrl =
-            userData['profilePic'] as String? ??
-            userData['profileImageUrl'] as String?;
+        final profilePicUrl = profilePicUrlFromUserData(userData);
         // Fetch name with priority: fullName > name > customerName > email
         final name =
             (userData['fullName'] as String?) ??
@@ -728,34 +725,51 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                         tooltip: 'Send photo',
                       ),
                       Expanded(
-                        child: TextField(
-                          controller: _messageController,
-                          decoration: InputDecoration(
-                            hintText: _replyingToMessageId != null
-                                ? 'Type a reply...'
-                                : 'Type a message...',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: AppColors.border),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(color: AppColors.border),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(24),
-                              borderSide: BorderSide(
-                                color: AppColors.secondary,
+                        child: Focus(
+                          onKeyEvent: (node, event) {
+                            if (event is! KeyDownEvent) {
+                              return KeyEventResult.ignored;
+                            }
+                            if (event.logicalKey == LogicalKeyboardKey.enter &&
+                                !HardwareKeyboard.instance.isShiftPressed) {
+                              _sendMessage();
+                              return KeyEventResult.handled;
+                            }
+                            return KeyEventResult.ignored;
+                          },
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: InputDecoration(
+                              hintText: _replyingToMessageId != null
+                                  ? 'Type a reply...'
+                                  : 'Type a message...',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide:
+                                    BorderSide(color: AppColors.border),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide:
+                                    BorderSide(color: AppColors.border),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(24),
+                                borderSide: BorderSide(
+                                  color: AppColors.secondary,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 10,
                               ),
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20,
-                              vertical: 10,
-                            ),
+                            minLines: 1,
+                            maxLines: 4,
+                            textInputAction: TextInputAction.send,
+                            textCapitalization: TextCapitalization.sentences,
+                            onSubmitted: (_) => _sendMessage(),
                           ),
-                          maxLines: null,
-                          textCapitalization: TextCapitalization.sentences,
-                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1170,71 +1184,11 @@ class _ChatDetailPageState extends State<ChatDetailPage> {
                 child: InteractiveViewer(
                   minScale: 0.5,
                   maxScale: 4.0,
-                  child: Image.network(
-                    ImageUrlHelper.encodeUrl(imageUrl),
+                  child: ChatImageWidget(
+                    imageUrl: imageUrl,
                     fit: BoxFit.contain,
-                    loadingBuilder: (context, child, loadingProgress) {
-                      if (loadingProgress == null) return child;
-                      return Container(
-                        padding: const EdgeInsets.all(48),
-                        color: Colors.black87,
-                        child: Center(
-                          child: CircularProgressIndicator(
-                            value: loadingProgress.expectedTotalBytes != null
-                                ? loadingProgress.cumulativeBytesLoaded /
-                                      loadingProgress.expectedTotalBytes!
-                                : null,
-                            color: Colors.white,
-                          ),
-                        ),
-                      );
-                    },
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        padding: const EdgeInsets.all(48),
-                        color: Colors.black87,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.broken_image,
-                              size: 64,
-                              color: Colors.white70,
-                            ),
-                            const SizedBox(height: 16),
-                            const Text(
-                              'Failed to load image',
-                              style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 16,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              imageUrl,
-                              style: const TextStyle(
-                                color: Colors.white54,
-                                fontSize: 12,
-                              ),
-                              textAlign: TextAlign.center,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 16),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pop();
-                                _showFullImage(imageUrl);
-                              },
-                              child: const Text(
-                                'Retry',
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                    backgroundColor: Colors.black87,
+                    loadingColor: Colors.white,
                   ),
                 ),
               ),

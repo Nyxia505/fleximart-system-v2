@@ -3,6 +3,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../constants/app_colors.dart';
+import '../widgets/admin_feature_header.dart';
+import '../widgets/user_profile_avatar.dart';
+
+/// Set before opening Activity Log from dashboard (e.g. Register filter).
+String? activityLogPendingActionFilter;
 
 /// Activity Log Entry Model
 class ActivityLogEntry {
@@ -39,6 +44,15 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   DateTime? _startDate;
   DateTime? _endDate;
   String? _selectedActionType;
+
+  @override
+  void initState() {
+    super.initState();
+    if (activityLogPendingActionFilter != null) {
+      _selectedActionType = activityLogPendingActionFilter;
+      activityLogPendingActionFilter = null;
+    }
+  }
 
   final List<String> _actionTypes = [
     'All',
@@ -489,98 +503,75 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
       backgroundColor: AppColors.dashboardBackground,
       body: Column(
         children: [
-          // Header with Filters
           LayoutBuilder(
             builder: (context, constraints) {
               final isMobile = constraints.maxWidth < 768;
-              return Container(
-                padding: EdgeInsets.all(isMobile ? 16 : 24),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  border: Border(
-                    bottom: BorderSide(
-                      color: const Color(0xFFCD5656).withOpacity(0.3),
-                      width: 2,
-                    ),
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  AdminFeatureHeader(
+                    title: 'Activity Log',
+                    subtitle: 'User sign-ups and system activity',
+                    icon: Icons.history,
+                    trailing: isMobile
+                        ? null
+                        : AdminFeatureHeader.primaryAction(
+                            label: _isGeneratingTestData
+                                ? 'Generating...'
+                                : 'Add Test Data',
+                            icon: Icons.add_circle_outline,
+                            onPressed:
+                                _isGeneratingTestData ? null : _generateTestData,
+                          ),
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Activity Log',
-                                style: TextStyle(
-                                  fontSize: isMobile ? 20 : 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (!isMobile) ...[
-                          const SizedBox(width: 12),
-                          OutlinedButton.icon(
-                            onPressed: _isGeneratingTestData ? null : _generateTestData,
-                            icon: _isGeneratingTestData
-                                ? const SizedBox(
-                                    width: 16,
-                                    height: 16,
-                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                  )
-                                : const Icon(Icons.add_circle_outline, size: 18),
-                            label: Text(_isGeneratingTestData ? 'Generating...' : 'Add Test Data'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (isMobile) ...[
-                      const SizedBox(height: 8),
-                      SizedBox(
+                  if (isMobile) ...[
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+                      child: SizedBox(
                         width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: _isGeneratingTestData ? null : _generateTestData,
-                          icon: _isGeneratingTestData
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.add_circle_outline, size: 18),
-                          label: Text(_isGeneratingTestData ? 'Generating...' : 'Add Test Data'),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
+                        child: AdminFeatureHeader.primaryAction(
+                          label: _isGeneratingTestData
+                              ? 'Generating...'
+                              : 'Add Test Data',
+                          icon: Icons.add_circle_outline,
+                          onPressed:
+                              _isGeneratingTestData ? null : _generateTestData,
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 16),
-                    // Filters
-                    if (isMobile) ...[
-                      _buildSearchField(),
-                      const SizedBox(height: 12),
-                      _buildMobileFilters(context),
-                    ] else ...[
-                      _buildDesktopFilters(context),
-                    ],
+                    ),
                   ],
-                ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      isMobile ? 12 : 16,
+                      12,
+                      isMobile ? 12 : 16,
+                      0,
+                    ),
+                    child: Container(
+                      padding: EdgeInsets.all(isMobile ? 12 : 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFFCD5656).withOpacity(0.2),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isMobile) ...[
+                            _buildSearchField(),
+                            const SizedBox(height: 12),
+                            _buildMobileFilters(context),
+                          ] else ...[
+                            _buildDesktopFilters(context),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               );
             },
           ),
@@ -943,127 +934,139 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
       padding: const EdgeInsets.all(24),
       itemCount: activities.length,
       itemBuilder: (context, index) {
-        final activity = activities[index];
-        final isLast = index == activities.length - 1;
-        return _buildTimelineItem(activity, isLast);
+        return _buildTimelineItem(activities[index]);
       },
     );
   }
 
-  Widget _buildTimelineItem(ActivityLogEntry activity, bool isLast) {
+  bool _showProfileAvatar(ActivityLogEntry activity) {
+    if (activity.userId.isEmpty) return false;
+    switch (activity.actionType) {
+      case 'Register':
+      case 'Login':
+      case 'Logout':
+      case 'User Update':
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  Widget _buildInlineLeading(ActivityLogEntry activity) {
     final actionColor = _getActionColor(activity.actionType);
     final actionIcon = _getActionIcon(activity.actionType);
 
+    if (_showProfileAvatar(activity)) {
+      return ClipOval(
+        child: UserProfileAvatar(userId: activity.userId, size: 44),
+      );
+    }
+
     return Container(
-      margin: const EdgeInsets.only(bottom: 24),
+      width: 44,
+      height: 44,
+      decoration: BoxDecoration(
+        color: actionColor.withOpacity(0.12),
+        shape: BoxShape.circle,
+        border: Border.all(color: actionColor.withOpacity(0.35)),
+      ),
+      child: Icon(actionIcon, color: actionColor, size: 22),
+    );
+  }
+
+  Widget _buildTimelineItem(ActivityLogEntry activity) {
+    final actionColor = _getActionColor(activity.actionType);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withOpacity(0.6)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Timeline Line and Icon
-          Column(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: actionColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: actionColor, width: 2),
-                ),
-                child: Icon(
-                  actionIcon,
-                  color: actionColor,
-                  size: 24,
-                ),
-              ),
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 60,
-                  color: AppColors.border,
-                  margin: const EdgeInsets.only(top: 8),
-                ),
-            ],
-          ),
-          const SizedBox(width: 16),
-          // Activity Card
+          _buildInlineLeading(activity),
+          const SizedBox(width: 14),
           Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          activity.userName,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.textPrimary,
-                          ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        activity.userName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                          height: 1.2,
                         ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: actionColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          activity.actionType,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: actionColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    activity.description,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: AppColors.textSecondary,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.access_time,
-                        size: 14,
-                        color: AppColors.textSecondary,
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        DateFormat('MMM d, yyyy • hh:mm a').format(activity.timestamp),
+                      decoration: BoxDecoration(
+                        color: actionColor.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        activity.actionType,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textSecondary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: actionColor,
                         ),
                       ),
-                    ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  activity.description,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: AppColors.textSecondary,
+                    height: 1.35,
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      size: 14,
+                      color: AppColors.textSecondary.withOpacity(0.8),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      DateFormat('MMM d, yyyy • hh:mm a')
+                          .format(activity.timestamp),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.textSecondary.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -1072,4 +1075,145 @@ class _ActivityLogPageState extends State<ActivityLogPage> {
   }
 }
 
+/// Compact recent registrations list for the admin dashboard overview.
+class RecentRegistrationsList extends StatelessWidget {
+  final int limit;
+  final VoidCallback? onViewAll;
+
+  const RecentRegistrationsList({
+    super.key,
+    this.limit = 5,
+    this.onViewAll,
+  });
+
+  String _displayName(Map<String, dynamic> data) {
+    return (data['fullName'] as String?) ??
+        (data['name'] as String?) ??
+        (data['customerName'] as String?) ??
+        (data['email'] as String?) ??
+        'Unknown';
+  }
+
+  DateTime? _signupDate(Map<String, dynamic> data) {
+    final createdAt = data['createdAt'];
+    if (createdAt is Timestamp) return createdAt.toDate();
+    final verifiedAt = data['verifiedAt'];
+    if (verifiedAt is Timestamp) return verifiedAt.toDate();
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text(
+              'Could not load users',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          );
+        }
+
+        var docs = snapshot.data?.docs ?? [];
+        docs = List.from(docs)
+          ..sort((a, b) {
+            final aDate = _signupDate(a.data() as Map<String, dynamic>);
+            final bDate = _signupDate(b.data() as Map<String, dynamic>);
+            if (aDate == null && bDate == null) return 0;
+            if (aDate == null) return 1;
+            if (bDate == null) return -1;
+            return bDate.compareTo(aDate);
+          });
+        docs = docs.take(limit).toList();
+
+        if (docs.isEmpty) {
+          return Center(
+            child: Text(
+              'No registrations yet',
+              style: TextStyle(color: AppColors.textSecondary),
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            Expanded(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(12),
+                itemCount: docs.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final doc = docs[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final name = _displayName(data);
+                  final email = data['email'] as String? ?? '—';
+                  final signupDate = _signupDate(data);
+                  final dateLabel = signupDate != null
+                      ? DateFormat('MMM d, yyyy • h:mm a').format(signupDate)
+                      : 'Date unknown';
+
+                  return Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Row(
+                        children: [
+                          UserProfileAvatar(userId: doc.id, size: 44),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  email,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                Text(
+                                  dateLabel,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: AppColors.textHint,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            if (onViewAll != null)
+              TextButton(
+                onPressed: onViewAll,
+                child: const Text('View activity log'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
 

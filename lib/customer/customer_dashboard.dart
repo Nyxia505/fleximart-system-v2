@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 import 'shop_dashboard.dart';
 import 'dashboard_notifications.dart';
 import 'dashboard_profile.dart';
 import '../services/notification_service.dart';
+import '../providers/theme_provider.dart';
 
 class CustomerDashboard extends StatefulWidget {
   final int initialIndex;
@@ -80,6 +82,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   Widget _buildNavItem(IconData icon, String label, int index) {
     final isSelected = _currentIndex == index;
     final isNotification = icon == Icons.notifications_outlined;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: true);
+    final primaryColor = themeProvider.primaryColor;
 
     return Expanded(
       child: GestureDetector(
@@ -90,7 +94,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           decoration: BoxDecoration(
             color: isSelected
-                ? const Color(0xFF8B2E2E) // Solid primary color for active
+                ? primaryColor // Dynamic primary color for active
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
@@ -103,7 +107,7 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 padding: const EdgeInsets.all(4),
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? const Color(0xFF8B2E2E) // Solid primary color circle
+                      ? primaryColor // Dynamic primary color circle
                       : Colors.transparent,
                   shape: BoxShape.circle,
                 ),
@@ -145,6 +149,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   Widget _buildNotificationIconWithBadge(bool isSelected) {
     final user = FirebaseAuth.instance.currentUser;
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: true);
+    final primaryColor = themeProvider.primaryColor;
+    
     if (user == null) {
       return Icon(
         Icons.notifications_outlined,
@@ -180,8 +187,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 top: -4,
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF8B2E2E), // Primary color badge
+                  decoration: BoxDecoration(
+                    color: primaryColor, // Dynamic primary color badge
                     shape: BoxShape.circle,
                   ),
                   constraints: const BoxConstraints(

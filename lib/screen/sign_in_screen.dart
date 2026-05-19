@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
+import '../services/email_verification_service.dart';
 import 'dart:math' as math;
 
 class SignInScreen extends StatefulWidget {
@@ -386,6 +387,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
       // STEP 2: Read role from Firestore /users/{uid} BEFORE checking verification
       String? role;
+      Map<String, dynamic>? userData;
       try {
         final doc = await FirebaseFirestore.instance
             .collection('users')
@@ -401,7 +403,7 @@ class _SignInScreenState extends State<SignInScreen> {
           return;
         }
 
-        final userData = doc.data() as Map<String, dynamic>;
+        userData = doc.data() ?? {};
         role = userData['role'] as String?;
       } catch (e) {
         await FirebaseAuth.instance.signOut();
@@ -463,11 +465,16 @@ class _SignInScreenState extends State<SignInScreen> {
         return;
       }
 
-      // STEP 4: For customers, if user exists in Firestore, allow login directly
-      // Email verification is only required during sign-up, not during login
+      // STEP 4: Customers — OTP/Firestore verification only (not Firebase link emailVerified)
       if (role == 'customer') {
-        // User exists in Firestore (Gmail is saved) - allow login directly
-        // No need to check emailVerified during login
+        if (!EmailVerificationService.isCustomerVerifiedFromDoc(userData)) {
+          await FirebaseAuth.instance.signOut();
+          if (!mounted) return;
+          _showError(
+            'Account not verified. Complete sign-up with your email OTP code.',
+          );
+          return;
+        }
       }
 
       if (!mounted) return;
@@ -545,86 +552,196 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   void _showForgotPasswordDialog() {
-    final emailController = TextEditingController();
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text(
-          'Reset Password',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
-        ),
-        content: Column(
+      builder: (dialogContext) => _ResetPasswordDialog(
+        initialEmail: emailController.text.trim(),
+        accentColor: crimson,
+        onSuccess: () {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Password reset link sent! Check your inbox and spam folder.',
+              ),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ResetPasswordDialog extends StatefulWidget {
+  final String initialEmail;
+  final Color accentColor;
+  final VoidCallback onSuccess;
+
+  const _ResetPasswordDialog({
+    required this.initialEmail,
+    required this.accentColor,
+    required this.onSuccess,
+  });
+
+  @override
+  State<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends State<_ResetPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _emailController;
+  final _emailFocus = FocusNode();
+  bool _sending = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(text: widget.initialEmail);
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _emailFocus.dispose();
+    super.dispose();
+  }
+
+  bool _isValidEmail(String email) {
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,}$').hasMatch(email);
+  }
+
+  String _authErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'user-not-found':
+        return 'No account found with this email. Sign up first or check the spelling.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please wait a few minutes and try again.';
+      case 'network-request-failed':
+        return 'Network error. Check your connection and try again.';
+      default:
+        return e.message ?? 'Could not send reset link. Please try again.';
+    }
+  }
+
+  Future<void> _sendResetLink() async {
+    if (_sending) return;
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final email = _emailController.text.trim().toLowerCase();
+    setState(() => _sending = true);
+
+    try {
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      widget.onSuccess();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      _showDialogError(_authErrorMessage(e));
+    } catch (e) {
+      if (!mounted) return;
+      _showDialogError('Could not send reset link. Please try again.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  void _showDialogError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        'Reset Password',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+      ),
+      content: Form(
+        key: _formKey,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             const Text(
               'Enter your email address and we\'ll send you a password reset link.',
               style: TextStyle(fontSize: 14),
             ),
             const SizedBox(height: 16),
-            TextField(
-              controller: emailController,
+            TextFormField(
+              controller: _emailController,
+              focusNode: _emailFocus,
+              autofocus: widget.initialEmail.isEmpty,
               keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.done,
+              enabled: !_sending,
+              autocorrect: false,
+              onFieldSubmitted: (_) => _sendResetLink(),
+              validator: (value) {
+                final email = value?.trim() ?? '';
+                if (email.isEmpty) return 'Email is required';
+                if (!_isValidEmail(email)) return 'Enter a valid email address';
+                return null;
+              },
               decoration: InputDecoration(
                 hintText: 'Email',
-                prefixIcon: Icon(Icons.email_outlined, color: crimson),
+                prefixIcon: Icon(Icons.email_outlined, color: widget.accentColor),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: crimson, width: 2),
+                  borderSide: BorderSide(color: widget.accentColor, width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.error),
                 ),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final email = emailController.text.trim();
-              if (email.isEmpty) return;
-
-              try {
-                await FirebaseAuth.instance.sendPasswordResetEmail(
-                  email: email,
-                );
-                if (context.mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Password reset email sent!'),
-                      backgroundColor: AppColors.success,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${e.toString()}'),
-                      backgroundColor: AppColors.error,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: crimson,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text('Send Link'),
-          ),
-        ],
       ),
+      actions: [
+        TextButton(
+          onPressed: _sending ? null : () => Navigator.of(context).pop(),
+          child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+        ),
+        ElevatedButton(
+          onPressed: _sending ? null : _sendResetLink,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: widget.accentColor,
+            disabledBackgroundColor: widget.accentColor.withValues(alpha: 0.5),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: _sending
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Send Link'),
+        ),
+      ],
     );
   }
 }

@@ -18,6 +18,9 @@ import '../services/product_service.dart';
 import '../widgets/map_coming_soon_placeholder.dart';
 import '../widgets/customer_profile_avatar.dart';
 import '../dialogs/add_account_dialog.dart';
+import '../widgets/logout_button.dart';
+import '../utils/logout_helper.dart';
+import '../screens/theme_display_settings_screen.dart';
 
 // Official theme colors - Staff Theme (Bright Red)
 // Staff uses brighter, more vibrant red palette to differentiate from admin's deeper wine red
@@ -107,47 +110,8 @@ class _StaffDashboardState extends State<StaffDashboard> {
     );
   }
 
-  /// Simple logout handler for the main StaffDashboard (mobile app bar menu).
-  void _handleLogout(BuildContext context) async {
-    // Log logout activity before signing out
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        if (userDoc.exists) {
-          final userData = userDoc.data() as Map<String, dynamic>;
-          final userName = (userData['name'] as String?) ??
-              (userData['fullName'] as String?) ??
-              (userData['customerName'] as String?) ??
-              (userData['email'] as String?) ??
-              'Unknown User';
-          
-          await FirebaseFirestore.instance.collection('activity_logs').add({
-            'userId': user.uid,
-            'userName': userName,
-            'actionType': 'Logout',
-            'description': 'User logged out',
-            'timestamp': FieldValue.serverTimestamp(),
-            'metadata': {
-              'role': userData['role'] as String? ?? 'unknown',
-              'logoutTime': DateTime.now().toIso8601String(),
-            },
-          });
-        }
-      }
-    } catch (e) {
-      // Don't fail logout if activity logging fails
-      if (kDebugMode) {
-        debugPrint('Error logging logout activity: $e');
-      }
-    }
-    
-    await context.read<app_auth.AuthProvider>().signOut();
-    if (!context.mounted) return;
-    Navigator.pushReplacementNamed(context, '/login');
+  void _handleLogout(BuildContext context) {
+    LogoutHelper.confirmAndSignOut(context);
   }
 
   PreferredSizeWidget? _buildMobileAppBar(BuildContext context) {
@@ -3734,6 +3698,21 @@ class _StaffProfilePage extends StatelessWidget {
               },
             ),
             Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
+            _buildSettingsTile(
+              context,
+              icon: Icons.palette_outlined,
+              title: 'Theme & Display',
+              subtitle: 'Light, dark, or system theme',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ThemeDisplaySettingsScreen(),
+                  ),
+                );
+              },
+            ),
+            Divider(height: 1, color: const Color(0xFFCD5656).withOpacity(0.8)),
 
             // Support Section
             _buildSectionHeader('Support'),
@@ -3811,23 +3790,8 @@ class _StaffProfilePage extends StatelessWidget {
 
             // Logout Section
             const SizedBox(height: 32),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _handleLogout(context),
-                  child: const Text('Logout'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.error,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                ),
-              ),
+            LogoutButton(
+              onPressed: () => LogoutHelper.confirmAndSignOut(context),
             ),
             const SizedBox(height: 24),
           ],
@@ -4131,66 +4095,4 @@ class _StaffProfilePage extends StatelessWidget {
     );
   }
 
-  void _handleLogout(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: AppColors.error),
-            child: const Text('Logout'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldLogout == true && context.mounted) {
-      // Log logout activity before signing out
-      try {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .get();
-          if (userDoc.exists) {
-            final userData = userDoc.data() as Map<String, dynamic>;
-            final userName = (userData['name'] as String?) ??
-                (userData['fullName'] as String?) ??
-                (userData['customerName'] as String?) ??
-                (userData['email'] as String?) ??
-                'Unknown User';
-            
-            await FirebaseFirestore.instance.collection('activity_logs').add({
-              'userId': user.uid,
-              'userName': userName,
-              'actionType': 'Logout',
-              'description': 'User logged out',
-              'timestamp': FieldValue.serverTimestamp(),
-              'metadata': {
-                'role': userData['role'] as String? ?? 'unknown',
-                'logoutTime': DateTime.now().toIso8601String(),
-              },
-            });
-          }
-        }
-      } catch (e) {
-        // Don't fail logout if activity logging fails
-        if (kDebugMode) {
-          debugPrint('Error logging logout activity: $e');
-        }
-      }
-      
-      await context.read<app_auth.AuthProvider>().signOut();
-      if (!context.mounted) return;
-      Navigator.pushReplacementNamed(context, '/login');
-    }
-  }
 }

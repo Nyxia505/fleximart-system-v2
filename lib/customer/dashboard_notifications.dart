@@ -103,10 +103,7 @@ class _DashboardNotificationsState extends State<DashboardNotifications> {
   @override
   void initState() {
     super.initState();
-    // Test the query when the screen loads
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _testNotificationQuery();
-    });
+    // Test notification query removed - no longer creates test notification on load
   }
 
   @override

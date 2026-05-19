@@ -423,10 +423,46 @@ exports.sendQuotationPriceUpdateNotification = functions.firestore
  * Callable function to send OTP code via push notification.
  * Can be called from Flutter app with FCM token and OTP code.
  */
-exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
-  const { fcmToken, otpCode, email, displayName } = data;
+/**
+ * Send OTP via FCM (HTTP v1 API — replaces deprecated sendToDevice).
+ * @returns {Promise<string>} message ID
+ */
+async function sendOtpPushToToken(fcmToken, otpCode, email) {
+  const title = 'FlexiMart Verification Code';
+  const body = `Your verification code is: ${otpCode}`;
 
-  // Validate input
+  const messageId = await admin.messaging().send({
+    token: fcmToken,
+    notification: { title, body },
+    data: {
+      type: 'otp_verification',
+      email: email || '',
+      otp: String(otpCode),
+    },
+    android: {
+      priority: 'high',
+      notification: {
+        channelId: 'high_importance_channel',
+        priority: 'high',
+      },
+    },
+    apns: {
+      payload: {
+        aps: {
+          sound: 'default',
+          badge: 1,
+        },
+      },
+    },
+  });
+
+  console.log(`✅ OTP push sent (${messageId}) to ${fcmToken.substring(0, 12)}...`);
+  return messageId;
+}
+
+exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
+  const { fcmToken, otpCode, email } = data;
+
   if (!fcmToken || !otpCode) {
     throw new functions.https.HttpsError(
       'invalid-argument',
@@ -435,24 +471,7 @@ exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
   }
 
   try {
-    const title = 'FlexiMart Verification Code';
-    const body = `Your verification code is: ${otpCode}`;
-
-    const payload = {
-      notification: {
-        title,
-        body,
-      },
-      data: {
-        type: 'otp_verification',
-        email: email || '',
-        otp: otpCode,
-      },
-    };
-
-    await admin.messaging().sendToDevice(fcmToken, payload);
-    console.log(`✅ OTP push notification sent to token ${fcmToken.substring(0, 10)}...`);
-    
+    await sendOtpPushToToken(fcmToken, otpCode, email || '');
     return {
       success: true,
       message: 'OTP push notification sent successfully',
@@ -461,7 +480,7 @@ exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
     console.error('❌ Error sending OTP push notification:', error);
     throw new functions.https.HttpsError(
       'internal',
-      'Failed to send OTP push notification'
+      error?.message || 'Failed to send OTP push notification'
     );
   }
 });
@@ -474,51 +493,194 @@ exports.sendOtpNotification = functions.https.onCall(async (data, context) => {
  * "Gmail_API: Invalid grant" issues. Configure SMTP via:
  *   firebase functions:config:set smtp.host="..." smtp.port="465" ...
  */
-async function sendOtpViaEmailJs(toEmail, otp, toName, data) {
-  const emailjsConfig = functions.config().emailjs || {};
-  const serviceId = data.serviceId || process.env.EMAILJS_SERVICE_ID || emailjsConfig.service_id || 'service_mdzkdnm';
-  const templateId = data.templateId || process.env.EMAILJS_TEMPLATE_ID || emailjsConfig.template_id || 'template_contact';
-  const publicKey = process.env.EMAILJS_PUBLIC_KEY || emailjsConfig.public_key || 'TA-nBrmAS_CGj5HOc';
-  const privateKey = process.env.EMAILJS_PRIVATE_KEY || emailjsConfig.private_key;
+async function loadAppEmailConfig() {
+  try {
+    const doc = await admin.firestore().collection('app_config').doc('emailjs').get();
+    return doc.exists ? doc.data() : {};
+  } catch (e) {
+    console.warn('⚠️ Could not load app_config/emailjs:', e.message || e);
+    return {};
+  }
+}
 
-  const payload = {
-    service_id: serviceId,
-    template_id: templateId,
-    user_id: publicKey,
-    template_params: {
-      to_email: toEmail,
-      to_name: toName,
-      otp: String(otp),
-    },
-  };
-  if (privateKey) {
-    payload.accessToken = privateKey;
+/**
+ * Send OTP email via SMTP, EmailJS, and/or Firestore mail queue.
+ * @returns {{ method: string }}
+ */
+async function deliverOtpEmail(toEmail, otp, toName, data = {}) {
+  const firestoreCfg = await loadAppEmailConfig();
+  const smtpConfig = functions.config().smtp || {};
+  const gmailConfig = functions.config().gmail || {};
+
+  let smtpHost = process.env.SMTP_HOST || smtpConfig.host;
+  let smtpPortRaw = process.env.SMTP_PORT || smtpConfig.port;
+  let smtpUser = data.smtpUser || process.env.SMTP_USER || smtpConfig.user || firestoreCfg.smtpUser;
+  let smtpPass = data.smtpPass || process.env.SMTP_PASS || smtpConfig.pass || firestoreCfg.smtpPass;
+
+  if ((!smtpHost || !smtpUser || !smtpPass) && (gmailConfig.user || process.env.GMAIL_USER)) {
+    smtpHost = 'smtp.gmail.com';
+    smtpPortRaw = smtpPortRaw || '465';
+    smtpUser = process.env.GMAIL_USER || gmailConfig.user;
+    smtpPass = process.env.GMAIL_PASS || gmailConfig.pass;
   }
 
-  const templateFallbacks = ['template_contact_us', 'template_9lir44r'];
-  let lastErr;
-  const tryIds = [templateId, ...templateFallbacks.filter((id) => id !== templateId)];
+  if ((!smtpHost || !smtpUser || !smtpPass) && firestoreCfg.smtpUser && firestoreCfg.smtpPass) {
+    smtpHost = 'smtp.gmail.com';
+    smtpPortRaw = smtpPortRaw || '465';
+    smtpUser = firestoreCfg.smtpUser;
+    smtpPass = firestoreCfg.smtpPass;
+  }
 
-  for (const tid of tryIds) {
+  if (smtpUser && smtpPass && !smtpHost) {
+    smtpHost = 'smtp.gmail.com';
+    smtpPortRaw = smtpPortRaw || '465';
+  }
+
+  const smtpPort = smtpPortRaw ? parseInt(smtpPortRaw, 10) : 465;
+  const fromEmail = process.env.FROM_EMAIL || smtpConfig.from_email || smtpUser || 'queenyvonnedalahay@gmail.com';
+  const fromName = process.env.FROM_NAME || smtpConfig.from_name || 'FlexiMart';
+  const displayName = toName || toEmail;
+
+  if (smtpHost && smtpPort && smtpUser && smtpPass) {
     try {
-      payload.template_id = tid;
-      await axios.post(
-        'https://api.emailjs.com/api/v1.0/email/send',
-        payload,
-        { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
-      );
-      console.log('✅ sendOtpEmail via EmailJS sent to', toEmail, 'template', tid);
-      return;
-    } catch (err) {
-      lastErr = err;
-      const msg = err?.response?.data?.text || err?.response?.data || err?.message || '';
-      if (String(msg).toLowerCase().includes('template id not found')) {
-        continue;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port: smtpPort,
+        secure: smtpPort === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+      });
+
+      await transporter.sendMail({
+        from: `${fromName} <${fromEmail}>`,
+        to: toEmail,
+        subject: 'Your FlexiMart verification code',
+        text: `Your FlexiMart verification code is: ${otp}. This code expires in 5 minutes.`,
+        html: `<p>Hello ${displayName},</p><p>Your FlexiMart verification code is: <strong>${otp}</strong></p><p>This code expires in 5 minutes. Open Gmail on your phone to read this message.</p>`,
+      });
+      console.log('✅ deliverOtpEmail via SMTP to', toEmail);
+      return { method: 'smtp' };
+    } catch (smtpErr) {
+      const smtpMsg = smtpErr?.message || String(smtpErr);
+      console.error('❌ deliverOtpEmail SMTP failed:', smtpMsg);
+      if (smtpMsg.toLowerCase().includes('invalid login') ||
+          smtpMsg.toLowerCase().includes('authentication') ||
+          smtpMsg.toLowerCase().includes('username and password')) {
+        throw new Error(
+          'GMAIL_SMTP_AUTH_FAILED: smtpPass must be a 16-character Gmail App Password '
+          + '(Google Account → Security → App passwords), not your normal Gmail password.'
+        );
       }
-      throw err;
+    }
+  } else if (smtpUser && !smtpPass) {
+    console.warn('⚠️ smtpUser set but smtpPass missing in app_config/emailjs');
+  }
+
+  const hasEmailJsTemplate = !!(
+    data.templateId ||
+    firestoreCfg.templateId ||
+    process.env.EMAILJS_TEMPLATE_ID ||
+    (functions.config().emailjs || {}).template_id ||
+    'template_ac0np7l'
+  );
+  if (hasEmailJsTemplate) {
+    try {
+      await sendOtpViaEmailJs(toEmail, otp, displayName, data, firestoreCfg);
+      return { method: 'emailjs' };
+    } catch (emailJsErr) {
+      console.error('❌ deliverOtpEmail EmailJS failed:', emailJsErr?.response?.data || emailJsErr?.message || emailJsErr);
     }
   }
-  throw lastErr;
+
+  try {
+    await admin.firestore().collection('mail').add({
+      to: toEmail,
+      message: {
+        subject: 'Your FlexiMart verification code',
+        text: `Your FlexiMart verification code is: ${otp}. Expires in 5 minutes.`,
+        html: `<p>Hello ${displayName},</p><p>Your FlexiMart verification code is: <strong>${otp}</strong></p>`,
+      },
+    });
+    console.log('📧 deliverOtpEmail queued mail collection (needs Trigger Email extension)');
+  } catch (mailErr) {
+    console.error('❌ deliverOtpEmail mail queue failed:', mailErr?.message || mailErr);
+  }
+
+  throw new Error(
+    'EMAIL_SETUP_REQUIRED: In Firestore app_config/emailjs set smtpUser + smtpPass (Gmail App Password), ' +
+    'or enable EmailJS non-browser API at dashboard.emailjs.com/admin/account/security'
+  );
+}
+
+function buildEmailJsTemplateParams(toEmail, toName, otp) {
+  const code = String(otp);
+  return {
+    to_email: toEmail,
+    to_name: toName,
+    otp: code,
+    email: toEmail,
+    name: toName,
+    user_email: toEmail,
+    user_name: toName,
+    verification_code: code,
+    passcode: code,
+    code,
+    message: `Your FlexiMart verification code is ${code}. It expires in 5 minutes.`,
+    subject: 'FlexiMart Verification Code',
+    from_name: 'FlexiMart',
+  };
+}
+
+async function sendOtpViaEmailJs(toEmail, otp, toName, data, firestoreCfg = {}) {
+  const emailjsConfig = functions.config().emailjs || {};
+  const serviceId = data.serviceId || firestoreCfg.serviceId || process.env.EMAILJS_SERVICE_ID || emailjsConfig.service_id || 'service_1dhvvdp';
+  const templateId = data.templateId || firestoreCfg.templateId || process.env.EMAILJS_TEMPLATE_ID || emailjsConfig.template_id || 'template_ac0np7l';
+  const publicKey = data.publicKey || firestoreCfg.publicKey || process.env.EMAILJS_PUBLIC_KEY || emailjsConfig.public_key || 'TMXZA9w62NrPr-zjY';
+  const privateKey = data.privateKey || firestoreCfg.privateKey || process.env.EMAILJS_PRIVATE_KEY || emailjsConfig.private_key || 'mgsii9qp4xF4Fphe19cj_';
+
+  const templateParams = buildEmailJsTemplateParams(toEmail, toName, otp);
+
+  const trySend = async (usePrivateKey) => {
+    const payload = {
+      service_id: serviceId,
+      template_id: templateId,
+      user_id: publicKey,
+      template_params: templateParams,
+    };
+    if (usePrivateKey && privateKey) {
+      payload.accessToken = privateKey;
+    }
+    await axios.post(
+      'https://api.emailjs.com/api/v1.0/email/send',
+      payload,
+      { headers: { 'Content-Type': 'application/json' }, timeout: 20000 }
+    );
+  };
+
+  const configuredId = (templateId || '').trim();
+  if (!configuredId) {
+    throw new Error('EmailJS template ID not configured in app_config/emailjs');
+  }
+
+  let lastErr;
+  try {
+    await trySend(true);
+    console.log('✅ sendOtpViaEmailJs sent to', toEmail);
+    return;
+  } catch (err) {
+    lastErr = err;
+    const msg = String(err?.response?.data || err?.message || '');
+    if (msg.toLowerCase().includes('non-browser')) {
+      try {
+        await trySend(false);
+        console.log('✅ sendOtpViaEmailJs sent (public key) to', toEmail);
+        return;
+      } catch (err2) {
+        lastErr = err2;
+      }
+    }
+  }
+  const errText = lastErr?.response?.data?.text || lastErr?.response?.data || lastErr?.message || lastErr;
+  throw new Error(`EmailJS failed: ${errText}`);
 }
 
 exports.sendOtpEmail = functions.https.onCall(async (data, context) => {
@@ -530,72 +692,84 @@ exports.sendOtpEmail = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('invalid-argument', 'toEmail and otp are required');
   }
 
-  const smtpConfig = functions.config().smtp || {};
-  const gmailConfig = functions.config().gmail || {};
-
-  let smtpHost = process.env.SMTP_HOST || smtpConfig.host;
-  let smtpPortRaw = process.env.SMTP_PORT || smtpConfig.port;
-  let smtpUser = process.env.SMTP_USER || smtpConfig.user;
-  let smtpPass = process.env.SMTP_PASS || smtpConfig.pass;
-
-  // Support legacy gmail.* config (Gmail app password)
-  if ((!smtpHost || !smtpUser || !smtpPass) && (gmailConfig.user || process.env.GMAIL_USER)) {
-    smtpHost = 'smtp.gmail.com';
-    smtpPortRaw = smtpPortRaw || '465';
-    smtpUser = process.env.GMAIL_USER || gmailConfig.user;
-    smtpPass = process.env.GMAIL_PASS || gmailConfig.pass;
-  }
-
-  const smtpPort = smtpPortRaw ? parseInt(smtpPortRaw, 10) : null;
-  const fromEmail = process.env.FROM_EMAIL || smtpConfig.from_email || smtpUser || 'fleximart.app@gmail.com';
-  const fromName = process.env.FROM_NAME || smtpConfig.from_name || 'FlexiMart';
-
-  // EmailJS first when SMTP is not configured (works with Gmail service + Contact Us template)
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    try {
-      await sendOtpViaEmailJs(toEmail, otp, toName, data);
-      return { success: true, method: 'emailjs' };
-    } catch (emailJsErr) {
-      console.error('❌ sendOtpEmail EmailJS failed:', emailJsErr?.response?.data || emailJsErr?.message || emailJsErr);
-    }
-  }
-
-  if (smtpHost && smtpPort && smtpUser && smtpPass) {
-    try {
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: smtpPort,
-        secure: smtpPort === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-      });
-
-      const info = await transporter.sendMail({
-        from: `${fromName} <${fromEmail}>`,
-        to: toEmail,
-        subject: 'Your FlexiMart verification code',
-        text: `Your verification code is: ${otp}`,
-        html: `<p>Your verification code is: <strong>${otp}</strong></p>`,
-      });
-      console.log('✅ sendOtpEmail via SMTP:', info?.messageId || 'ok');
-      return { success: true, method: 'smtp' };
-    } catch (smtpErr) {
-      console.error('❌ sendOtpEmail SMTP failed, trying EmailJS:', smtpErr?.toString?.() || smtpErr);
-    }
-  } else {
-    console.warn('⚠️ sendOtpEmail: SMTP not configured, trying EmailJS');
-  }
-
   try {
-    await sendOtpViaEmailJs(toEmail, otp, toName, data);
-    return { success: true, method: 'emailjs' };
-  } catch (emailJsErr) {
-    console.error('❌ sendOtpEmail EmailJS failed:', emailJsErr?.response?.data || emailJsErr?.message || emailJsErr);
+    const result = await deliverOtpEmail(toEmail, otp, toName, data);
+    return { success: true, method: result.method };
+  } catch (err) {
+    const msg = String(err?.message || err);
+    console.error('❌ sendOtpEmail failed:', msg);
+    const isSetup =
+      msg.includes('GMAIL_SMTP_AUTH_FAILED') ||
+      msg.includes('EMAIL_SETUP_REQUIRED');
     throw new functions.https.HttpsError(
-      'internal',
-      'Failed to send verification email. Please try again later.'
+      'failed-precondition',
+      isSetup
+        ? msg.replace(/^[^:]+:\s*/, '')
+        : `${msg} — Ensure smtpPass is sent from the app (emailjs.secrets.json) or Firestore app_config/emailjs.`
     );
   }
 });
+
+/**
+ * Auto-send verification email when a new OTP document is created (signup).
+ */
+exports.onOtpVerificationCreated = functions.firestore
+  .document('otp_verifications/{otpId}')
+  .onCreate(async (snap) => {
+    const data = snap.data() || {};
+    const toEmail = (data.toEmail || data.userId || '').toString().trim().toLowerCase();
+    const otp = (data.otpCode || '').toString();
+    const toName = (data.displayName || toEmail).toString();
+
+    if (!toEmail || otp.length !== 6) {
+      console.warn('⚠️ onOtpVerificationCreated: missing toEmail or otp');
+      return null;
+    }
+
+    const updates = {};
+
+    try {
+      const result = await deliverOtpEmail(toEmail, otp, toName, {});
+      updates.emailSent = true;
+      updates.emailMethod = result.method;
+      updates.emailSentAt = admin.firestore.FieldValue.serverTimestamp();
+      console.log('✅ onOtpVerificationCreated emailed', toEmail, 'via', result.method);
+    } catch (err) {
+      updates.emailSent = false;
+      updates.emailError = String(err?.message || err).slice(0, 500);
+      console.error('❌ onOtpVerificationCreated email failed for', toEmail, err?.message || err);
+    }
+
+    let fcmToken = (data.fcmToken || '').toString().trim();
+    if (!fcmToken) {
+      try {
+        const pending = await admin.firestore().collection('pending_signup').doc(toEmail).get();
+        if (pending.exists) {
+          fcmToken = (pending.data()?.fcmToken || '').toString().trim();
+        }
+      } catch (pendingErr) {
+        console.warn('⚠️ Could not load pending_signup FCM token:', pendingErr?.message || pendingErr);
+      }
+    }
+
+    if (fcmToken) {
+      try {
+        await sendOtpPushToToken(fcmToken, otp, toEmail);
+        updates.pushSent = true;
+        updates.pushSentAt = admin.firestore.FieldValue.serverTimestamp();
+      } catch (pushErr) {
+        updates.pushSent = false;
+        updates.pushError = String(pushErr?.message || pushErr).slice(0, 500);
+        console.error('❌ onOtpVerificationCreated push failed for', toEmail, pushErr?.message || pushErr);
+      }
+    } else {
+      updates.pushSent = false;
+      updates.pushError = 'No FCM token (enable notifications on device before signup)';
+    }
+
+    await snap.ref.update(updates);
+    return null;
+  });
 
 /**
  * Admin-only function to assign roles.
@@ -836,3 +1010,80 @@ exports.adminCreateUser = functions.https.onCall(async (data, context) => {
   }
 });
 
+const STORAGE_BUCKET = 'fleximart-system.firebasestorage.app';
+const PROXY_ALLOWED_PREFIXES = [
+  'chat_images/',
+  'profile_images/',
+  'product_images/',
+];
+
+/**
+ * Serves Storage files over HTTP with CORS (Flutter Web image loads).
+ * GET ?path=chat_images/... or profile_images/...
+ */
+exports.serveStorageImage = functions.https.onRequest(async (req, res) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  res.set('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.set('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') {
+    res.status(204).send('');
+    return;
+  }
+
+  if (req.method !== 'GET') {
+    res.status(405).send('Method not allowed');
+    return;
+  }
+
+  const rawPath = req.query.path;
+  if (!rawPath || typeof rawPath !== 'string') {
+    res.status(400).send('Missing path');
+    return;
+  }
+
+  let storagePath;
+  try {
+    storagePath = decodeURIComponent(rawPath).replace(/^\/+/, '');
+  } catch (_) {
+    res.status(400).send('Invalid path');
+    return;
+  }
+
+  const allowed = PROXY_ALLOWED_PREFIXES.some((prefix) =>
+    storagePath.startsWith(prefix)
+  );
+  if (!allowed) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  try {
+    const bucket = admin.storage().bucket(STORAGE_BUCKET);
+    const file = bucket.file(storagePath);
+    const [exists] = await file.exists();
+    if (!exists) {
+      res.status(404).send('Not found');
+      return;
+    }
+
+    const [metadata] = await file.getMetadata();
+    res.set('Content-Type', metadata.contentType || 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=3600');
+
+    file
+      .createReadStream()
+      .on('error', (err) => {
+        console.error('serveStorageImage stream error:', err);
+        if (!res.headersSent) {
+          res.status(500).send('Error');
+        }
+      })
+      .pipe(res);
+  } catch (err) {
+    console.error('serveStorageImage error:', err);
+    if (!res.headersSent) {
+      res.status(500).send('Error');
+    }
+  }
+});

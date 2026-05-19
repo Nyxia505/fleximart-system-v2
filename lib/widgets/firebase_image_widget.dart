@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint, kIsWeb;
 import 'package:firebase_storage/firebase_storage.dart';
 import '../utils/image_url_helper.dart';
 
@@ -176,7 +176,7 @@ class _FirebaseImageWidgetState extends State<FirebaseImageWidget> {
         }
 
         final encodedPath = pathMatch.group(1)!;
-        storagePath = Uri.decodeComponent(encodedPath);
+        storagePath = ImageUrlHelper.decodeFirebaseStoragePath(encodedPath);
       } else {
         // It's already a storage path
         storagePath = pathOrUrl;
@@ -325,7 +325,7 @@ class _FirebaseImageWidgetState extends State<FirebaseImageWidget> {
       fit: BoxFit.cover,
       width: imageWidth,
       height: imageHeight,
-      headers: const {'Cache-Control': 'no-cache'},
+      headers: kIsWeb ? null : const {'Cache-Control': 'no-cache'},
       loadingBuilder: (context, child, loading) {
         if (loading == null) return child;
         return Center(child: CircularProgressIndicator());

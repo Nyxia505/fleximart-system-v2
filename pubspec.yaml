@@ -10,9 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^4.2.1
-  firebase_auth: ^6.1.2
-  cloud_firestore: ^6.1.0
+  firebase_core: ^4.9.0
+  firebase_auth: ^6.5.1
+  cloud_firestore: ^6.4.1
   firebase_storage: ^13.0.4
   cupertino_icons: ^1.0.8
   image_picker: ^1.2.1
@@ -47,4 +47,7 @@ flutter:
     - assets/logo.png
     - assets/welcome screen logo.png.png
     - assets/logo/
-    - assets/config/
+    - assets/config/emailjs.json
+    - assets/config/emailjs.secrets.json
+    - assets/config/cloudinary.example.json
+    - assets/config/cloudinary.json

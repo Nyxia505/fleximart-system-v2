@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'profile_pic_cache_service.dart';
 
 /// Profile Picture Service
 /// 
@@ -74,23 +76,55 @@ class ProfilePictureService {
     }
   }
 
-  /// Save profile picture URL to Firestore
-  /// 
-  /// Saves the download URL to `users/{uid}/profilePic`
+  /// Save profile picture URL to Firestore (`profilePic` + `profileImageUrl`).
   Future<void> saveProfilePic({
     required String uid,
     required String downloadUrl,
+    Uint8List? previewBytes,
   }) async {
     try {
-      await _firestore
-          .collection('users')
-          .doc(uid)
-          .update({
-        'profilePic': downloadUrl,
-      });
+      await _firestore.collection('users').doc(uid).set(
+        {
+          'profilePic': downloadUrl,
+          'profileImageUrl': downloadUrl,
+          'profilePicUpdatedAt': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
+
+      await ProfilePicCacheService.save(
+        uid: uid,
+        downloadUrl: downloadUrl,
+        previewBytes: previewBytes,
+      );
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && user.uid == uid) {
+        try {
+          await user.updatePhotoURL(downloadUrl);
+        } catch (_) {
+          // Non-fatal; Firestore + Storage remain source of truth.
+        }
+      }
     } catch (e) {
       throw Exception('Failed to save profile picture URL: $e');
     }
+  }
+
+  /// Upload picked image and persist permanently. Returns download URL or throws.
+  Future<String> uploadAndSaveProfilePicture({
+    required XFile imageFile,
+    required String uid,
+    Uint8List? previewBytes,
+  }) async {
+    final bytes = previewBytes ?? await imageFile.readAsBytes();
+    final downloadUrl = await uploadImage(imageFile: imageFile, uid: uid);
+    await saveProfilePic(
+      uid: uid,
+      downloadUrl: downloadUrl,
+      previewBytes: bytes,
+    );
+    return downloadUrl;
   }
 
   /// Complete profile picture update flow

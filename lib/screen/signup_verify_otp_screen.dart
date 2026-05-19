@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +8,8 @@ import '../services/email_verification_service.dart';
 import '../services/email_service.dart';
 import '../constants/app_colors.dart';
 import '../services/otp_popup_service.dart';
+import '../utils/fcm_utils.dart';
+import '../services/activity_log_service.dart';
 
 class SignupVerifyOtpScreen extends StatefulWidget {
   final String email;
@@ -73,7 +76,7 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
         final otpCode = data['otp'] as String?;
         final email = data['email'] as String? ?? '';
         if (otpCode != null && otpCode.isNotEmpty) {
-          OtpPopupService.instance.showOtpPopup(context, otpCode, email);
+          _fillOtpCode(otpCode);
         }
       }
     });
@@ -83,9 +86,8 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
       final data = message.data;
       if (data['type'] == 'otp_verification' && mounted) {
         final otpCode = data['otp'] as String?;
-        final email = data['email'] as String? ?? '';
         if (otpCode != null && otpCode.isNotEmpty) {
-          OtpPopupService.instance.showOtpPopup(context, otpCode, email);
+          _fillOtpCode(otpCode);
         }
       }
     });
@@ -192,44 +194,50 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
         throw Exception('Verification failed. Please try again.');
       }
 
-      // OTP verified successfully, now create the Firebase account
+      // OTP verified successfully, now create or recover the Firebase account
       if (!mounted) return;
 
-      // Create user account in Firebase Auth
-      final credential = await FirebaseAuth.instance
-          .createUserWithEmailAndPassword(
-            email: widget.email,
-            password: widget.password,
-          )
-          .timeout(
-            const Duration(seconds: 30),
-            onTimeout: () {
-              throw Exception('Account creation timeout. Please try again.');
-            },
-          );
+      final user = await _createOrRecoverAuthUser();
 
-      final user = credential.user;
-      if (user == null) throw Exception('Failed to create user account');
+      try {
+        await user.updateDisplayName(widget.fullName);
+      } catch (_) {}
 
-      // Store user data in Firestore with verified status
       final userData = {
         'fullName': widget.fullName,
-        'email': widget.email,
+        'email': widget.email.trim().toLowerCase(),
         'role': 'customer',
         'emailVerified': true,
         'isVerified': true,
         'verifiedAt': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
-        'profileImageUrl': '', // Profile picture feature coming soon
+        'profilePic': '',
+        'profileImageUrl': '',
         'phoneNumber': '',
         'address': '',
       };
-      
-      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(userData).timeout(
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(userData, SetOptions(merge: true))
+          .timeout(
         const Duration(seconds: 15),
         onTimeout: () {
           throw Exception('Failed to save user data. Please try again.');
         },
+      );
+
+      await ActivityLogService().logRegister(
+        userId: user.uid,
+        userName: widget.fullName,
+        email: widget.email.trim().toLowerCase(),
+        role: 'customer',
+      );
+
+      await EmailVerificationService.clearStaleUserDocsForEmail(
+        widget.email,
+        keepUid: user.uid,
       );
 
       // Notify user by email that their account is confirmed
@@ -241,26 +249,21 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
       } catch (_) {
         // Account is valid even if confirmation email fails
       }
-      
+
+      await EmailVerificationService.clear(widget.email);
+      await saveFcmToken();
+
       if (!mounted) return;
 
-      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Account confirmed! Check your email for a welcome message. You can now sign in.',
-          ),
+          content: Text('Account created successfully! Welcome to FlexiMart.'),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
         ),
       );
 
-      // Sign out and navigate to login after a short delay
-      await Future.delayed(const Duration(milliseconds: 500));
-      await FirebaseAuth.instance.signOut();
-
-      if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.of(context).pushNamedAndRemoveUntil('/dashboard', (_) => false);
     } catch (e) {
       if (!mounted) return;
 
@@ -270,12 +273,8 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
         errorMessage = 'Invalid or expired code. Please try again.';
       }
 
-      // Handle Firebase Auth errors
       if (e is FirebaseAuthException) {
-        if (e.code == 'email-already-in-use') {
-          errorMessage =
-              'An account already exists with this email. Please sign in instead.';
-        } else if (e.code == 'weak-password') {
+        if (e.code == 'weak-password') {
           errorMessage = 'The password is too weak';
         } else if (e.code == 'invalid-email') {
           errorMessage = 'Invalid email address';
@@ -306,6 +305,66 @@ class _SignupVerifyOtpScreenState extends State<SignupVerifyOtpScreen> {
       );
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  /// Creates Auth user, or signs in if email already exists in Firebase Auth.
+  Future<User> _createOrRecoverAuthUser() async {
+    try {
+      final credential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(
+            email: widget.email.trim().toLowerCase(),
+            password: widget.password,
+          )
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              throw Exception('Account creation timeout. Please try again.');
+            },
+          );
+      final user = credential.user;
+      if (user == null) throw Exception('Failed to create user account');
+      if (kDebugMode) debugPrint('✅ Created new Firebase Auth user: ${user.uid}');
+      return user;
+    } on FirebaseAuthException catch (e) {
+      if (e.code != 'email-already-in-use') rethrow;
+
+      if (kDebugMode) {
+        debugPrint(
+          'ℹ️ Firebase Auth already has ${widget.email}; trying sign-in recovery',
+        );
+      }
+
+      try {
+        final credential = await FirebaseAuth.instance
+            .signInWithEmailAndPassword(
+              email: widget.email.trim().toLowerCase(),
+              password: widget.password,
+            )
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () {
+                throw Exception('Sign in timeout. Please try again.');
+              },
+            );
+        final user = credential.user;
+        if (user == null) {
+          throw Exception('Failed to sign in with existing account');
+        }
+        if (kDebugMode) {
+          debugPrint('✅ Recovered existing Firebase Auth user: ${user.uid}');
+        }
+        return user;
+      } on FirebaseAuthException catch (signInError) {
+        if (kDebugMode) {
+          debugPrint('🚫 Auth recovery failed: ${signInError.code}');
+        }
+        throw Exception(
+          'This email is already registered in Firebase Authentication. '
+          'Sign in with your existing password, use Forgot Password on the login screen, '
+          'or ask an admin to remove the user from Firebase Console → Authentication.',
+        );
+      }
     }
   }
 

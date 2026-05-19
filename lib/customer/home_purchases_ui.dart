@@ -3,7 +3,6 @@ import '../constants/app_colors.dart';
 import '../constants/app_text_styles.dart';
 import 'order_history_page.dart';
 import '../pages/quotations_page.dart';
-import '../pages/chat_list_page.dart';
 import 'order_tracking_landing_page.dart';
 
 /// Home Purchases UI Widget
@@ -111,20 +110,6 @@ class HomePurchasesUI extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const OrderHistoryPage(),
-                        ),
-                      );
-                    },
-                  ),
-                  _buildQuickAction(
-                    context,
-                    icon: Icons.chat_bubble_outline,
-                    label: 'Messages',
-                    actionColor: AppColors.primary,
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const ChatListPage(),
                         ),
                       );
                     },

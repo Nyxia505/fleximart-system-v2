@@ -1,7 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 import '../services/email_verification_service.dart';
-import 'signup_check_email_screen.dart';
+import 'signup_verify_otp_screen.dart';
 import 'dart:math' as math;
 
 class SignUpScreen extends StatefulWidget {
@@ -404,7 +407,19 @@ class _SignUpScreenState extends State<SignUpScreen> {
     setState(() => loading = true);
 
     try {
-      // Send email OTP
+      // Signup is driven by OTP + Firebase Auth, not stale Firestore flags.
+      // (A deleted Firestore user may still have isVerified:true until admin cleanup.)
+      if (kDebugMode) {
+        final staleVerified =
+            await EmailVerificationService.hasActiveVerifiedAccount(email);
+        if (staleVerified) {
+          debugPrint(
+            'ℹ️ Stale Firestore users doc for $email still marked verified — '
+            'allowing OTP signup anyway (Auth + new users/{uid} on verify)',
+          );
+        }
+      }
+
       await EmailVerificationService.requestEmailVerification(
         email: email,
         displayName: fullName,
@@ -413,44 +428,55 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       setState(() => loading = false);
 
-      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '6-digit code sent to $email — check Gmail inbox and spam.',
+          ),
+          backgroundColor: AppColors.success,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => SignupCheckEmailScreen(
+          builder: (context) => SignupVerifyOtpScreen(
             email: email,
             fullName: fullName,
             password: password,
           ),
         ),
       );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      if (e.code == 'email-already-in-use') {
+        if (kDebugMode) {
+          debugPrint(
+            '🚫 Signup blocked: Firebase Auth already has $email (delete in Console → Authentication)',
+          );
+        }
+        _showError(
+          'This email is registered in Firebase Authentication. Sign in, use Forgot Password, or remove the user in Firebase Console → Authentication.',
+        );
+      } else {
+        _showError(e.message ?? 'Sign up failed. Please try again.');
+      }
+      setState(() => loading = false);
     } catch (e) {
       if (!mounted) return;
-
       final errorLower = e.toString().toLowerCase();
-
       if (errorLower.contains('wait') && errorLower.contains('second')) {
         _showError(e.toString().replaceFirst('Exception: ', ''));
-        setState(() => loading = false);
-        return;
-      }
-
-      String errorMessage = e.toString().replaceFirst('Exception: ', '');
-      if (errorMessage.isEmpty) {
-        errorMessage = 'Failed to send verification code';
-      }
-      if (errorLower.contains('network') || errorLower.contains('timeout')) {
-        errorMessage =
-            'Network error. Please check your internet connection and try again.';
-      } else if (errorLower.contains('already') || errorLower.contains('exists')) {
-        errorMessage =
-            'An account with this email already exists. Please sign in instead.';
       } else {
-        errorMessage =
-            'Could not send verification email. Check your address and try again.';
+        var errorMessage = e.toString().replaceFirst('Exception: ', '');
+        if (errorMessage.isEmpty) {
+          errorMessage =
+              'Could not send verification code. Check EmailJS config and try again.';
+        }
+        _showError(errorMessage);
       }
-
-      _showError(errorMessage);
       setState(() => loading = false);
     }
   }

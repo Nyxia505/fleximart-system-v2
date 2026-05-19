@@ -10,6 +10,7 @@ import 'screen/welcome_back_screen.dart';
 import 'admin/admin_dashboard.dart';
 import 'staff/staff_dashboard.dart';
 import 'customer/customer_dashboard.dart';
+import 'services/email_verification_service.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({super.key});
@@ -25,9 +26,7 @@ class _AuthGateState extends State<AuthGate> {
 
     // Show loading while auth is loading
     if (auth.isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // If user is logged in, check verification status before allowing dashboard access
@@ -55,7 +54,8 @@ class _CheckVerificationStatus extends StatefulWidget {
   });
 
   @override
-  State<_CheckVerificationStatus> createState() => _CheckVerificationStatusState();
+  State<_CheckVerificationStatus> createState() =>
+      _CheckVerificationStatusState();
 }
 
 class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
@@ -82,21 +82,25 @@ class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
         if (mounted) {
           setState(() {
             _isCheckingVerification = false;
-            _errorMessage = 'Your account has no assigned role. Please contact admin.';
+            _errorMessage =
+                'Your account has no assigned role. Please contact admin.';
           });
         }
         return;
       }
 
       final userData = doc.data() ?? {};
-      _actualRole = userData['role'] as String?;
+      final rawRole = userData['role'] as String?;
+      _actualRole = rawRole?.toLowerCase().trim();
+      if (_actualRole != null && _actualRole!.isEmpty) _actualRole = null;
 
       // If role is null, show error
       if (_actualRole == null) {
         if (mounted) {
           setState(() {
             _isCheckingVerification = false;
-            _errorMessage = 'Your account has no assigned role. Please contact admin.';
+            _errorMessage =
+                'Your account has no assigned role. Please contact admin.';
           });
         }
         return;
@@ -114,16 +118,25 @@ class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
         return;
       }
 
-      // STEP 3: For customers, if user exists in Firestore, allow access directly
-      // Email verification is only required during sign-up, not during login
+      // STEP 3: Customers — use Firestore OTP verification flags (not Firebase link emailVerified)
       if (_actualRole == 'customer') {
-        // User exists in Firestore (Gmail is saved) - allow access directly
+        final otpVerified =
+            await EmailVerificationService.isUserVerifiedInFirestore(uid);
+        if (!otpVerified) {
+          if (mounted) {
+            setState(() {
+              _isCheckingVerification = false;
+              _errorMessage =
+                  'Your account is not verified yet. Complete sign-up with the OTP sent to your email, or contact support.';
+            });
+          }
+          return;
+        }
         if (mounted) {
           setState(() {
             _isCheckingVerification = false;
           });
         }
-        // Save/update FCM token on successful login
         await saveFcmToken();
         return;
       }
@@ -157,12 +170,6 @@ class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
     // Show error ONLY if trying to access admin/staff dashboard without proper role
     // This should not happen here since dashboards check roles themselves, but keep as safety
     if (_errorMessage != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.of(context).pushReplacementNamed('/login');
-        }
-      });
       return Scaffold(
         body: Center(
           child: Padding(
@@ -177,15 +184,39 @@ class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  'If an admin just assigned you a role, tap Retry.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
                 const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                    if (mounted) {
-                      Navigator.of(context).pushReplacementNamed('/login');
-                    }
-                  },
-                  child: const Text('Return to Login'),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    TextButton.icon(
+                      onPressed: () async {
+                        setState(() {
+                          _isCheckingVerification = true;
+                          _errorMessage = null;
+                          _actualRole = null;
+                        });
+                        await _checkRoleAndVerification();
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Retry'),
+                    ),
+                    const SizedBox(width: 16),
+                    ElevatedButton(
+                      onPressed: () async {
+                        await FirebaseAuth.instance.signOut();
+                        if (mounted) {
+                          Navigator.of(context).pushReplacementNamed('/login');
+                        }
+                      },
+                      child: const Text('Return to Login'),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -193,10 +224,6 @@ class _CheckVerificationStatusState extends State<_CheckVerificationStatus> {
         ),
       );
     }
-
-    // Email verification is only required during sign-up, not during login
-    // If user exists in Firestore, they can log in directly
-    // No need to check verification status for existing users
 
     // Route based on effective role (null = customer)
     if (effectiveRole == 'admin') {

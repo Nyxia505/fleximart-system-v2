@@ -47,3 +47,9 @@ app.*.map.json
 # Firebase Service Account Keys (NEVER commit these!)
 **/serviceAccountKey.json
 scripts/serviceAccountKey.json
+
+# Local Gmail SMTP credentials (never commit)
+assets/config/emailjs.secrets.json
+
+# Local Cloudinary cloud name (copy from cloudinary.example.json)
+assets/config/cloudinary.json
